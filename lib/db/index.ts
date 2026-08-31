@@ -11,14 +11,33 @@ export function getSql() {
   }
   if (!globalForSql.fwSql) {
     globalForSql.fwSql = postgres(url, {
-      ssl: "require",
+      ssl: { rejectUnauthorized: false },
       max: 1,
-      idle_timeout: 20,
-      connect_timeout: 30,
+      idle_timeout: 5,
+      max_lifetime: 60,
+      connect_timeout: 20,
       prepare: false,
+      fetch_types: false,
     });
   }
   return globalForSql.fwSql;
+}
+
+function isConnErr(e: unknown) {
+  const msg = e instanceof Error ? e.message : String(e);
+  return /connection closed|ECONNRESET|timeout|terminat/i.test(msg);
+}
+
+export async function resetSql() {
+  const old = globalForSql.fwSql;
+  globalForSql.fwSql = undefined;
+  if (old) {
+    try {
+      await old.end({ timeout: 1 });
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 const DDL = `
@@ -143,11 +162,22 @@ let ready: Promise<void> | null = null;
 export function ensureReady(): Promise<void> {
   if (!ready) {
     ready = (async () => {
-      const sql = getSql();
-      await sql.unsafe(DDL);
-      await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS customer_email TEXT NOT NULL DEFAULT ''`);
-      const { seedIfEmpty } = await import("./seed");
-      await seedIfEmpty(sql);
+      const run = async () => {
+        const sql = getSql();
+        await sql.unsafe(DDL);
+        await sql.unsafe(
+          `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS customer_email TEXT NOT NULL DEFAULT ''`,
+        );
+        const { seedIfEmpty } = await import("./seed");
+        await seedIfEmpty(sql);
+      };
+      try {
+        await run();
+      } catch (e) {
+        if (!isConnErr(e)) throw e;
+        await resetSql();
+        await run();
+      }
     })().catch((err) => {
       ready = null;
       throw err;

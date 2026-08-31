@@ -166,18 +166,44 @@ export async function dashboardStats() {
   `;
   const ws = weekStart[0]?.d ?? today;
 
-  const jobs = await sql<{ id: string }[]>`SELECT id FROM jobs`;
-  let weekProfit = 0;
-  for (const j of jobs) {
-    const bundle = await getJobBundle(j.id);
-    if (!bundle) continue;
-    const d = bundle.job.scheduled_at
-      ? denverDateISO(new Date(bundle.job.scheduled_at))
-      : null;
-    if (d && d >= ws && d <= today) {
-      weekProfit += bundle.profit.profit;
-    }
-  }
+  const [weekRow] = await sql<{ profit: number }[]>`
+    SELECT COALESCE((
+      SELECT SUM(
+        CASE WHEN l.is_flat = 1 THEN l.flat_cents ELSE ROUND(l.hours * l.rate_cents) END
+      ) FROM labor_lines l
+      JOIN jobs j ON j.id = l.job_id
+      WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date BETWEEN ${ws}::date AND ${today}::date
+    ), 0)
+    + COALESCE((
+      SELECT SUM(p.qty * p.price_cents) FROM part_lines p
+      JOIN jobs j ON j.id = p.job_id
+      WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date BETWEEN ${ws}::date AND ${today}::date
+    ), 0)
+    - COALESCE((
+      SELECT SUM(p.qty * p.cost_cents) FROM part_lines p
+      JOIN jobs j ON j.id = p.job_id
+      WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date BETWEEN ${ws}::date AND ${today}::date
+    ), 0)
+    - COALESCE((
+      SELECT SUM(r.amount_cents) FROM receipts r
+      JOIN jobs j ON j.id = r.job_id
+      WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date BETWEEN ${ws}::date AND ${today}::date
+    ), 0)
+    AS profit
+  `;
+  const weekProfit = Number(weekRow?.profit ?? 0);
+
+  const unpaidTotals = await sql<{ job_id: string; total: number }[]>`
+    SELECT j.id AS job_id,
+      COALESCE((
+        SELECT SUM(CASE WHEN l.is_flat = 1 THEN l.flat_cents ELSE ROUND(l.hours * l.rate_cents) END)
+        FROM labor_lines l WHERE l.job_id = j.id
+      ), 0)
+      + COALESCE((SELECT SUM(p.qty * p.price_cents) FROM part_lines p WHERE p.job_id = j.id), 0)
+      AS total
+    FROM jobs j
+  `;
+  const totalByJob = Object.fromEntries(unpaidTotals.map((r) => [String(r.job_id), Number(r.total)]));
 
   const unpaidWithTotals: Array<{
     id: string;
@@ -187,19 +213,15 @@ export async function dashboardStats() {
     make: string;
     model: string;
     total: number;
-  }> = [];
-  for (const row of unpaid) {
-    const bundle = await getJobBundle(String(row.job_id));
-    unpaidWithTotals.push({
-      id: String(row.id),
-      job_id: String(row.job_id),
-      customer_name: String(row.customer_name),
-      vehicle_year: (row.vehicle_year as number | null) ?? null,
-      make: String(row.make),
-      model: String(row.model),
-      total: bundle?.profit.invoicedTotal ?? 0,
-    });
-  }
+  }> = unpaid.map((row) => ({
+    id: String(row.id),
+    job_id: String(row.job_id),
+    customer_name: String(row.customer_name),
+    vehicle_year: (row.vehicle_year as number | null) ?? null,
+    make: String(row.make),
+    model: String(row.model),
+    total: totalByJob[String(row.job_id)] ?? 0,
+  }));
 
   return { jobsToday, unpaid: unpaidWithTotals, ytdMiles, weekProfit, today };
 }
