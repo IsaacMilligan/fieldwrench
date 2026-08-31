@@ -15,6 +15,7 @@ export function getSql() {
       max: 1,
       idle_timeout: 20,
       connect_timeout: 30,
+      prepare: false,
     });
   }
   return globalForSql.fwSql;

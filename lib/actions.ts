@@ -17,20 +17,29 @@ function str(form: FormData, key: string) {
 }
 
 export async function loginAction(_prev: { error?: string } | null, form: FormData) {
-  await import("./db/index").then((m) => m.ensureReady());
-  const email = str(form, "email").toLowerCase();
-  const password = str(form, "password");
-  const ok = await verifyLogin(email, password);
-  if (!ok) return { error: "Wrong email or password." };
-  await createSession(email);
+  try {
+    await import("./db/index").then((m) => m.ensureReady());
+    const email = str(form, "email").toLowerCase();
+    const password = str(form, "password");
+    const ok = await verifyLogin(email, password);
+    if (!ok) return { error: "Wrong email or password." };
+    await createSession(email);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Login failed.";
+    return { error: msg.includes("DATABASE_URL") ? "Shop database is not configured." : "Login failed. Try again." };
+  }
   redirect("/");
 }
 
-export async function demoLoginAction() {
-  await import("./db/index").then((m) => m.ensureReady());
-  const ok = await verifyLogin(DEMO.email, DEMO.password);
-  if (!ok) return;
-  await createSession(DEMO.email);
+export async function demoLoginAction(): Promise<{ error?: string } | void> {
+  try {
+    await import("./db/index").then((m) => m.ensureReady());
+    const ok = await verifyLogin(DEMO.email, DEMO.password);
+    if (!ok) return { error: "Demo account is missing. Reset demo data after login works." };
+    await createSession(DEMO.email);
+  } catch {
+    return { error: "Shop database is not configured." };
+  }
   redirect("/");
 }
 
@@ -307,19 +316,23 @@ export async function addMileageAction(form: FormData) {
 }
 
 export async function publicBookAction(_prev: { ok?: boolean; error?: string } | null, form: FormData) {
-  await import("./db/index").then((m) => m.ensureReady());
-  const sql = await db();
-  const name = str(form, "name");
-  const phone = str(form, "phone");
-  const issue = str(form, "issue");
-  if (!name || !phone || !issue) return { error: "Name, phone, and issue are required." };
-  const user = await getCustomerUser();
-  const email = (user?.email ?? str(form, "email")).toLowerCase();
-  await sql`INSERT INTO bookings (id, name, phone, address, vehicle, issue, preferred_time, status, customer_email) VALUES (
-    ${crypto.randomUUID()}, ${name}, ${phone}, ${str(form, "address")}, ${str(form, "vehicle")},
-    ${issue}, ${str(form, "preferred_time")}, 'pending', ${email}
-  )`;
-  return { ok: true };
+  try {
+    await import("./db/index").then((m) => m.ensureReady());
+    const sql = await db();
+    const name = str(form, "name");
+    const phone = str(form, "phone");
+    const issue = str(form, "issue");
+    if (!name || !phone || !issue) return { error: "Name, phone, and issue are required." };
+    const user = await getCustomerUser();
+    const email = (user?.email ?? str(form, "email")).toLowerCase();
+    await sql`INSERT INTO bookings (id, name, phone, address, vehicle, issue, preferred_time, status, customer_email) VALUES (
+      ${crypto.randomUUID()}, ${name}, ${phone}, ${str(form, "address")}, ${str(form, "vehicle")},
+      ${issue}, ${str(form, "preferred_time")}, 'pending', ${email}
+    )`;
+    return { ok: true };
+  } catch {
+    return { error: "Could not save the request. Try again." };
+  }
 }
 
 export async function dismissBookingAction(form: FormData) {

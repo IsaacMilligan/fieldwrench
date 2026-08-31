@@ -13,7 +13,12 @@ export default async function PublicInvoice({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const data = await getInvoiceByToken(token);
+  let data: Awaited<ReturnType<typeof getInvoiceByToken>> = null;
+  try {
+    data = await getInvoiceByToken(token);
+  } catch {
+    notFound();
+  }
   if (!data?.bundle) notFound();
   const { invoice, bundle, settings } = data;
   const paid = invoice.status === "paid";

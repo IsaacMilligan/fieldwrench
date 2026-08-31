@@ -48,6 +48,8 @@ export function CustomerAuthForm({ mode }: { mode: "login" | "signup" }) {
       }
       router.push("/customer");
       router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reach login.");
     } finally {
       setBusy(false);
     }
