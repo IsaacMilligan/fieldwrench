@@ -2,8 +2,15 @@ import { redirect } from "next/navigation";
 import { getCustomerUser } from "@/lib/supabase/server";
 import { CustomerAuthForm } from "../ui";
 
-export default async function CustomerSignupPage() {
+export const dynamic = "force-dynamic";
+
+export default async function CustomerSignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sent?: string }>;
+}) {
   const user = await getCustomerUser();
   if (user) redirect("/customer");
-  return <CustomerAuthForm mode="signup" />;
+  const q = await searchParams;
+  return <CustomerAuthForm mode="signup" sentEmail={q.sent ?? ""} />;
 }
