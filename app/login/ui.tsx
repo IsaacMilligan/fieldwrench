@@ -44,6 +44,12 @@ export function LoginForm() {
           Sign in
         </button>
       </form>
+      <p className="mt-8 text-center text-sm text-muted">
+        Driveway customer?{" "}
+        <a className="text-amber" href="/customer/login">
+          Customer login
+        </a>
+      </p>
     </div>
   );
 }

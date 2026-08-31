@@ -15,6 +15,7 @@ npx vercel --prod --yes
 ```
 
 Set `DATABASE_URL` and `SESSION_SECRET` on the project. Optional: `BLOB_READ_WRITE_TOKEN`.
+Customer login: `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (public app key only).
 
 Local: `http://localhost:3000`
 
@@ -24,7 +25,13 @@ Local: `http://localhost:3000`
 - Password: `driveway`
 - One-tap **Enter shop** on `/login`
 
-Public (no login): `/book` and invoice share links at `/i/[token]`
+Public (no mechanic login): `/book` and invoice share links at `/i/[token]`
+
+Customer login (Supabase Auth, publishable key only — never a service role key in the app):
+
+- `/customer/login` and `/customer/signup`
+- `/customer` — that customer’s booking requests
+- `/book` still works logged out
 
 ## How to run locally
 
@@ -64,6 +71,8 @@ Do not use a local JSON file. This app uses Postgres (`DATABASE_URL`) so serverl
 | Mileage | `/more?tab=mileage` (also `/mileage`) |
 | Bookings inbox | `/bookings` |
 | Public book | `/book` |
+| Customer login | `/customer/login` |
+| Customer home | `/customer` |
 | Settings | `/more?tab=settings` (also `/settings`) |
 | More | `/more` |
 

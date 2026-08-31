@@ -127,12 +127,14 @@ CREATE TABLE IF NOT EXISTS bookings (
   issue TEXT NOT NULL,
   preferred_time TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending',
+  customer_email TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_vehicles_customer ON vehicles(customer_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_scheduled ON jobs(scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_invoices_token ON invoices(token);
+CREATE INDEX IF NOT EXISTS idx_bookings_email ON bookings(customer_email);
 `;
 
 let ready: Promise<void> | null = null;
@@ -142,6 +144,7 @@ export function ensureReady(): Promise<void> {
     ready = (async () => {
       const sql = getSql();
       await sql.unsafe(DDL);
+      await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS customer_email TEXT NOT NULL DEFAULT ''`);
       const { seedIfEmpty } = await import("./seed");
       await seedIfEmpty(sql);
     })().catch((err) => {

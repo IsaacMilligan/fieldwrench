@@ -341,6 +341,12 @@ export async function listBookings() {
     created_at DESC`;
 }
 
+export async function listBookingsByEmail(email: string) {
+  const sql = await db();
+  const e = email.toLowerCase();
+  return sql`SELECT * FROM bookings WHERE lower(customer_email) = ${e} ORDER BY created_at DESC`;
+}
+
 export async function listJobsLite() {
   const sql = await db();
   return sql`

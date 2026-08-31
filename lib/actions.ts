@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { put } from "@vercel/blob";
 import { DEMO, clearSession, createSession, requireSession, verifyLogin } from "./auth";
+import { getCustomerUser } from "./supabase/server";
 import { db, ensureInvoice } from "./db/queries";
 import { seedDemo } from "./db/seed";
 import { getSql } from "./db/index";
@@ -312,9 +313,11 @@ export async function publicBookAction(_prev: { ok?: boolean; error?: string } |
   const phone = str(form, "phone");
   const issue = str(form, "issue");
   if (!name || !phone || !issue) return { error: "Name, phone, and issue are required." };
-  await sql`INSERT INTO bookings (id, name, phone, address, vehicle, issue, preferred_time, status) VALUES (
+  const user = await getCustomerUser();
+  const email = (user?.email ?? str(form, "email")).toLowerCase();
+  await sql`INSERT INTO bookings (id, name, phone, address, vehicle, issue, preferred_time, status, customer_email) VALUES (
     ${crypto.randomUUID()}, ${name}, ${phone}, ${str(form, "address")}, ${str(form, "vehicle")},
-    ${issue}, ${str(form, "preferred_time")}, 'pending'
+    ${issue}, ${str(form, "preferred_time")}, 'pending', ${email}
   )`;
   return { ok: true };
 }
