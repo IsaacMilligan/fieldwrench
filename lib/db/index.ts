@@ -17,6 +17,10 @@ export function getSql() {
       connect_timeout: 20,
       prepare: false,
       fetch_types: false,
+      onnotice: () => {},
+      onclose: () => {
+        if (globalForSql.fwSql) globalForSql.fwSql = undefined;
+      },
     });
   }
   return globalForSql.fwSql;

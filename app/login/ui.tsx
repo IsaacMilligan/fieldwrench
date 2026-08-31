@@ -1,11 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
-import { demoLoginAction, loginAction } from "@/lib/actions";
 import { Mark } from "@/components/Mark";
 
-export function LoginForm() {
-  const [state, action] = useActionState(loginAction, null);
+export function LoginForm({ failed }: { failed?: boolean }) {
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-5 py-10">
       <Mark big />
@@ -14,7 +11,8 @@ export function LoginForm() {
       </h1>
       <p className="mt-2 text-muted">Mechanic login. Public booking and invoice links stay open.</p>
 
-      <form action={demoLoginAction} className="mt-8">
+      <form action="/api/session" method="post" className="mt-8">
+        <input type="hidden" name="demo" value="1" />
         <button className="tap" type="submit">
           Enter shop
         </button>
@@ -23,7 +21,7 @@ export function LoginForm() {
         </p>
       </form>
 
-      <form action={action} className="mt-8">
+      <form action="/api/session" method="post" className="mt-8">
         <label className="lbl" htmlFor="email">
           Email
         </label>
@@ -39,7 +37,7 @@ export function LoginForm() {
           autoComplete="current-password"
           required
         />
-        {state?.error ? <p className="mt-3 text-red">{state.error}</p> : null}
+        {failed ? <p className="mt-3 text-red">Wrong email or password.</p> : null}
         <button className="tap tap-ghost mt-6" type="submit">
           Sign in
         </button>

@@ -13,20 +13,32 @@ function secret() {
 }
 
 export async function createSession(email: string) {
-  const jwt = await new SignJWT({ email })
+  const jwt = await signSession(email);
+  const jar = await cookies();
+  jar.set(COOKIE, jwt, cookieOpts());
+}
+
+export async function attachSession(res: { cookies: { set: (name: string, value: string, opts: object) => void } }, email: string) {
+  res.cookies.set(COOKIE, await signSession(email), cookieOpts());
+}
+
+async function signSession(email: string) {
+  return new SignJWT({ email })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(email)
     .setIssuedAt()
     .setExpirationTime("30d")
     .sign(secret());
-  const jar = await cookies();
-  jar.set(COOKIE, jwt, {
+}
+
+function cookieOpts() {
+  return {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 60 * 60 * 24 * 30,
-  });
+  };
 }
 
 export async function clearSession() {

@@ -1,4 +1,4 @@
-import { ensureReady, getSql } from "./index";
+import { ensureReady, getSql, resetSql } from "./index";
 import {
   computeProfit,
   laborLineCents,
@@ -10,7 +10,21 @@ import type { JobStatus, PayMethod } from "../status";
 
 export async function db() {
   await ensureReady();
-  return getSql();
+  try {
+    const sql = getSql();
+    await sql`select 1 as n`;
+    return sql;
+  } catch (e) {
+    if (!isConnErr(e)) throw e;
+    await resetSql();
+    await ensureReady();
+    return getSql();
+  }
+}
+
+function isConnErr(e: unknown) {
+  const msg = e instanceof Error ? e.message : String(e);
+  return /connection closed|ECONNRESET|timeout|terminat/i.test(msg);
 }
 
 export type Customer = {

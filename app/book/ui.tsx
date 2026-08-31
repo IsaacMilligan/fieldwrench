@@ -1,21 +1,22 @@
 "use client";
 
-import { useActionState } from "react";
 import Link from "next/link";
-import { publicBookAction } from "@/lib/actions";
 import { Mark } from "@/components/Mark";
 
 export function BookForm({
   signedIn,
   name,
   phone,
+  ok,
+  failed,
 }: {
   signedIn: boolean;
   name?: string;
   phone?: string;
+  ok?: boolean;
+  failed?: boolean;
 }) {
-  const [state, action] = useActionState(publicBookAction, null);
-  if (state?.ok) {
+  if (ok) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-5">
         <Mark big />
@@ -57,7 +58,7 @@ export function BookForm({
           </>
         )}
       </p>
-      <form action={action} className="mt-6">
+      <form action="/api/book" method="post" className="mt-6">
         <label className="lbl">Your name</label>
         <input className="field" name="name" required defaultValue={name ?? ""} />
         <label className="lbl">Phone</label>
@@ -70,7 +71,7 @@ export function BookForm({
         <textarea className="field min-h-28" name="issue" required />
         <label className="lbl">Preferred time</label>
         <input className="field" name="preferred_time" placeholder="Saturday morning" />
-        {state?.error ? <p className="mt-3 text-red">{state.error}</p> : null}
+        {failed ? <p className="mt-3 text-red">Could not save the request. Try again.</p> : null}
         <button className="tap mt-6" type="submit">
           Send request
         </button>
