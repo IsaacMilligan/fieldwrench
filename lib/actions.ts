@@ -347,7 +347,8 @@ export async function acceptBookingAction(form: FormData) {
   const sql = await db();
   const bid = str(form, "id");
   const [b] = await sql<{
-    name: string; phone: string; address: string; vehicle: string; issue: string; preferred_time: string; status: string;
+    name: string; phone: string; address: string; vehicle: string; issue: string;
+    preferred_time: string; status: string; services: string; notes: string; customer_email: string;
   }[]>`SELECT * FROM bookings WHERE id = ${bid}`;
   if (!b || b.status !== "pending") return;
   let customerId: string;
@@ -355,8 +356,8 @@ export async function acceptBookingAction(form: FormData) {
   if (existing) customerId = existing.id;
   else {
     customerId = crypto.randomUUID();
-    await sql`INSERT INTO customers (id, name, phone, address, notes) VALUES (
-      ${customerId}, ${b.name}, ${b.phone}, ${b.address}, ${"From public booking"}
+    await sql`INSERT INTO customers (id, name, phone, email, address, notes) VALUES (
+      ${customerId}, ${b.name}, ${b.phone}, ${b.customer_email || ""}, ${b.address}, ${"From public booking"}
     )`;
   }
   const vehicleId = crypto.randomUUID();
@@ -376,9 +377,10 @@ export async function acceptBookingAction(form: FormData) {
     ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${"Created from booking"}
   )`;
   const jobId = crypto.randomUUID();
-  await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, address, complaint) VALUES (
-    ${jobId}, ${customerId}, ${vehicleId}, 'scheduled', ${b.address},
-    ${b.issue + (b.preferred_time ? ` Preferred: ${b.preferred_time}` : "")}
+  const notesBit = b.notes ? ` Notes: ${b.notes}` : "";
+  const complaint = `${b.issue}${notesBit}${b.preferred_time ? ` Preferred: ${b.preferred_time}` : ""}`;
+  await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, address, complaint, services) VALUES (
+    ${jobId}, ${customerId}, ${vehicleId}, 'scheduled', ${b.address}, ${complaint}, ${b.services || "[]"}
   )`;
   await sql`UPDATE bookings SET status = 'accepted' WHERE id = ${bid}`;
   revalidatePath("/bookings");

@@ -384,6 +384,70 @@ export async function listBookingsByEmail(email: string) {
   return sql`SELECT * FROM bookings WHERE lower(customer_email) = ${e} ORDER BY created_at DESC`;
 }
 
+export async function listCustomerGarage(email: string) {
+  const sql = await db();
+  const e = email.toLowerCase();
+  const customers = await sql<{ id: string; name: string }[]>`
+    SELECT id, name FROM customers WHERE lower(email) = ${e}
+  `;
+  if (!customers.length) {
+    return { vehicles: [] as Array<{
+      id: string;
+      year: number | null;
+      make: string;
+      model: string;
+      mileage: number | null;
+      jobs: Array<{
+        id: string;
+        status: string;
+        scheduled_at: unknown;
+        created_at: unknown;
+        services: unknown;
+        service_mileage: number | null;
+        complaint: string;
+        work_performed: string;
+        diagnosis: string;
+      }>;
+    }> };
+  }
+  const ids = customers.map((c) => c.id);
+  const vehicles = await sql<{
+    id: string;
+    year: number | null;
+    make: string;
+    model: string;
+    mileage: number | null;
+  }[]>`
+    SELECT id, year, make, model, mileage FROM vehicles
+    WHERE customer_id IN ${sql(ids)}
+    ORDER BY year DESC NULLS LAST, make
+  `;
+  const jobs = await sql<{
+    id: string;
+    vehicle_id: string;
+    status: string;
+    scheduled_at: unknown;
+    created_at: unknown;
+    services: unknown;
+    service_mileage: number | null;
+    complaint: string;
+    work_performed: string;
+    diagnosis: string;
+  }[]>`
+    SELECT id, vehicle_id, status, scheduled_at, created_at, services, service_mileage,
+           complaint, work_performed, diagnosis
+    FROM jobs
+    WHERE customer_id IN ${sql(ids)} AND status = 'completed'
+    ORDER BY COALESCE(scheduled_at, created_at) DESC
+  `;
+  return {
+    vehicles: vehicles.map((v) => ({
+      ...v,
+      jobs: jobs.filter((j) => j.vehicle_id === v.id),
+    })),
+  };
+}
+
 export async function listJobsLite() {
   const sql = await db();
   return sql`

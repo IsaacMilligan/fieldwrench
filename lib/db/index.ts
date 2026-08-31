@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   complaint TEXT NOT NULL DEFAULT '',
   diagnosis TEXT NOT NULL DEFAULT '',
   work_performed TEXT NOT NULL DEFAULT '',
+  services TEXT NOT NULL DEFAULT '[]',
+  service_mileage INTEGER,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -148,6 +150,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   address TEXT NOT NULL,
   vehicle TEXT NOT NULL,
   issue TEXT NOT NULL,
+  services TEXT NOT NULL DEFAULT '[]',
+  notes TEXT NOT NULL DEFAULT '',
   preferred_time TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending',
   customer_email TEXT NOT NULL DEFAULT '',
@@ -173,6 +177,22 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(
           `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS customer_email TEXT NOT NULL DEFAULT ''`,
         );
+        await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS services TEXT NOT NULL DEFAULT '[]'`);
+        await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS services TEXT NOT NULL DEFAULT '[]'`);
+        await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS service_mileage INTEGER`);
+        await sql.unsafe(`
+          UPDATE jobs SET services = '["battery_test"]', service_mileage = COALESCE(service_mileage, 164000)
+          WHERE work_performed LIKE 'Installed Group 35 AGM%' AND (services = '[]' OR services = '' OR services IS NULL)
+        `);
+        await sql.unsafe(`
+          UPDATE jobs SET services = '["oil_change","cabin_filter"]', service_mileage = COALESCE(service_mileage, 86800)
+          WHERE work_performed LIKE 'Oil, filter, cabin filter%' AND (services = '[]' OR services = '' OR services IS NULL)
+        `);
+        await sql.unsafe(`
+          UPDATE jobs SET services = '["brake_job"]', service_mileage = COALESCE(service_mileage, 118050)
+          WHERE work_performed LIKE 'Rear pads and hardware%' AND (services = '[]' OR services = '' OR services IS NULL)
+        `);
         const { seedIfEmpty } = await import("./seed");
         await seedIfEmpty(sql);
       };

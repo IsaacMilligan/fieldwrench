@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Mark } from "@/components/Mark";
+import { SERVICES } from "@/lib/services";
 
 export function BookForm({
   signedIn,
@@ -16,6 +18,8 @@ export function BookForm({
   ok?: boolean;
   failed?: boolean;
 }) {
+  const [needService, setNeedService] = useState(false);
+
   if (ok) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-5">
@@ -58,7 +62,18 @@ export function BookForm({
           </>
         )}
       </p>
-      <form action="/api/book" method="post" className="mt-6">
+      <form
+        action="/api/book"
+        method="post"
+        className="mt-6"
+        onSubmit={(e) => {
+          const fd = new FormData(e.currentTarget);
+          if (!fd.getAll("service").length) {
+            e.preventDefault();
+            setNeedService(true);
+          }
+        }}
+      >
         <label className="lbl">Your name</label>
         <input className="field" name="name" required defaultValue={name ?? ""} />
         <label className="lbl">Phone</label>
@@ -67,10 +82,33 @@ export function BookForm({
         <input className="field" name="address" required />
         <label className="lbl">Vehicle</label>
         <input className="field" name="vehicle" placeholder="2018 Chevy Equinox" required />
-        <label className="lbl">What&apos;s going on</label>
-        <textarea className="field min-h-28" name="issue" required />
+        <p className="lbl">Services</p>
+        <p className="mb-2 text-sm text-muted">Tap every job you want. You can pick more than one.</p>
+        <ul className="space-y-2">
+          {SERVICES.map((s) => (
+            <li key={s.id}>
+              <label className="flex min-h-14 cursor-pointer items-center gap-4 border-2 border-line bg-panel2 px-3 py-3">
+                <input
+                  className="h-8 w-8 shrink-0 accent-amber"
+                  type="checkbox"
+                  name="service"
+                  value={s.id}
+                  onChange={() => setNeedService(false)}
+                />
+                <span className="text-lg font-bold">{s.label}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+        <label className="lbl">Additional notes</label>
+        <textarea
+          className="field min-h-24"
+          name="notes"
+          placeholder="Anything else — driveway, Saturday morning, noise details…"
+        />
         <label className="lbl">Preferred time</label>
         <input className="field" name="preferred_time" placeholder="Saturday morning" />
+        {needService ? <p className="mt-3 text-lg font-bold text-red">Pick at least one service.</p> : null}
         {failed ? <p className="mt-3 text-red">Could not save the request. Try again.</p> : null}
         <button className="tap mt-6" type="submit">
           Send request

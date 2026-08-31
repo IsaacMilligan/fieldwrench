@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db/queries";
 import { getCustomerUser } from "@/lib/supabase/server";
 import { ensureReady } from "@/lib/db/index";
+import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "@/lib/services";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,15 +15,20 @@ export async function POST(req: NextRequest) {
     const form = await req.formData();
     const name = String(form.get("name") ?? "").trim();
     const phone = String(form.get("phone") ?? "").trim();
-    const issue = String(form.get("issue") ?? "").trim();
-    if (!name || !phone || !issue) {
+    const notes = String(form.get("notes") ?? "").trim();
+    const services = form
+      .getAll("service")
+      .map(String)
+      .filter(isServiceId) as ServiceId[];
+    if (!name || !phone || !services.length) {
       return NextResponse.redirect(new URL("/book?e=1", origin), 303);
     }
     const user = await getCustomerUser();
     const email = (user?.email ?? String(form.get("email") ?? "")).toLowerCase();
-    await sql`INSERT INTO bookings (id, name, phone, address, vehicle, issue, preferred_time, status, customer_email) VALUES (
+    const issue = formatServiceList(services);
+    await sql`INSERT INTO bookings (id, name, phone, address, vehicle, issue, services, notes, preferred_time, status, customer_email) VALUES (
       ${crypto.randomUUID()}, ${name}, ${phone}, ${String(form.get("address") ?? "").trim()}, ${String(form.get("vehicle") ?? "").trim()},
-      ${issue}, ${String(form.get("preferred_time") ?? "").trim()}, 'pending', ${email}
+      ${issue}, ${servicesToJson(services)}, ${notes}, ${String(form.get("preferred_time") ?? "").trim()}, 'pending', ${email}
     )`;
     return NextResponse.redirect(new URL("/book?ok=1", origin), 303);
   } catch (e) {
