@@ -12,9 +12,8 @@ export function getSql() {
   if (!globalForSql.fwSql) {
     globalForSql.fwSql = postgres(url, {
       ssl: { rejectUnauthorized: false },
-      max: 1,
-      idle_timeout: 5,
-      max_lifetime: 60,
+      max: 5,
+      idle_timeout: 20,
       connect_timeout: 20,
       prepare: false,
       fetch_types: false,
@@ -164,7 +163,9 @@ export function ensureReady(): Promise<void> {
     ready = (async () => {
       const run = async () => {
         const sql = getSql();
-        await sql.unsafe(DDL);
+        for (const stmt of DDL.split(";").map((s) => s.trim()).filter(Boolean)) {
+          await sql.unsafe(stmt);
+        }
         await sql.unsafe(
           `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS customer_email TEXT NOT NULL DEFAULT ''`,
         );
@@ -178,7 +179,6 @@ export function ensureReady(): Promise<void> {
         await resetSql();
         await run();
       }
-      await resetSql();
     })().catch((err) => {
       ready = null;
       throw err;
