@@ -14,6 +14,24 @@ export function proxy(request: NextRequest) {
   }
   if (PUBLIC.some((r) => r.test(pathname))) return NextResponse.next();
   const session = request.cookies.get("fw_session")?.value;
+  if (pathname === "/jobs/new") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/jobs";
+    url.search = "?new=1";
+    return NextResponse.redirect(url);
+  }
+  if (pathname === "/customers/new") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/customers";
+    url.search = "?new=1";
+    return NextResponse.redirect(url);
+  }
+  if (pathname === "/receipts" || pathname === "/mileage" || pathname === "/settings") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/more";
+    url.search = `?tab=${pathname.slice(1)}`;
+    return NextResponse.redirect(url);
+  }
   if (!session) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";

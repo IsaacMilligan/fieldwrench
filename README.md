@@ -6,9 +6,17 @@ Mobile-first driveway shop book for a solo mobile mechanic. Jobs, customers, veh
 
 ## Live URL
 
-See the latest Vercel production URL in the GitHub repo description after deploy (also listed below once shipped).
+Repo: https://github.com/IsaacMilligan/fieldwrench
 
-Local fallback: `http://localhost:3000`
+Production host is Vercel. After `npx vercel login` (this machine is not logged in), deploy with:
+
+```bash
+npx vercel --prod --yes
+```
+
+Set `DATABASE_URL` and `SESSION_SECRET` on the project. Optional: `BLOB_READ_WRITE_TOKEN`.
+
+Local: `http://localhost:3000`
 
 ## Demo login
 
@@ -52,11 +60,11 @@ Do not use a local JSON file. This app uses Postgres (`DATABASE_URL`) so serverl
 | VIN + DTC tools | `/tools` |
 | Invoice (mechanic) | `/invoices/[id]` |
 | Invoice share (public) | `/i/[token]` |
-| Receipts | `/receipts` |
-| Mileage | `/mileage` |
+| Receipts | `/more?tab=receipts` (also `/receipts`) |
+| Mileage | `/more?tab=mileage` (also `/mileage`) |
 | Bookings inbox | `/bookings` |
 | Public book | `/book` |
-| Settings | `/settings` |
+| Settings | `/more?tab=settings` (also `/settings`) |
 | More | `/more` |
 
 Phone nav: **Home · Jobs · Book · Tools · More**

@@ -1,0 +1,7 @@
+.env*
+.env.local
+node_modules
+.next
+_seed_once.mts
+_gh_token
+_repo.json

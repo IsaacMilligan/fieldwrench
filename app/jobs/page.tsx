@@ -2,14 +2,60 @@ import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/Mark";
 import { requireSession } from "@/lib/auth";
-import { listJobs } from "@/lib/db/queries";
+import { listJobs, db } from "@/lib/db/queries";
+import { createJobAction } from "@/lib/actions";
 import { formatDateTime, vehicleLabel } from "@/lib/format";
 import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE, type JobStatus } from "@/lib/status";
 
 export const dynamic = "force-dynamic";
 
-export default async function JobsPage() {
+export default async function JobsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string }>;
+}) {
   await requireSession();
+  const sp = await searchParams;
+  if (sp.new) {
+    const sql = await db();
+    const vehicles = await sql`
+      SELECT v.id, v.year, v.make, v.model, c.name
+      FROM vehicles v JOIN customers c ON c.id = v.customer_id
+      ORDER BY c.name, v.year DESC
+    `;
+    return (
+      <Shell title="New job">
+        <form action={createJobAction}>
+          <label className="lbl">Customer / vehicle</label>
+          <select className="field" name="vehicle_id" required>
+            {vehicles.map((v) => (
+              <option key={String(v.id)} value={String(v.id)}>
+                {String(v.name)} — {v.year} {v.make} {v.model}
+              </option>
+            ))}
+          </select>
+          <label className="lbl">Status</label>
+          <select className="field" name="status" defaultValue="scheduled">
+            {JOB_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABEL[s]}
+              </option>
+            ))}
+          </select>
+          <label className="lbl">When</label>
+          <input className="field" type="datetime-local" name="scheduled_at" />
+          <label className="lbl">Driveway address</label>
+          <input className="field" name="address" />
+          <label className="lbl">Complaint</label>
+          <textarea className="field min-h-28" name="complaint" />
+          <button className="tap mt-6" type="submit">
+            Create job
+          </button>
+        </form>
+      </Shell>
+    );
+  }
+
   const jobs = await listJobs();
   const groups = JOB_STATUSES.map((s) => ({
     status: s,
@@ -18,7 +64,7 @@ export default async function JobsPage() {
 
   return (
     <Shell title="Jobs">
-      <Link href="/jobs/new" className="tap flex items-center justify-center">
+      <Link href="/jobs?new=1" className="tap flex items-center justify-center">
         New job
       </Link>
       {groups.map((g) => (

@@ -47,7 +47,7 @@ export async function saveSettingsAction(form: FormData) {
   const mileageCents = Math.round(miles);
   await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents} WHERE id = 1`;
   revalidatePath("/");
-  redirect("/settings");
+  redirect("/more?tab=settings");
 }
 
 export async function resetDemoAction() {
@@ -288,9 +288,9 @@ export async function addReceiptAction(form: FormData) {
     ${crypto.randomUUID()}, ${parseMoney(str(form, "amount"))}, ${str(form, "vendor") || "Vendor"},
     ${str(form, "category") || "parts"}, ${str(form, "date")}, ${jobId}
   )`;
-  revalidatePath("/receipts");
+  revalidatePath("/more");
   if (jobId) revalidatePath(`/jobs/${jobId}`);
-  redirect("/receipts");
+  redirect("/more?tab=receipts");
 }
 
 export async function addMileageAction(form: FormData) {
@@ -301,8 +301,8 @@ export async function addMileageAction(form: FormData) {
     ${crypto.randomUUID()}, ${parseNumber(str(form, "miles"))}, ${str(form, "purpose") || "Shop miles"},
     ${jobId}, ${str(form, "date")}
   )`;
-  revalidatePath("/mileage");
-  redirect("/mileage");
+  revalidatePath("/more");
+  redirect("/more?tab=mileage");
 }
 
 export async function publicBookAction(_prev: { ok?: boolean; error?: string } | null, form: FormData) {

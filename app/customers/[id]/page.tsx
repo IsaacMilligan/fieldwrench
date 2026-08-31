@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { getCustomer } from "@/lib/db/queries";
-import { updateCustomerAction } from "@/lib/actions";
+import { updateCustomerAction, createVehicleAction } from "@/lib/actions";
 import { vehicleLabel } from "@/lib/format";
 import { STATUS_LABEL, type JobStatus } from "@/lib/status";
 
@@ -41,9 +41,26 @@ export default async function CustomerDetail({
       <h2 className="mt-10 font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
         Vehicles
       </h2>
-      <Link href={`/customers/${id}/vehicle`} className="tap tap-ghost mt-3 flex items-center justify-center">
-        Add vehicle
-      </Link>
+      <form action={createVehicleAction} className="mt-3 panel">
+        <input type="hidden" name="customer_id" value={id} />
+        <label className="lbl">Year</label>
+        <input className="field" name="year" inputMode="numeric" />
+        <label className="lbl">Make</label>
+        <input className="field" name="make" />
+        <label className="lbl">Model</label>
+        <input className="field" name="model" />
+        <label className="lbl">Plate</label>
+        <input className="field" name="plate" />
+        <label className="lbl">VIN</label>
+        <input className="field font-mono" name="vin" maxLength={17} />
+        <label className="lbl">Mileage</label>
+        <input className="field" name="mileage" inputMode="numeric" />
+        <label className="lbl">Vehicle history notes</label>
+        <textarea className="field min-h-24" name="history_notes" placeholder="Shop notes only — not Carfax." />
+        <button className="tap mt-4" type="submit">
+          Add vehicle
+        </button>
+      </form>
       <ul className="mt-3 space-y-3">
         {vehicles.map((v) => (
           <li key={v.id}>
