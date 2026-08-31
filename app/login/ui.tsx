@@ -1,6 +1,7 @@
 "use client";
 
 import { Mark } from "@/components/Mark";
+import { PasswordField } from "@/components/PasswordField";
 
 export function LoginForm({ failed }: { failed?: boolean }) {
   return (
@@ -29,14 +30,7 @@ export function LoginForm({ failed }: { failed?: boolean }) {
         <label className="lbl" htmlFor="password">
           Password
         </label>
-        <input
-          className="field"
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-        />
+        <PasswordField id="password" name="password" autoComplete="current-password" required />
         {failed ? <p className="mt-3 text-red">Wrong email or password.</p> : null}
         <button className="tap tap-ghost mt-6" type="submit">
           Sign in

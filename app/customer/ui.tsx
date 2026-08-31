@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { Mark } from "@/components/Mark";
+import { PasswordField } from "@/components/PasswordField";
 
 function authMessage(err: { message?: string; code?: string } | null, fallback: string) {
   const code = (err?.code ?? "").toLowerCase();
@@ -191,15 +192,13 @@ export function CustomerAuthForm({
           onChange={(e) => setEmail(e.target.value)}
         />
         <label className="lbl">Password</label>
-        <input
-          className="field"
+        <PasswordField
           name="password"
-          type="password"
           autoComplete={mode === "signup" ? "new-password" : "current-password"}
           minLength={6}
           required
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={setPassword}
         />
         {error ? <p className="mt-3 text-lg font-bold text-red">{error}</p> : null}
         {info ? <p className="mt-3 text-lg font-bold text-green">{info}</p> : null}
