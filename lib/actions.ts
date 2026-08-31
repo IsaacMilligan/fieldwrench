@@ -31,14 +31,14 @@ export async function loginAction(_prev: { error?: string } | null, form: FormDa
   redirect("/");
 }
 
-export async function demoLoginAction(): Promise<{ error?: string } | void> {
+export async function demoLoginAction() {
   try {
     await import("./db/index").then((m) => m.ensureReady());
     const ok = await verifyLogin(DEMO.email, DEMO.password);
-    if (!ok) return { error: "Demo account is missing. Reset demo data after login works." };
+    if (!ok) return;
     await createSession(DEMO.email);
   } catch {
-    return { error: "Shop database is not configured." };
+    return;
   }
   redirect("/");
 }
