@@ -1,0 +1,167 @@
+import bcrypt from "bcryptjs";
+import type { Sql } from "./index";
+import { denverDateISO } from "../format";
+
+const DEMO_EMAIL = "wrench@fieldwrench.local";
+const DEMO_PASSWORD = "driveway";
+
+function id(): string {
+  return crypto.randomUUID();
+}
+
+function token(): string {
+  return crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+}
+
+function daysFromToday(offset: number): string {
+  const [y, m, d] = denverDateISO().split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + offset, 18, 0, 0));
+  return dt.toISOString().slice(0, 10);
+}
+
+export async function wipeAll(sql: Sql) {
+  await sql`DELETE FROM photos`;
+  await sql`DELETE FROM labor_lines`;
+  await sql`DELETE FROM part_lines`;
+  await sql`DELETE FROM receipts`;
+  await sql`DELETE FROM mileage_trips`;
+  await sql`DELETE FROM invoices`;
+  await sql`DELETE FROM bookings`;
+  await sql`DELETE FROM jobs`;
+  await sql`DELETE FROM vehicles`;
+  await sql`DELETE FROM customers`;
+  await sql`DELETE FROM users`;
+  await sql`DELETE FROM settings`;
+}
+
+export async function seedIfEmpty(sql: Sql) {
+  const [row] = await sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM settings`;
+  if (row?.n) {
+    const [u] = await sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM users`;
+    if (u?.n) return;
+  }
+  await seedDemo(sql);
+}
+
+export async function seedDemo(sql: Sql) {
+  await wipeAll(sql);
+  const hash = bcrypt.hashSync(DEMO_PASSWORD, 10);
+  await sql`INSERT INTO users (id, email, password_hash) VALUES (${id()}, ${DEMO_EMAIL}, ${hash})`;
+  await sql`
+    INSERT INTO settings (id, shop_name, labor_rate_cents, mileage_rate_cents, seeded)
+    VALUES (1, 'FieldWrench', 12500, 76, 1)
+  `;
+
+  const mara = id();
+  const devon = id();
+  const priya = id();
+  await sql`INSERT INTO customers (id, name, phone, email, address, notes) VALUES
+    (${mara}, 'Mara Ellison', '385-555-0142', 'mara.ellison@example.com', '4124 Pinnacle Peak Dr, Eagle Mountain, UT', 'Prefers morning windows. Park on the right side of the driveway.'),
+    (${devon}, 'Devon Ruiz', '801-555-0198', 'devon.ruiz@example.com', '1887 Harvest Field Rd, Saratoga Springs, UT', 'Needs a driveway or private lot — no street work.'),
+    (${priya}, 'Priya Nandakumar', '385-555-0117', 'priya.n@example.com', '902 Pioneer Crossing, Lehi, UT', 'Work van on site weekdays after 4.')
+  `;
+
+  const crv = id();
+  const outback = id();
+  const f150 = id();
+  const camry = id();
+  await sql`INSERT INTO vehicles (id, customer_id, year, make, model, plate, vin, mileage, history_notes) VALUES
+    (${crv}, ${mara}, 2016, 'Honda', 'CR-V', 'X7R 241', '2HKRM4H75GH123456', 118402, 'Rear pads done last fall. Customer reports a faint grind only when cold.'),
+    (${outback}, ${mara}, 2014, 'Subaru', 'Outback', 'U24 880', '4S4BSACC5E1234567', 164110, 'Battery was original until this year. Occasional slow crank after sitting.'),
+    (${f150}, ${devon}, 2019, 'Ford', 'F-150', 'Z19 004', '1FTEW1E49KFA12345', 87220, 'Tows a small utility trailer on weekends. Front brakes pulse on I-15.'),
+    (${camry}, ${priya}, 2021, 'Toyota', 'Camry', 'N5P 773', '4T1G11AK5MU123456', 41280, 'P0302 stored last winter. Coil pack on cylinder 2 was noisy.')
+  `;
+
+  const jOil = id();
+  const jBrakes = id();
+  const jMisfire = id();
+  const jBattery = id();
+  const jCabin = id();
+  const jPads = id();
+
+  const today = denverDateISO();
+  const tMorning = `${today}T14:00:00.000Z`; // 8am MDT
+  const tNow = `${today}T16:30:00.000Z`;
+
+  await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, scheduled_at, address, complaint, diagnosis, work_performed, created_at) VALUES
+    (${jOil}, ${mara}, ${crv}, 'scheduled', ${tMorning}, '4124 Pinnacle Peak Dr, Eagle Mountain, UT',
+      'Due for oil. Slight tick on cold start.', '', '', NOW()),
+    (${jBrakes}, ${devon}, ${f150}, 'in_progress', ${tNow}, '1887 Harvest Field Rd, Saratoga Springs, UT',
+      'Steering wheel shakes under braking from 70 mph.',
+      'Front rotors have 0.004 in runout. Pads at 3 mm.',
+      'Passenger rotor off. Cleaning hub face.', NOW()),
+    (${jMisfire}, ${priya}, ${camry}, 'waiting_parts', ${(daysFromToday(-1) + "T17:00:00.000Z")},
+      '902 Pioneer Crossing, Lehi, UT',
+      'Rough idle, flashing MIL, feels like a misfire in gear.',
+      'P0302 confirmed. Coil 2 secondary looks weak on scope.',
+      'Ordered OEM coil and iridium plug. Waiting on overnight.', NOW()),
+    (${jBattery}, ${mara}, ${outback}, 'completed', ${(daysFromToday(-1) + "T15:00:00.000Z")},
+      '4124 Pinnacle Peak Dr, Eagle Mountain, UT',
+      'Slow crank after sitting overnight. Headlights dip at start.',
+      'Battery 11.8 V resting. Failed load test.',
+      'Installed Group 35 AGM. Cleaned terminals. 14.5 V running.', NOW()),
+    (${jCabin}, ${devon}, ${f150}, 'completed', ${(daysFromToday(-4) + "T16:00:00.000Z")},
+      '1887 Harvest Field Rd, Saratoga Springs, UT',
+      'Musty AC smell and overdue oil.',
+      'Cabin filter soaked. Oil black at 8,200 since last change.',
+      'Oil, filter, cabin filter. Cleared drain. Rechecked for leaks.', NOW()),
+    (${jPads}, ${mara}, ${crv}, 'completed', ${(daysFromToday(-10) + "T15:30:00.000Z")},
+      '4124 Pinnacle Peak Dr, Eagle Mountain, UT',
+      'Rear squeal at low speed.',
+      'Rear pads on wear indicators. Hardware rusty.',
+      'Rear pads and hardware. Lubed slides. Bedded on the street.', NOW())
+  `;
+
+  const rate = 12500;
+  await sql`INSERT INTO labor_lines (id, job_id, description, hours, rate_cents, is_flat, flat_cents) VALUES
+    (${id()}, ${jOil}, 'Oil + filter in driveway', 0, ${rate}, 1, 8500),
+    (${id()}, ${jBrakes}, 'Front brake job — rotors and pads', 2.5, ${rate}, 0, 0),
+    (${id()}, ${jMisfire}, 'Diagnose misfire + coil R&R', 1.2, ${rate}, 0, 0),
+    (${id()}, ${jBattery}, 'Test and replace battery', 0, ${rate}, 1, 6500),
+    (${id()}, ${jCabin}, 'Oil service + cabin filter', 0, ${rate}, 1, 11000),
+    (${id()}, ${jPads}, 'Rear pads and hardware', 1.5, ${rate}, 0, 0)
+  `;
+
+  await sql`INSERT INTO part_lines (id, job_id, description, qty, cost_cents, price_cents) VALUES
+    (${id()}, ${jOil}, '5W-30 5 qt + Honda filter', 1, 2800, 5200),
+    (${id()}, ${jBrakes}, 'Front rotor pair', 1, 8400, 14800),
+    (${id()}, ${jBrakes}, 'Ceramic pad set', 1, 3900, 7800),
+    (${id()}, ${jMisfire}, 'OEM ignition coil', 1, 6700, 12400),
+    (${id()}, ${jMisfire}, 'Iridium spark plug', 1, 900, 1800),
+    (${id()}, ${jBattery}, 'Group 35 AGM battery', 1, 14200, 21900),
+    (${id()}, ${jCabin}, 'Oil filter + 5W-20 6 qt', 1, 3100, 5800),
+    (${id()}, ${jCabin}, 'Cabin filter', 1, 1100, 2800),
+    (${id()}, ${jPads}, 'Rear ceramic pads + hardware', 1, 4200, 8600)
+  `;
+
+  await sql`INSERT INTO invoices (id, job_id, token, status, paid_method, paid_at) VALUES
+    (${id()}, ${jBattery}, ${token()}, 'unpaid', NULL, NULL),
+    (${id()}, ${jCabin}, ${token()}, 'unpaid', NULL, NULL),
+    (${id()}, ${jPads}, ${token()}, 'paid', 'venmo', ${(daysFromToday(-9) + "T22:00:00.000Z")})
+  `;
+
+  await sql`INSERT INTO receipts (id, amount_cents, vendor, category, date, job_id) VALUES
+    (${id()}, 8400, 'AutoZone', 'parts', ${daysFromToday(-1)}, ${jBrakes}),
+    (${id()}, 6700, 'RockAuto', 'parts', ${daysFromToday(-2)}, ${jMisfire}),
+    (${id()}, 1800, 'Harbor Freight', 'shop', ${daysFromToday(-6)}, NULL),
+    (${id()}, 4200, 'O''Reilly', 'parts', ${daysFromToday(-10)}, ${jPads}),
+    (${id()}, 2400, 'Costco', 'fuel', ${daysFromToday(-3)}, NULL)
+  `;
+
+  await sql`INSERT INTO mileage_trips (id, miles, purpose, job_id, date) VALUES
+    (${id()}, 18.4, 'Driveway call — Ellison CR-V', ${jOil}, ${today}),
+    (${id()}, 22.1, 'Driveway call — Ruiz F-150 brakes', ${jBrakes}, ${today}),
+    (${id()}, 31.0, 'Lehi misfire diagnosis', ${jMisfire}, ${daysFromToday(-1)}),
+    (${id()}, 14.2, 'Parts run — rotors', ${jBrakes}, ${daysFromToday(-1)}),
+    (${id()}, 19.6, 'Battery swap — Outback', ${jBattery}, ${daysFromToday(-1)}),
+    (${id()}, 41.5, 'Weekender parts + two quotes', NULL, ${daysFromToday(-8)}),
+    (${id()}, 28.0, 'Rear pads — Ellison', ${jPads}, ${daysFromToday(-10)}),
+    (${id()}, 36.8, 'YTD catch-up shop miles', NULL, ${daysFromToday(-40)})
+  `;
+
+  await sql`INSERT INTO bookings (id, name, phone, address, vehicle, issue, preferred_time, status) VALUES
+    (${id()}, 'Chris Lang', '801-555-0164', '55 Cedar Pass Ct, Eagle Mountain, UT',
+     '2018 Chevy Equinox', 'Grinding from the passenger front at low speed. Worse in reverse.',
+     'Saturday morning', 'pending')
+  `;
+}
