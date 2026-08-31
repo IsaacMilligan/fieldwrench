@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { listBookings } from "@/lib/db/queries";
-import { acceptBookingAction, dismissBookingAction } from "@/lib/actions";
 import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -33,13 +32,15 @@ export default async function BookingsPage() {
             </div>
             {b.status === "pending" ? (
               <div className="mt-4 grid grid-cols-2 gap-2">
-                <form action={acceptBookingAction}>
+                <form action="/api/shop" method="post">
+            <input type="hidden" name="_op" value="accept_booking" />
                   <input type="hidden" name="id" value={String(b.id)} />
                   <button className="tap tap-green" type="submit">
                     Accept → job
                   </button>
                 </form>
-                <form action={dismissBookingAction}>
+                <form action="/api/shop" method="post">
+            <input type="hidden" name="_op" value="dismiss_booking" />
                   <input type="hidden" name="id" value={String(b.id)} />
                   <button className="tap tap-red" type="submit">
                     Dismiss

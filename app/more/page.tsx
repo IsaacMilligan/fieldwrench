@@ -2,13 +2,6 @@ import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { getSettings, listReceipts, listMileage, listJobsLite } from "@/lib/db/queries";
-import {
-  addMileageAction,
-  addReceiptAction,
-  logoutAction,
-  resetDemoAction,
-  saveSettingsAction,
-} from "@/lib/actions";
 import { denverDateISO, formatDate, money } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +19,8 @@ export default async function MorePage({
     const rows = await listReceipts();
     return (
       <Shell title="Receipts">
-        <form action={addReceiptAction} className="panel">
+        <form action="/api/shop" method="post" className="panel">
+            <input type="hidden" name="_op" value="add_receipt" />
           <label className="lbl">Amount $</label>
           <input className="field" name="amount" inputMode="decimal" required />
           <label className="lbl">Vendor</label>
@@ -83,7 +77,8 @@ export default async function MorePage({
             IRS rate in settings: {settings.mileage_rate_cents}¢ · {money(value)}
           </div>
         </div>
-        <form action={addMileageAction} className="mt-4 panel">
+        <form action="/api/shop" method="post" className="mt-4 panel">
+            <input type="hidden" name="_op" value="add_mileage" />
           <label className="lbl">Miles</label>
           <input className="field" name="miles" inputMode="decimal" required />
           <label className="lbl">Purpose</label>
@@ -123,7 +118,8 @@ export default async function MorePage({
     const s = await getSettings();
     return (
       <Shell title="Settings">
-        <form action={saveSettingsAction} className="panel">
+        <form action="/api/shop" method="post" className="panel">
+            <input type="hidden" name="_op" value="save_settings" />
           <label className="lbl">Shop name</label>
           <input className="field" name="shop_name" defaultValue={s.shop_name} />
           <label className="lbl">Labor rate $ / hour</label>
@@ -135,7 +131,8 @@ export default async function MorePage({
           </p>
           <button className="tap mt-4" type="submit">Save settings</button>
         </form>
-        <form action={resetDemoAction} className="mt-8">
+        <form action="/api/shop" method="post" className="mt-8">
+            <input type="hidden" name="_op" value="reset_demo" />
           <p className="text-sm text-muted">Demo reset wipes the shop book and reloads the sample driveway jobs.</p>
           <button className="tap tap-red mt-3" type="submit">Reset demo data</button>
         </form>
@@ -161,7 +158,8 @@ export default async function MorePage({
           </li>
         ))}
       </ul>
-      <form action={logoutAction} className="mt-10">
+      <form action="/api/shop" method="post" className="mt-10">
+            <input type="hidden" name="_op" value="logout" />
         <button className="tap tap-red" type="submit">Sign out</button>
       </form>
     </Shell>

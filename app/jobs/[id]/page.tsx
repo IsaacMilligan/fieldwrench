@@ -7,16 +7,6 @@ import { requireSession } from "@/lib/auth";
 import { getJobBundle } from "@/lib/db/queries";
 import { formatDateTime, money, vehicleLabel } from "@/lib/format";
 import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE } from "@/lib/status";
-import {
-  addLaborAction,
-  addPartAction,
-  deleteLaborAction,
-  deletePartAction,
-  openInvoiceAction,
-  setJobStatusAction,
-  updateJobAction,
-  uploadPhotoAction,
-} from "@/lib/actions";
 import { laborLineCents, partCostCents, partCustomerCents } from "@/lib/profit";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +43,8 @@ export default async function JobDetailPage({
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         {JOB_STATUSES.map((s) => (
-          <form action={setJobStatusAction} key={s}>
+          <form action="/api/shop" method="post" key={s}>
+            <input type="hidden" name="_op" value="set_status" />
             <input type="hidden" name="id" value={job.id} />
             <input type="hidden" name="status" value={s} />
             <button
@@ -70,7 +61,8 @@ export default async function JobDetailPage({
         <ProfitPanel p={profit} />
       </div>
 
-      <form action={openInvoiceAction} className="mt-4">
+      <form action="/api/shop" method="post" className="mt-4">
+            <input type="hidden" name="_op" value="open_invoice" />
         <input type="hidden" name="job_id" value={job.id} />
         <button className="tap tap-ghost" type="submit">
           Invoice {invoice?.status === "paid" ? "(paid)" : "(unpaid)"}
@@ -80,7 +72,8 @@ export default async function JobDetailPage({
       <h2 className="mt-8 font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
         Notes
       </h2>
-      <form action={updateJobAction} className="mt-2">
+      <form action="/api/shop" method="post" className="mt-2">
+            <input type="hidden" name="_op" value="update_job" />
         <input type="hidden" name="id" value={job.id} />
         <input type="hidden" name="status" value={job.status} />
         <label className="lbl">When</label>
@@ -119,7 +112,8 @@ export default async function JobDetailPage({
                 hours: l.hours,
                 rateCents: l.rate_cents,
               }))}</div>
-              <form action={deleteLaborAction}>
+              <form action="/api/shop" method="post">
+            <input type="hidden" name="_op" value="delete_labor" />
                 <input type="hidden" name="id" value={l.id} />
                 <input type="hidden" name="job_id" value={job.id} />
                 <button className="text-xs font-bold uppercase tracking-widest text-red" type="submit">
@@ -130,7 +124,8 @@ export default async function JobDetailPage({
           </li>
         ))}
       </ul>
-      <form action={addLaborAction} className="mt-3 panel">
+      <form action="/api/shop" method="post" className="mt-3 panel">
+            <input type="hidden" name="_op" value="add_labor" />
         <input type="hidden" name="job_id" value={job.id} />
         <label className="lbl">Description</label>
         <input className="field" name="description" placeholder="Driveway labor" />
@@ -158,7 +153,8 @@ export default async function JobDetailPage({
           <li key={p.id} className="panel">
             <div className="flex justify-between gap-3">
               <div className="font-bold">{p.description}</div>
-              <form action={deletePartAction}>
+              <form action="/api/shop" method="post">
+            <input type="hidden" name="_op" value="delete_part" />
                 <input type="hidden" name="id" value={p.id} />
                 <input type="hidden" name="job_id" value={job.id} />
                 <button className="text-xs font-bold uppercase tracking-widest text-red" type="submit">
@@ -174,7 +170,8 @@ export default async function JobDetailPage({
           </li>
         ))}
       </ul>
-      <form action={addPartAction} className="mt-3 panel">
+      <form action="/api/shop" method="post" className="mt-3 panel">
+            <input type="hidden" name="_op" value="add_part" />
         <input type="hidden" name="job_id" value={job.id} />
         <label className="lbl">Part</label>
         <input className="field" name="description" placeholder="Front pads" />
@@ -203,7 +200,8 @@ export default async function JobDetailPage({
           />
         ))}
       </div>
-      <form action={uploadPhotoAction} className="mt-3">
+      <form action="/api/shop" method="post" className="mt-3">
+            <input type="hidden" name="_op" value="upload_photo" />
         <input type="hidden" name="job_id" value={job.id} />
         <label className="lbl">Upload / camera</label>
         <input className="field" type="file" name="file" accept="image/*" capture="environment" />

@@ -6,7 +6,6 @@ import { requireSession } from "@/lib/auth";
 import { ensureInvoice, getJobBundle } from "@/lib/db/queries";
 import { formatDate, money } from "@/lib/format";
 import { PAY_METHODS, PAY_LABEL } from "@/lib/status";
-import { markInvoicePaidAction, markInvoiceUnpaidAction } from "@/lib/actions";
 import { InvoiceSheet } from "@/components/InvoiceSheet";
 
 export const dynamic = "force-dynamic";
@@ -46,14 +45,16 @@ export default async function InvoicePage({
         <p className="mt-1 text-xs text-muted">Works logged out. Tokenized. Send it to the customer.</p>
       </div>
       {paid ? (
-        <form action={markInvoiceUnpaidAction} className="mt-4">
+        <form action="/api/shop" method="post" className="mt-4">
+            <input type="hidden" name="_op" value="mark_unpaid" />
           <input type="hidden" name="job_id" value={id} />
           <button className="tap tap-ghost" type="submit">
             Mark unpaid
           </button>
         </form>
       ) : (
-        <form action={markInvoicePaidAction} className="mt-4">
+        <form action="/api/shop" method="post" className="mt-4">
+            <input type="hidden" name="_op" value="mark_paid" />
           <input type="hidden" name="job_id" value={id} />
           <label className="lbl">Paid how</label>
           <select className="field" name="method" defaultValue="venmo">

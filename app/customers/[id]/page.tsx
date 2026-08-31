@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { getCustomer } from "@/lib/db/queries";
-import { updateCustomerAction, createVehicleAction } from "@/lib/actions";
 import { vehicleLabel } from "@/lib/format";
 import { STATUS_LABEL, type JobStatus } from "@/lib/status";
 
@@ -21,7 +20,8 @@ export default async function CustomerDetail({
   const { customer, vehicles, jobs } = data;
   return (
     <Shell title="Customer">
-      <form action={updateCustomerAction}>
+      <form action="/api/shop" method="post">
+            <input type="hidden" name="_op" value="update_customer" />
         <input type="hidden" name="id" value={customer.id} />
         <label className="lbl">Name</label>
         <input className="field" name="name" defaultValue={customer.name} />
@@ -41,7 +41,8 @@ export default async function CustomerDetail({
       <h2 className="mt-10 font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
         Vehicles
       </h2>
-      <form action={createVehicleAction} className="mt-3 panel">
+      <form action="/api/shop" method="post" className="mt-3 panel">
+            <input type="hidden" name="_op" value="create_vehicle" />
         <input type="hidden" name="customer_id" value={id} />
         <label className="lbl">Year</label>
         <input className="field" name="year" inputMode="numeric" />

@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { applyVinAction } from "@/lib/actions";
 
 type Decode = {
   error?: string;
@@ -61,7 +60,8 @@ export function VinTool({
           <div className="num text-3xl">
             {result.year} {result.make} {result.model}
           </div>
-          <form action={applyVinAction} className="mt-4">
+          <form action="/api/shop" method="post" className="mt-4">
+            <input type="hidden" name="_op" value="apply_vin" />
             <input type="hidden" name="vin" value={result.vin} />
             <input type="hidden" name="year" value={result.year ?? ""} />
             <input type="hidden" name="make" value={result.make ?? ""} />

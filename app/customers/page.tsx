@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { listCustomers } from "@/lib/db/queries";
-import { createCustomerAction } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +15,8 @@ export default async function CustomersPage({
   if (sp.new) {
     return (
       <Shell title="New customer">
-        <form action={createCustomerAction}>
+        <form action="/api/shop" method="post">
+            <input type="hidden" name="_op" value="create_customer" />
           <label className="lbl">Name</label>
           <input className="field" name="name" required />
           <label className="lbl">Phone</label>

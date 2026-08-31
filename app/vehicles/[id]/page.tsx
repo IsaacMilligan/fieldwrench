@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { getVehicle } from "@/lib/db/queries";
-import { updateVehicleAction } from "@/lib/actions";
 import { vehicleLabel } from "@/lib/format";
 import { STATUS_LABEL, type JobStatus } from "@/lib/status";
 
@@ -30,7 +29,8 @@ export default async function VehiclePage({
       <h1 className="mt-1 font-[family-name:var(--font-display)] text-3xl font-bold uppercase">
         {vehicleLabel(vehicle)}
       </h1>
-      <form action={updateVehicleAction} className="mt-4">
+      <form action="/api/shop" method="post" className="mt-4">
+            <input type="hidden" name="_op" value="update_vehicle" />
         <input type="hidden" name="id" value={vehicle.id} />
         <label className="lbl">Year</label>
         <input className="field" name="year" defaultValue={vehicle.year ?? ""} />

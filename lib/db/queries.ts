@@ -364,9 +364,10 @@ export async function listMileage() {
   `;
   const today = denverDateISO();
   const year = today.slice(0, 4);
-  const ytd = rows
-    .filter((r) => String(r.date).slice(0, 4) === year)
-    .reduce((s, r) => s + Number(r.miles), 0);
+  const [sum] = await sql<{ n: number }[]>`
+    SELECT COALESCE(SUM(miles), 0)::float AS n FROM mileage_trips WHERE date >= ${year + "-01-01"}::date
+  `;
+  const ytd = Number(sum?.n ?? 0);
   return { rows, ytd };
 }
 

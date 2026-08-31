@@ -3,7 +3,6 @@ import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/Mark";
 import { requireSession } from "@/lib/auth";
 import { listJobs, db } from "@/lib/db/queries";
-import { createJobAction } from "@/lib/actions";
 import { formatDateTime, vehicleLabel } from "@/lib/format";
 import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE, type JobStatus } from "@/lib/status";
 
@@ -25,7 +24,8 @@ export default async function JobsPage({
     `;
     return (
       <Shell title="New job">
-        <form action={createJobAction}>
+        <form action="/api/shop" method="post">
+            <input type="hidden" name="_op" value="create_job" />
           <label className="lbl">Customer / vehicle</label>
           <select className="field" name="vehicle_id" required>
             {vehicles.map((v) => (
