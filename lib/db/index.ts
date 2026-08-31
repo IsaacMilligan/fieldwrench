@@ -178,6 +178,7 @@ export function ensureReady(): Promise<void> {
         await resetSql();
         await run();
       }
+      await resetSql();
     })().catch((err) => {
       ready = null;
       throw err;

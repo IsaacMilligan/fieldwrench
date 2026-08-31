@@ -10,7 +10,20 @@ import type { JobStatus, PayMethod } from "../status";
 
 export async function db() {
   await ensureReady();
-  return getSql();
+  try {
+    const sql = getSql();
+    await sql`select 1 as n`;
+    return sql;
+  } catch (e) {
+    const { resetSql } = await import("./index");
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/connection closed|ECONNRESET|timeout|terminat/i.test(msg)) throw e;
+    await resetSql();
+    await ensureReady();
+    const sql = getSql();
+    await sql`select 1 as n`;
+    return sql;
+  }
 }
 
 export type Customer = {
