@@ -35,12 +35,23 @@ export function earliestBookDateISO(leadHours: number, now = new Date()): string
 
 export function preferredDateLabel(raw: unknown): string {
   if (raw == null || raw === "") return "not set";
-  const s = String(raw).trim();
-  const day = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!day) return "not set";
-  const y = Number(day[1]);
-  const m = Number(day[2]);
-  const d = Number(day[3]);
+  let y: number | null = null;
+  let m: number | null = null;
+  let d: number | null = null;
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
+    y = raw.getUTCFullYear();
+    m = raw.getUTCMonth() + 1;
+    d = raw.getUTCDate();
+  } else {
+    const s = String(raw).trim();
+    const day = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (day) {
+      y = Number(day[1]);
+      m = Number(day[2]);
+      d = Number(day[3]);
+    }
+  }
+  if (!y || !m || !d) return "not set";
   return new Intl.DateTimeFormat("en-US", {
     timeZone: TZ,
     month: "short",
