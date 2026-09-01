@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ScanVinButton } from "@/components/ScanVinButton";
+import { ScanVinButton, VIN_PAIR_BTN } from "@/components/ScanVinButton";
 
 type Decode = {
   error?: string;
@@ -61,14 +61,16 @@ export function VinTool({
         onChange={(e) => setVin(e.target.value.toUpperCase())}
         placeholder="1FTFW1E59JFA12345"
       />
-      <ScanVinButton
-        onVin={(v) => {
-          setVin(v);
-        }}
-      />
-      <button className="tap mt-4" type="button" onClick={decode} disabled={busy}>
-        {busy ? "Talking to NHTSA…" : "Decode VIN"}
-      </button>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <ScanVinButton
+          onVin={(v) => {
+            setVin(v);
+          }}
+        />
+        <button className={VIN_PAIR_BTN} type="button" onClick={decode} disabled={busy}>
+          {busy ? "Decoding…" : "Decode"}
+        </button>
+      </div>
       {result?.error ? <p className="mt-3 text-red">{result.error}</p> : null}
       {result && !result.error ? (
         <div className="mt-4">

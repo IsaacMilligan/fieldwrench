@@ -21,7 +21,9 @@ export function VinField({
         onChange={(e) => setVin(e.target.value.toUpperCase())}
         placeholder="1FTFW1E59JFA12345"
       />
-      <ScanVinButton onVin={setVin} />
+      <div className="mt-2">
+        <ScanVinButton onVin={setVin} />
+      </div>
     </>
   );
 }

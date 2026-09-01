@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { COMMON_MAKES, commonMakeValue, ELECTRIC_ENGINE, isKnownBev } from "@/lib/vpic";
-import { ScanVinButton } from "@/components/ScanVinButton";
+import { ScanVinButton, VIN_PAIR_BTN } from "@/components/ScanVinButton";
 import { vinOk } from "@/lib/format";
 
 type Saved = { year: number | null; make: string; model: string; engine?: string };
@@ -316,7 +316,7 @@ export function VehiclePicker({
               setVinError(null);
             }}
           />
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-2 grid grid-cols-2 gap-2">
             <ScanVinButton
               onVin={(v) => {
                 setVin(v);
@@ -325,7 +325,7 @@ export function VehiclePicker({
             />
             <button
               type="button"
-              className="flex h-11 items-center justify-center rounded-lg border-2 border-amber px-4 text-sm font-extrabold uppercase tracking-widest text-amber disabled:opacity-50"
+              className={VIN_PAIR_BTN}
               disabled={vinBusy}
               onClick={() => void decodeVin(vin)}
             >

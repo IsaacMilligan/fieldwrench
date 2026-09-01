@@ -3,6 +3,9 @@
 import { useRef, useState } from "react";
 import { vinOk } from "@/lib/format";
 
+export const VIN_PAIR_BTN =
+  "flex h-12 w-full items-center justify-center rounded-lg border-2 border-amber px-2 text-center text-sm font-extrabold uppercase tracking-widest text-amber disabled:opacity-50";
+
 async function readVinFromFile(file: File): Promise<string | null> {
   try {
     const bmp = await createImageBitmap(file);
@@ -41,7 +44,7 @@ export function ScanVinButton({
   const [err, setErr] = useState<string | null>(null);
 
   return (
-    <div className="mt-2">
+    <div className="contents">
       <input
         ref={ref}
         className="sr-only"
@@ -62,13 +65,13 @@ export function ScanVinButton({
       />
       <button
         type="button"
-        className="flex h-11 items-center justify-center rounded-lg border-2 border-amber px-4 text-sm font-extrabold uppercase tracking-widest text-amber"
+        className={VIN_PAIR_BTN}
         onClick={() => ref.current?.click()}
         disabled={busy}
       >
         {busy ? "Reading…" : "Scan VIN"}
       </button>
-      {err ? <p className="mt-2 text-sm text-red">{err}</p> : null}
+      {err ? <p className="col-span-2 text-sm text-red">{err}</p> : null}
     </div>
   );
 }
