@@ -29,7 +29,7 @@ export default async function CustomersPage({
           <input className="field" name="address" />
           <label className="lbl">Notes</label>
           <textarea className="field min-h-24" name="notes" />
-          <VehiclePicker />
+          <VehiclePicker withVin />
           <button className="tap mt-6" type="submit">
             Save customer
           </button>

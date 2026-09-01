@@ -25,7 +25,9 @@ function ymmFrom(form: FormData) {
   let engine = str(form, "vehicle_engine") || str(form, "engine");
   if (engine === "__unsure__") engine = "";
   if (isElectricEngine(engine)) engine = ELECTRIC_ENGINE;
-  return { year, make, model, engine };
+  const vinRaw = str(form, "vin").toUpperCase();
+  const vin = vinOk(vinRaw) ? vinRaw : "";
+  return { year, make, model, engine, vin };
 }
 
 export async function loginAction(_prev: { error?: string } | null, form: FormData) {
@@ -102,8 +104,8 @@ export async function createCustomerAction(form: FormData) {
   )`;
   const ymm = ymmFrom(form);
   if (ymm.year && ymm.make && ymm.model) {
-    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine) VALUES (
-      ${crypto.randomUUID()}, ${id}, ${ymm.year}, ${ymm.make}, ${ymm.model}, ${ymm.engine}
+    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin) VALUES (
+      ${crypto.randomUUID()}, ${id}, ${ymm.year}, ${ymm.make}, ${ymm.model}, ${ymm.engine}, ${ymm.vin}
     )`;
   }
   revalidatePath("/customers");
@@ -134,7 +136,7 @@ export async function createVehicleAction(form: FormData) {
   const mileage = parseNumber(str(form, "mileage")) || null;
   await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, plate, vin, mileage, history_notes) VALUES (
     ${id}, ${customerId}, ${ymm.year}, ${ymm.make}, ${ymm.model}, ${ymm.engine},
-    ${str(form, "plate")}, ${str(form, "vin").toUpperCase()}, ${mileage}, ${str(form, "history_notes")}
+    ${str(form, "plate")}, ${ymm.vin || str(form, "vin").toUpperCase()}, ${mileage}, ${str(form, "history_notes")}
   )`;
   revalidatePath(`/customers/${customerId}`);
   redirect(`/vehicles/${id}`);
@@ -239,6 +241,8 @@ export async function createJobAction(form: FormData) {
   let engine = str(form, "vehicle_engine");
   if (engine === "__unsure__") engine = "";
   if (isElectricEngine(engine)) engine = ELECTRIC_ENGINE;
+  const vinRaw = str(form, "vin").toUpperCase();
+  const vin = vinOk(vinRaw) ? vinRaw : "";
 
   if (str(form, "new_customer") === "1") {
     const name = str(form, "name");
@@ -249,16 +253,16 @@ export async function createJobAction(form: FormData) {
     await sql`INSERT INTO customers (id, name, phone, email) VALUES (
       ${customerId}, ${name}, ${phone}, ${str(form, "email")}
     )`;
-    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine) VALUES (
-      ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}
+    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin) VALUES (
+      ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}
     )`;
   } else {
     if (!customerId) redirect("/jobs?new=1");
     if (!vehicleId) {
       if (!year || !make || !model) redirect("/jobs?new=1");
       vehicleId = crypto.randomUUID();
-      await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine) VALUES (
-        ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}
+      await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin) VALUES (
+        ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}
       )`;
     } else {
       const [veh] = await sql<{ customer_id: string }[]>`SELECT customer_id FROM vehicles WHERE id = ${vehicleId}`;

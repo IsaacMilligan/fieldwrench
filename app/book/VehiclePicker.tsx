@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { COMMON_MAKES, commonMakeValue, ELECTRIC_ENGINE, isKnownBev } from "@/lib/vpic";
+import { ScanVinButton } from "@/components/ScanVinButton";
+import { vinOk } from "@/lib/format";
 
 type Saved = { year: number | null; make: string; model: string; engine?: string };
 
@@ -20,10 +22,12 @@ export function VehiclePicker({
   saved = [],
   initial,
   onYmme,
+  withVin = false,
 }: {
   saved?: Saved[];
   initial?: { year?: number | null; make?: string; model?: string; engine?: string };
   onYmme?: (v: { year: string; make: string; model: string; engine: string }) => void;
+  withVin?: boolean;
 }) {
   const years = useMemo(() => {
     const top = new Date().getFullYear() + 1;
@@ -45,6 +49,10 @@ export function VehiclePicker({
   const [engineFallback, setEngineFallback] = useState(false);
   const [busy, setBusy] = useState<"models" | "engines" | "makes-all" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [vin, setVin] = useState("");
+  const [vinBusy, setVinBusy] = useState(false);
+  const [vinError, setVinError] = useState<string | null>(null);
+  const seedRef = useRef<{ year: string; make: string; model: string; engine: string } | null>(null);
 
   const make = brand === "Other" ? otherMake.trim() : brand;
 
@@ -94,12 +102,15 @@ export function VehiclePicker({
     load("models", { year, make })
       .then((opts) => {
         if (!live) return;
+        const seed = seedRef.current;
+        const seedHere = seed && seed.year === year && seed.make === make;
         if (!opts.length) {
           setModels([]);
           setFreeModel(true);
           return;
         }
         setModels(opts);
+        if (seedHere && seed.model && !opts.includes(seed.model)) setFreeModel(true);
       })
       .catch((e: Error) => {
         if (!live) return;
@@ -132,20 +143,29 @@ export function VehiclePicker({
     setBusy("engines");
     setError(null);
     setEngineFallback(false);
-    setEngine("");
+    const seed = seedRef.current;
+    const seedHere =
+      seed && seed.year === year && seed.make === make && seed.model === model ? seed : null;
+    if (!seedHere?.engine) setEngine("");
     load("engines", { year, make, model })
       .then((opts) => {
         if (!live) return;
+        const keep = seedHere?.engine || "";
         if (!opts.length) {
           setEngines([]);
           setEngineFallback(true);
-          if (initial?.engine) setEngine(initial.engine);
+          if (keep) setEngine(keep);
+          else if (initial?.engine) setEngine(initial.engine);
           return;
         }
         setEngines(opts);
         setEngineFallback(false);
         if (opts.length === 1 && opts[0] === "Electric") setEngine("Electric");
-        else if (initial?.engine && opts.includes(initial.engine)) setEngine(initial.engine);
+        else if (keep && opts.includes(keep)) setEngine(keep);
+        else if (keep) {
+          setEngineFallback(true);
+          setEngine(keep);
+        } else if (initial?.engine && opts.includes(initial.engine)) setEngine(initial.engine);
       })
       .catch(() => {
         if (!live) return;
@@ -160,6 +180,62 @@ export function VehiclePicker({
       live = false;
     };
   }, [year, make, model]);
+
+  function applyFill(d: { year?: number | null; make: string; model: string; engine: string }) {
+    const y = d.year ? String(d.year) : "";
+    const known = commonMakeValue(d.make);
+    const resolvedMake = known ?? d.make;
+    seedRef.current = { year: y, make: resolvedMake, model: d.model, engine: d.engine };
+    if (y) setYear(y);
+    if (known) {
+      setBrand(known);
+      setOtherMake("");
+    } else if (d.make) {
+      setBrand("Other");
+      setOtherMake(d.make);
+    }
+    if (d.model) setModel(d.model);
+    if (d.engine) setEngine(d.engine);
+  }
+
+  async function decodeVin(raw: string) {
+    const v = raw.trim().toUpperCase();
+    if (!vinOk(v)) {
+      setVinError("VIN must be 17 characters. Letters I, O, and Q are not used.");
+      return;
+    }
+    setVinBusy(true);
+    setVinError(null);
+    try {
+      const res = await fetch("/api/vin", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ vin: v }),
+      });
+      const json = (await res.json()) as {
+        error?: string;
+        year?: number | null;
+        make?: string;
+        model?: string;
+        engine?: string;
+        bev?: boolean;
+      };
+      if (json.error) {
+        setVinError(json.error);
+        return;
+      }
+      applyFill({
+        year: json.year,
+        make: json.make ?? "",
+        model: json.model ?? "",
+        engine: json.engine || (json.bev ? ELECTRIC_ENGINE : ""),
+      });
+    } catch {
+      setVinError("Couldn’t decode that VIN. Year / Make / Model still work.");
+    } finally {
+      setVinBusy(false);
+    }
+  }
 
   function applySaved(idx: string) {
     const v = saved[Number(idx)];
@@ -222,6 +298,45 @@ export function VehiclePicker({
 
   return (
     <div>
+      {withVin ? (
+        <>
+          <label className="lbl" htmlFor="vehicle_vin">
+            VIN
+          </label>
+          <input
+            id="vehicle_vin"
+            className="field font-mono uppercase"
+            name="vin"
+            value={vin}
+            maxLength={17}
+            autoComplete="off"
+            placeholder="Optional — 17 characters"
+            onChange={(e) => {
+              setVin(e.target.value.toUpperCase());
+              setVinError(null);
+            }}
+          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <ScanVinButton
+              onVin={(v) => {
+                setVin(v);
+                void decodeVin(v);
+              }}
+            />
+            <button
+              type="button"
+              className="flex h-11 items-center justify-center rounded-lg border-2 border-amber px-4 text-sm font-extrabold uppercase tracking-widest text-amber disabled:opacity-50"
+              disabled={vinBusy}
+              onClick={() => void decodeVin(vin)}
+            >
+              {vinBusy ? "Decoding…" : "Decode"}
+            </button>
+          </div>
+          {vinError ? <p className="mt-2 text-sm font-bold text-red">{vinError}</p> : null}
+          <p className="mt-2 text-sm text-muted">VIN is optional. Decode fills Year / Make / Model / Engine.</p>
+        </>
+      ) : null}
+
       {saved.length ? (
         <>
           <label className="lbl">Vehicle on file</label>

@@ -5,7 +5,6 @@ import { requireSession } from "@/lib/auth";
 import { getCustomer } from "@/lib/db/queries";
 import { vehicleLabel } from "@/lib/format";
 import { VehiclePicker } from "@/app/book/VehiclePicker";
-import { VinField } from "@/components/VinField";
 import { STATUS_LABEL, type JobStatus } from "@/lib/status";
 
 export const dynamic = "force-dynamic";
@@ -46,11 +45,9 @@ export default async function CustomerDetail({
       <form action="/api/shop" method="post" className="mt-3 panel">
             <input type="hidden" name="_op" value="create_vehicle" />
         <input type="hidden" name="customer_id" value={id} />
-        <VehiclePicker />
+        <VehiclePicker withVin />
         <label className="lbl">Plate</label>
         <input className="field" name="plate" />
-        <label className="lbl">VIN</label>
-        <VinField />
         <label className="lbl">Mileage</label>
         <input className="field" name="mileage" inputMode="numeric" />
         <label className="lbl">Vehicle history notes</label>

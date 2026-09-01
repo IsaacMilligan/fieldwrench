@@ -128,7 +128,7 @@ export function NewJobForm({
         </>
       )}
 
-      {showYmme ? <VehiclePicker /> : null}
+      {showYmme ? <VehiclePicker withVin /> : null}
 
       <label className="lbl">Status</label>
       <select className="field" name="status" defaultValue="scheduled">
