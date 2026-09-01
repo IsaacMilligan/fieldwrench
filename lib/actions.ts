@@ -349,6 +349,7 @@ export async function acceptBookingAction(form: FormData) {
   const [b] = await sql<{
     name: string; phone: string; address: string; vehicle: string; issue: string;
     preferred_time: string; status: string; services: string; notes: string; customer_email: string;
+    vehicle_year: number | null; vehicle_make: string; vehicle_model: string; vehicle_engine: string;
   }[]>`SELECT * FROM bookings WHERE id = ${bid}`;
   if (!b || b.status !== "pending") return;
   let customerId: string;
@@ -361,20 +362,23 @@ export async function acceptBookingAction(form: FormData) {
     )`;
   }
   const vehicleId = crypto.randomUUID();
-  const bits = b.vehicle.split(/\s+/);
-  let year: number | null = null;
-  let make = "";
-  let model = "";
-  if (bits[0] && /^\d{4}$/.test(bits[0])) {
-    year = Number(bits[0]);
-    make = bits[1] ?? "";
-    model = bits.slice(2).join(" ");
-  } else {
-    make = bits[0] ?? b.vehicle;
-    model = bits.slice(1).join(" ");
+  let year: number | null = b.vehicle_year ? Number(b.vehicle_year) : null;
+  let make = String(b.vehicle_make || "");
+  let model = String(b.vehicle_model || "");
+  const engine = String(b.vehicle_engine || "");
+  if (!make) {
+    const bits = b.vehicle.split(/\s+/);
+    if (bits[0] && /^\d{4}$/.test(bits[0])) {
+      year = Number(bits[0]);
+      make = bits[1] ?? "";
+      model = bits.slice(2).join(" ");
+    } else {
+      make = bits[0] ?? b.vehicle;
+      model = bits.slice(1).join(" ");
+    }
   }
-  await sql`INSERT INTO vehicles (id, customer_id, year, make, model, history_notes) VALUES (
-    ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${"Created from booking"}
+  await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, history_notes) VALUES (
+    ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${"Created from booking"}
   )`;
   const jobId = crypto.randomUUID();
   const notesBit = b.notes ? ` Notes: ${b.notes}` : "";

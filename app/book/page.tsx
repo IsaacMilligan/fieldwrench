@@ -1,4 +1,5 @@
 import { getCustomerUser } from "@/lib/supabase/server";
+import { listCustomerGarage } from "@/lib/db/queries";
 import { BookForm } from "./ui";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,13 @@ export default async function BookPage({
 }) {
   const user = await getCustomerUser();
   const q = await searchParams;
+  const savedVehicles = user?.email
+    ? (await listCustomerGarage(user.email)).vehicles.map((v) => ({
+        year: v.year,
+        make: v.make,
+        model: v.model,
+      }))
+    : [];
   return (
     <BookForm
       signedIn={Boolean(user)}
@@ -17,6 +25,7 @@ export default async function BookPage({
       phone={user ? String(user.user_metadata?.phone ?? "") : undefined}
       ok={q.ok === "1"}
       failed={q.e === "1"}
+      savedVehicles={savedVehicles}
     />
   );
 }

@@ -30,7 +30,17 @@ export default async function BookingsPage() {
               </div>
               <div className="mt-1 text-sm">{String(b.phone)}</div>
               <div className="text-sm text-muted">{String(b.address)}</div>
-              <div className="mt-2 font-bold">{String(b.vehicle)}</div>
+              <div className="mt-2 font-bold">
+                {b.vehicle_year || b.vehicle_make || b.vehicle_model || b.vehicle_engine
+                  ? [b.vehicle_year, b.vehicle_make, b.vehicle_model, b.vehicle_engine].filter(Boolean).join(" ")
+                  : String(b.vehicle)}
+              </div>
+              {b.vehicle_year || b.vehicle_engine ? (
+                <div className="mt-1 text-sm text-muted">
+                  {[b.vehicle_year, b.vehicle_make, b.vehicle_model].filter(Boolean).join(" ")}
+                  {b.vehicle_engine ? ` · Engine ${b.vehicle_engine}` : ""}
+                </div>
+              ) : null}
               <p className="mt-2 text-base font-bold text-amber">{services || "—"}</p>
               {notes ? <p className="mt-1 text-sm">{notes}</p> : null}
               <div className="mt-2 text-sm text-steel">

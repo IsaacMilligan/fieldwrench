@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Mark } from "@/components/Mark";
 import { SERVICES } from "@/lib/services";
+import { VehiclePicker } from "./VehiclePicker";
 
 export function BookForm({
   signedIn,
@@ -11,12 +12,14 @@ export function BookForm({
   phone,
   ok,
   failed,
+  savedVehicles = [],
 }: {
   signedIn: boolean;
   name?: string;
   phone?: string;
   ok?: boolean;
   failed?: boolean;
+  savedVehicles?: { year: number | null; make: string; model: string }[];
 }) {
   const [needService, setNeedService] = useState(false);
 
@@ -80,8 +83,7 @@ export function BookForm({
         <input className="field" name="phone" type="tel" required defaultValue={phone ?? ""} />
         <label className="lbl">Address</label>
         <input className="field" name="address" required />
-        <label className="lbl">Vehicle</label>
-        <input className="field" name="vehicle" placeholder="2018 Chevy Equinox" required />
+        <VehiclePicker saved={savedVehicles} />
         <p className="lbl">Services</p>
         <p className="mb-2 text-sm text-muted">Tap every job you want. You can pick more than one.</p>
         <ul className="space-y-2">

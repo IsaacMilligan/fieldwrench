@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   plate TEXT NOT NULL DEFAULT '',
   vin TEXT NOT NULL DEFAULT '',
   mileage INTEGER,
+  engine TEXT NOT NULL DEFAULT '',
   history_notes TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -149,6 +150,10 @@ CREATE TABLE IF NOT EXISTS bookings (
   phone TEXT NOT NULL,
   address TEXT NOT NULL,
   vehicle TEXT NOT NULL,
+  vehicle_year INTEGER,
+  vehicle_make TEXT NOT NULL DEFAULT '',
+  vehicle_model TEXT NOT NULL DEFAULT '',
+  vehicle_engine TEXT NOT NULL DEFAULT '',
   issue TEXT NOT NULL,
   services TEXT NOT NULL DEFAULT '[]',
   notes TEXT NOT NULL DEFAULT '',
@@ -181,6 +186,11 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS services TEXT NOT NULL DEFAULT '[]'`);
         await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS service_mileage INTEGER`);
+        await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS engine TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_year INTEGER`);
+        await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_make TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_model TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_engine TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`
           UPDATE jobs SET services = '["battery_test"]', service_mileage = COALESCE(service_mileage, 164000)
           WHERE work_performed LIKE 'Installed Group 35 AGM%' AND (services = '[]' OR services = '' OR services IS NULL)
