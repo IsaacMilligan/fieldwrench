@@ -20,6 +20,7 @@ import {
   resetDemoAction,
   saveOilSpecAction,
   saveSettingsAction,
+  saveThemeAction,
   setJobStatusAction,
   updateCustomerAction,
   updateJobAction,
@@ -33,6 +34,7 @@ export const dynamic = "force-dynamic";
 const OPS: Record<string, (form: FormData) => Promise<unknown>> = {
   logout: () => logoutAction(),
   save_settings: saveSettingsAction,
+  save_theme: saveThemeAction,
   reset_demo: resetDemoAction,
   create_customer: createCustomerAction,
   update_customer: updateCustomerAction,

@@ -100,6 +100,7 @@ export type Settings = {
   labor_rate_cents: number;
   mileage_rate_cents: number;
   lead_hours: number;
+  theme: "light" | "dark";
 };
 
 function mapLabor(r: Record<string, unknown>): LaborLine {
@@ -151,8 +152,20 @@ export function profitFor(lines: {
 
 export async function getSettings(): Promise<Settings> {
   const sql = await db();
-  const [s] = await sql<Settings[]>`SELECT shop_name, labor_rate_cents, mileage_rate_cents, lead_hours FROM settings WHERE id = 1`;
-  return s ?? { shop_name: "FieldWrench", labor_rate_cents: 12500, mileage_rate_cents: 76, lead_hours: 24 };
+  const [s] = await sql<Settings[]>`SELECT shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme FROM settings WHERE id = 1`;
+  const theme = s?.theme === "dark" ? "dark" : "light";
+  return s
+    ? { ...s, theme }
+    : { shop_name: "FieldWrench", labor_rate_cents: 12500, mileage_rate_cents: 76, lead_hours: 24, theme: "light" };
+}
+
+export async function getShopTheme(): Promise<"light" | "dark"> {
+  try {
+    const s = await getSettings();
+    return s.theme === "dark" ? "dark" : "light";
+  } catch {
+    return "light";
+  }
 }
 
 export async function dashboardStats() {

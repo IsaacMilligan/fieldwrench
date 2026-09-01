@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS settings (
   labor_rate_cents INTEGER NOT NULL,
   mileage_rate_cents INTEGER NOT NULL,
   lead_hours INTEGER NOT NULL DEFAULT 24,
+  theme TEXT NOT NULL DEFAULT 'light',
   seeded INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS customers (
@@ -194,6 +195,7 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_model TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_engine TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS lead_hours INTEGER NOT NULL DEFAULT 24`);
+        await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'light'`);
         await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS preferred_date DATE`);
         await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_qt NUMERIC`);
         await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_viscosity TEXT NOT NULL DEFAULT ''`);

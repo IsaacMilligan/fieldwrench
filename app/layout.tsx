@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Source_Sans_3, IBM_Plex_Mono } from "next/font/google";
+import { getShopTheme } from "@/lib/db/queries";
 import "./globals.css";
 
 const display = Barlow_Condensed({
@@ -36,18 +37,23 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
 };
 
-export const viewport: Viewport = {
-  themeColor: "#070806",
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  viewportFit: "cover",
-};
+export async function generateViewport(): Promise<Viewport> {
+  const theme = await getShopTheme();
+  return {
+    themeColor: theme === "dark" ? "#070806" : "#f3f1ea",
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    viewportFit: "cover",
+  };
+}
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const theme = await getShopTheme();
   return (
     <html
       lang="en"
+      data-theme={theme}
       className={`${display.variable} ${body.variable} ${mono.variable} h-full`}
     >
       <body className="min-h-full bg-bg text-ink antialiased">{children}</body>

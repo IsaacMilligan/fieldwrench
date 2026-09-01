@@ -1,6 +1,24 @@
 @import "tailwindcss";
 
 :root {
+  --bg: #f3f1ea;
+  --panel: #ffffff;
+  --panel-2: #ebe8df;
+  --line: #cfcabe;
+  --ink: #1a1c14;
+  --muted: #5c6154;
+  --amber: #e8a317;
+  --amber-2: #c4840a;
+  --green: #1f8a38;
+  --red: #c42b1c;
+  --steel: #3f4338;
+  --field: #ffffff;
+  --nav: #ffffff;
+  --tap-ink: #120e04;
+  --shadow: 0 0 0 2px #e8a317;
+}
+
+html[data-theme="dark"] {
   --bg: #070806;
   --panel: #121410;
   --panel-2: #1b1e17;
@@ -12,6 +30,9 @@
   --green: #4ee06a;
   --red: #ff5340;
   --steel: #c6ccb8;
+  --field: #0c0d0a;
+  --nav: #0c0d0a;
+  --tap-ink: #120e04;
   --shadow: 0 0 0 2px #e8a317;
 }
 
@@ -57,7 +78,7 @@ button, input, select, textarea {
   padding: 0 18px;
   border: 2px solid var(--amber);
   background: var(--amber);
-  color: #120e04;
+  color: var(--tap-ink);
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -96,7 +117,7 @@ button, input, select, textarea {
   width: 100%;
   min-height: 56px;
   padding: 12px 14px;
-  background: #0c0d0a;
+  background: var(--field);
   border: 2px solid var(--line);
   border-radius: 4px;
   font-size: 18px;
@@ -144,7 +165,12 @@ label.lbl {
   text-transform: uppercase;
 }
 
-.badge-amber { background: #3a2a08; color: var(--amber-2); }
-.badge-green { background: #0d2a16; color: var(--green); }
-.badge-red { background: #3a1010; color: var(--red); }
-.badge-steel { background: #22251c; color: var(--steel); }
+.badge-amber { background: #f4e4b8; color: #7a4e00; }
+.badge-green { background: #d7f0dc; color: #145c28; }
+.badge-red { background: #f8d4cf; color: #8a1c12; }
+.badge-steel { background: #e4e1d6; color: #3f4338; }
+
+html[data-theme="dark"] .badge-amber { background: #3a2a08; color: var(--amber-2); }
+html[data-theme="dark"] .badge-green { background: #0d2a16; color: var(--green); }
+html[data-theme="dark"] .badge-red { background: #3a1010; color: var(--red); }
+html[data-theme="dark"] .badge-steel { background: #22251c; color: var(--steel); }

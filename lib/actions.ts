@@ -64,6 +64,16 @@ export async function saveSettingsAction(form: FormData) {
   redirect("/more?tab=settings");
 }
 
+export async function saveThemeAction(form: FormData) {
+  await requireSession();
+  const sql = await db();
+  const theme = str(form, "theme") === "dark" ? "dark" : "light";
+  await sql`UPDATE settings SET theme = ${theme} WHERE id = 1`;
+  revalidatePath("/", "layout");
+  revalidatePath("/book");
+  revalidatePath("/more");
+}
+
 export async function resetDemoAction() {
   await requireSession();
   const sql = getSql();

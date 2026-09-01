@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { getSettings, listReceipts, listMileage, listJobsLite } from "@/lib/db/queries";
 import { denverDateISO, formatDate, money } from "@/lib/format";
 import { LeadHoursField } from "./LeadHoursField";
+import { ThemeToggle } from "./ThemeToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -133,6 +134,7 @@ export default async function MorePage({
           <LeadHoursField value={Number(s.lead_hours ?? 24)} />
           <button className="tap mt-4" type="submit">Save settings</button>
         </form>
+        <ThemeToggle value={s.theme === "dark" ? "dark" : "light"} />
         <form action="/api/shop" method="post" className="mt-8">
             <input type="hidden" name="_op" value="reset_demo" />
           <p className="text-sm text-muted">Demo reset wipes the shop book and reloads the sample driveway jobs.</p>
