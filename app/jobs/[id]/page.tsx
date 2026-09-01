@@ -6,6 +6,8 @@ import { StatusBadge } from "@/components/Mark";
 import { requireSession } from "@/lib/auth";
 import { getJobBundle } from "@/lib/db/queries";
 import { formatDateTime, money, vehicleLabel } from "@/lib/format";
+import { OilSpecCard } from "@/components/OilSpecCard";
+import { lookupOilCatalog } from "@/lib/oil-specs";
 import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { laborLineCents, partCostCents, partCustomerCents } from "@/lib/profit";
 
@@ -24,6 +26,16 @@ export default async function JobDetailPage({
   const scheduled = job.scheduled_at
     ? new Date(job.scheduled_at).toISOString().slice(0, 16)
     : "";
+  const catalog = vehicle
+    ? await lookupOilCatalog({
+        year: vehicle.year,
+        make: vehicle.make,
+        model: vehicle.model,
+        engine: vehicle.engine,
+        vin: vehicle.vin,
+      }).catch(() => null)
+    : null;
+  const saved = vehicle ? Number(vehicle.oil_saved) === 1 : false;
 
   return (
     <Shell title="Job">
@@ -40,6 +52,18 @@ export default async function JobDetailPage({
         </div>
         <StatusBadge tone={STATUS_TONE[job.status]}>{STATUS_LABEL[job.status]}</StatusBadge>
       </div>
+      {vehicle ? (
+        <OilSpecCard
+          compact
+          vehicleId={vehicle.id}
+          next={`/jobs/${job.id}`}
+          catalog={catalog}
+          savedQt={saved ? Number(vehicle.oil_qt) || null : null}
+          savedViscosity={saved ? String(vehicle.oil_viscosity ?? "") : ""}
+          savedQtWithout={saved ? Number(vehicle.oil_qt_without) || null : null}
+          savedViscosityAlt={saved ? String(vehicle.oil_viscosity_alt ?? "") : ""}
+        />
+      ) : null}
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         {JOB_STATUSES.map((s) => (

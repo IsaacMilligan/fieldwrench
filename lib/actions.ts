@@ -131,17 +131,50 @@ export async function updateVehicleAction(form: FormData) {
   redirect(`/vehicles/${id}`);
 }
 
+export async function saveOilSpecAction(form: FormData) {
+  await requireSession();
+  const sql = await db();
+  const id = str(form, "id");
+  const qt = parseNumber(str(form, "oil_qt"));
+  const vis = str(form, "oil_viscosity");
+  if (!id || (!qt && !vis)) redirect(`/vehicles/${id || ""}`);
+  await sql`UPDATE vehicles SET
+    oil_qt = ${qt || null},
+    oil_viscosity = ${vis},
+    oil_saved = 1
+    WHERE id = ${id}`;
+  revalidatePath(`/vehicles/${id}`);
+  revalidatePath("/tools");
+  revalidatePath("/jobs");
+  const next = str(form, "next") || `/vehicles/${id}`;
+  redirect(next);
+}
+
 export async function applyVinAction(form: FormData) {
   await requireSession();
   const sql = await db();
   const id = str(form, "vehicle_id");
   const year = parseNumber(str(form, "year")) || null;
-  await sql`UPDATE vehicles SET
-    year = ${year},
-    make = ${str(form, "make")},
-    model = ${str(form, "model")},
-    vin = ${str(form, "vin").toUpperCase()}
-    WHERE id = ${id}`;
+  const qt = parseNumber(str(form, "oil_qt"));
+  const vis = str(form, "oil_viscosity");
+  if (qt || vis) {
+    await sql`UPDATE vehicles SET
+      year = ${year},
+      make = ${str(form, "make")},
+      model = ${str(form, "model")},
+      vin = ${str(form, "vin").toUpperCase()},
+      oil_qt = ${qt || null},
+      oil_viscosity = ${vis},
+      oil_saved = 1
+      WHERE id = ${id}`;
+  } else {
+    await sql`UPDATE vehicles SET
+      year = ${year},
+      make = ${str(form, "make")},
+      model = ${str(form, "model")},
+      vin = ${str(form, "vin").toUpperCase()}
+      WHERE id = ${id}`;
+  }
   revalidatePath(`/vehicles/${id}`);
   redirect(`/vehicles/${id}`);
 }

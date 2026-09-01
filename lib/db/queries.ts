@@ -45,7 +45,13 @@ export type Vehicle = {
   plate: string;
   vin: string;
   mileage: number | null;
+  engine: string;
   history_notes: string;
+  oil_qt: number | null;
+  oil_viscosity: string;
+  oil_qt_without: number | null;
+  oil_viscosity_alt: string;
+  oil_saved: boolean;
 };
 
 export type Job = {

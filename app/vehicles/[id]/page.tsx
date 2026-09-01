@@ -4,6 +4,8 @@ import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { getVehicle } from "@/lib/db/queries";
 import { vehicleLabel } from "@/lib/format";
+import { OilSpecCard } from "@/components/OilSpecCard";
+import { lookupOilCatalog } from "@/lib/oil-specs";
 import { STATUS_LABEL, type JobStatus } from "@/lib/status";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +20,14 @@ export default async function VehiclePage({
   const data = await getVehicle(id);
   if (!data) notFound();
   const { vehicle, customer, jobs } = data;
+  const catalog = await lookupOilCatalog({
+    year: vehicle.year,
+    make: vehicle.make,
+    model: vehicle.model,
+    engine: vehicle.engine,
+    vin: vehicle.vin,
+  }).catch(() => null);
+  const saved = Number(vehicle.oil_saved) === 1;
   return (
     <Shell title="Vehicle">
       <p className="text-muted">
@@ -51,6 +61,14 @@ export default async function VehiclePage({
           Save vehicle
         </button>
       </form>
+      <OilSpecCard
+        vehicleId={vehicle.id}
+        catalog={catalog}
+        savedQt={saved ? Number(vehicle.oil_qt) || null : null}
+        savedViscosity={saved ? String(vehicle.oil_viscosity ?? "") : ""}
+        savedQtWithout={saved ? Number(vehicle.oil_qt_without) || null : null}
+        savedViscosityAlt={saved ? String(vehicle.oil_viscosity_alt ?? "") : ""}
+      />
       <Link href={`/tools?vehicle=${vehicle.id}&vin=${vehicle.vin}`} className="tap tap-ghost mt-3 flex items-center justify-center">
         Decode VIN
       </Link>

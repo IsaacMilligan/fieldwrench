@@ -195,6 +195,11 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_engine TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS lead_hours INTEGER NOT NULL DEFAULT 24`);
         await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS preferred_date DATE`);
+        await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_qt NUMERIC`);
+        await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_viscosity TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_qt_without NUMERIC`);
+        await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_viscosity_alt TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_saved INTEGER NOT NULL DEFAULT 0`);
         await sql.unsafe(`
           UPDATE jobs SET services = '["battery_test"]', service_mileage = COALESCE(service_mileage, 164000)
           WHERE work_performed LIKE 'Installed Group 35 AGM%' AND (services = '[]' OR services = '' OR services IS NULL)

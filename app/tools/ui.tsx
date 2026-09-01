@@ -8,6 +8,14 @@ type Decode = {
   year?: number | null;
   make?: string;
   model?: string;
+  engine?: string;
+  oil?: {
+    qtWithFilter: number | null;
+    viscosity: string;
+    qtWithoutFilter: number | null;
+    viscosityAlt: string;
+    oilType: string;
+  } | null;
 };
 
 export function VinTool({
@@ -59,7 +67,33 @@ export function VinTool({
         <div className="mt-4">
           <div className="num text-3xl">
             {result.year} {result.make} {result.model}
+            {result.engine ? ` ${result.engine}` : ""}
           </div>
+          {result.oil && (result.oil.qtWithFilter || result.oil.viscosity) ? (
+            <div className="mt-4 panel">
+              <div className="flex items-baseline justify-between gap-3">
+                <div className="num text-4xl text-amber">
+                  {result.oil.qtWithFilter ? `${result.oil.qtWithFilter} qt with filter` : "—"}
+                </div>
+                <span className="text-xs font-bold uppercase tracking-widest text-muted">Catalog</span>
+              </div>
+              <div className="num mt-2 text-4xl">{result.oil.viscosity || "—"}</div>
+              {result.oil.oilType && !/conventional/i.test(result.oil.oilType) ? (
+                <p className="mt-2 text-sm font-bold text-steel">Full synthetic</p>
+              ) : result.oil.qtWithFilter || result.oil.viscosity ? (
+                <p className="mt-2 text-sm font-bold text-steel">Full synthetic</p>
+              ) : null}
+              {(result.oil.qtWithoutFilter || result.oil.viscosityAlt) ? (
+                <p className="mt-2 text-sm text-muted">
+                  {result.oil.qtWithoutFilter ? `${result.oil.qtWithoutFilter} qt without filter` : null}
+                  {result.oil.qtWithoutFilter && result.oil.viscosityAlt ? " · " : null}
+                  {result.oil.viscosityAlt ? `also approved: ${result.oil.viscosityAlt}` : null}
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="mt-3 text-lg font-bold text-amber">No spec on file</p>
+          )}
           <form action="/api/shop" method="post" className="mt-4">
             <input type="hidden" name="_op" value="apply_vin" />
             <input type="hidden" name="vin" value={result.vin} />
@@ -74,6 +108,14 @@ export function VinTool({
                 </option>
               ))}
             </select>
+            {!(result.oil && (result.oil.qtWithFilter || result.oil.viscosity)) ? (
+              <>
+                <label className="lbl">Capacity (qt, with filter)</label>
+                <input className="field" name="oil_qt" inputMode="decimal" placeholder="5.0" />
+                <label className="lbl">Viscosity</label>
+                <input className="field" name="oil_viscosity" placeholder="0W-20" />
+              </>
+            ) : null}
             <button className="tap tap-green mt-3" type="submit">
               Save year/make/model
             </button>
