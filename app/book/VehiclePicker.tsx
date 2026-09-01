@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { COMMON_MAKES, commonMakeValue } from "@/lib/vpic";
 
 type Saved = { year: number | null; make: string; model: string };
 
 async function load(kind: string, q: Record<string, string | number>) {
-  const p = new URLSearchParams({ kind, ...Object.fromEntries(Object.entries(q).map(([k, v]) => [k, String(v)])) });
+  const p = new URLSearchParams({
+    kind,
+    ...Object.fromEntries(Object.entries(q).map(([k, v]) => [k, String(v)])),
+  });
   const res = await fetch(`/api/vpic?${p.toString()}`, { cache: "no-store" });
   const json = (await res.json()) as { ok?: boolean; options?: string[]; error?: string };
   if (!json.ok) throw new Error(json.error || "Lookup failed.");
@@ -13,49 +17,43 @@ async function load(kind: string, q: Record<string, string | number>) {
 }
 
 export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
-  const years = (() => {
+  const years = useMemo(() => {
     const top = new Date().getFullYear() + 1;
     const list: number[] = [];
     for (let y = top; y >= 1990; y--) list.push(y);
     return list;
-  })();
+  }, []);
 
   const [year, setYear] = useState("");
-  const [make, setMake] = useState("");
+  const [brand, setBrand] = useState("");
+  const [otherMake, setOtherMake] = useState("");
+  const [allMakes, setAllMakes] = useState<string[]>([]);
   const [model, setModel] = useState("");
   const [engine, setEngine] = useState("");
-  const [makes, setMakes] = useState<string[]>([]);
   const [models, setModels] = useState<string[]>([]);
   const [engines, setEngines] = useState<string[]>([]);
-  const [busy, setBusy] = useState<"makes" | "models" | "engines" | null>(null);
+  const [freeModel, setFreeModel] = useState(false);
+  const [busy, setBusy] = useState<"models" | "engines" | "makes-all" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function resetFromYear() {
-    setMake("");
-    setModel("");
-    setEngine("");
-    setModels([]);
-    setEngines([]);
-  }
+  const make = brand === "Other" ? otherMake.trim() : brand;
+
+  const otherHits = useMemo(() => {
+    const q = otherMake.trim().toLowerCase();
+    if (q.length < 1) return allMakes.slice(0, 40);
+    return allMakes.filter((m) => m.toLowerCase().includes(q)).slice(0, 40);
+  }, [allMakes, otherMake]);
 
   useEffect(() => {
-    if (!year) {
-      setMakes([]);
-      resetFromYear();
-      return;
-    }
+    if (brand !== "Other" || allMakes.length) return;
     let live = true;
-    setBusy("makes");
-    setError(null);
-    load("makes", { year })
+    setBusy("makes-all");
+    load("makes-all", {})
       .then((opts) => {
-        if (!live) return;
-        setMakes(opts);
+        if (live) setAllMakes(opts);
       })
       .catch((e: Error) => {
-        if (!live) return;
-        setMakes([]);
-        setError(e.message);
+        if (live) setError(e.message);
       })
       .finally(() => {
         if (live) setBusy(null);
@@ -63,7 +61,7 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
     return () => {
       live = false;
     };
-  }, [year]);
+  }, [brand, allMakes.length]);
 
   useEffect(() => {
     if (!year || !make) {
@@ -71,19 +69,27 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
       setModel("");
       setEngine("");
       setEngines([]);
+      setFreeModel(false);
       return;
     }
     let live = true;
     setBusy("models");
     setError(null);
+    setFreeModel(false);
     load("models", { year, make })
       .then((opts) => {
         if (!live) return;
+        if (!opts.length) {
+          setModels([]);
+          setFreeModel(true);
+          return;
+        }
         setModels(opts);
       })
       .catch((e: Error) => {
         if (!live) return;
         setModels([]);
+        setFreeModel(true);
         setError(e.message);
       })
       .finally(() => {
@@ -95,7 +101,8 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
   }, [year, make]);
 
   useEffect(() => {
-    if (!year || !make || !model) {
+    if (freeModel || !year || !make || !model) {
+      if (freeModel) return;
       setEngines([]);
       setEngine("");
       return;
@@ -106,11 +113,17 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
     load("engines", { year, make, model })
       .then((opts) => {
         if (!live) return;
+        if (!opts.length) {
+          setEngines([]);
+          setFreeModel(true);
+          return;
+        }
         setEngines(opts);
       })
       .catch((e: Error) => {
         if (!live) return;
         setEngines([]);
+        setFreeModel(true);
         setError(e.message);
       })
       .finally(() => {
@@ -119,39 +132,54 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
     return () => {
       live = false;
     };
-  }, [year, make, model]);
+  }, [year, make, model, freeModel]);
 
   function applySaved(idx: string) {
     const v = saved[Number(idx)];
     if (!v?.year || !v.make || !v.model) return;
     setYear(String(v.year));
-    setMake(v.make);
+    const known = commonMakeValue(v.make);
+    if (known) {
+      setBrand(known);
+      setOtherMake("");
+    } else {
+      setBrand("Other");
+      setOtherMake(v.make);
+    }
     setModel(v.model);
     setEngine("");
   }
 
   const retry = () => {
-    if (busy) return;
-    if (year && make && model) {
-      setModel((m) => m);
+    if (busy || !year) return;
+    setError(null);
+    if (brand === "Other" && !allMakes.length) {
+      setBusy("makes-all");
+      load("makes-all", {})
+        .then(setAllMakes)
+        .catch((e: Error) => setError(e.message))
+        .finally(() => setBusy(null));
+      return;
+    }
+    if (make && model && !freeModel) {
       setBusy("engines");
-      setError(null);
       load("engines", { year, make, model })
-        .then(setEngines)
+        .then((opts) => {
+          if (!opts.length) setFreeModel(true);
+          else setEngines(opts);
+        })
         .catch((e: Error) => setError(e.message))
         .finally(() => setBusy(null));
-    } else if (year && make) {
+    } else if (make) {
       setBusy("models");
-      setError(null);
       load("models", { year, make })
-        .then(setModels)
-        .catch((e: Error) => setError(e.message))
-        .finally(() => setBusy(null));
-    } else if (year) {
-      setBusy("makes");
-      setError(null);
-      load("makes", { year })
-        .then(setMakes)
+        .then((opts) => {
+          if (!opts.length) setFreeModel(true);
+          else {
+            setFreeModel(false);
+            setModels(opts);
+          }
+        })
         .catch((e: Error) => setError(e.message))
         .finally(() => setBusy(null));
     }
@@ -184,11 +212,13 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
         value={year}
         onChange={(e) => {
           setYear(e.target.value);
-          setMake("");
+          setBrand("");
+          setOtherMake("");
           setModel("");
           setEngine("");
           setModels([]);
           setEngines([]);
+          setFreeModel(false);
         }}
       >
         <option value="">Year</option>
@@ -199,73 +229,134 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
         ))}
       </select>
 
-      <label className="lbl" htmlFor="vehicle_make">
+      <label className="lbl" htmlFor="vehicle_make_pick">
         Make
       </label>
       <select
         className="field"
-        id="vehicle_make"
-        name="vehicle_make"
-        required
-        disabled={!year || busy === "makes"}
-        value={make}
+        id="vehicle_make_pick"
+        required={brand !== "Other"}
+        disabled={!year}
+        value={brand}
         onChange={(e) => {
-          setMake(e.target.value);
+          setBrand(e.target.value);
+          setOtherMake("");
           setModel("");
           setEngine("");
+          setModels([]);
           setEngines([]);
+          setFreeModel(false);
         }}
       >
-        <option value="">{busy === "makes" ? "Loading makes…" : "Make"}</option>
-        {makes.map((m) => (
-          <option key={m} value={m}>
-            {m}
+        <option value="">Make</option>
+        {COMMON_MAKES.map((m) => (
+          <option key={m.value} value={m.value}>
+            {m.label}
           </option>
         ))}
+        <option value="Other">Other</option>
       </select>
+      <input type="hidden" name="vehicle_make" value={make} />
+
+      {brand === "Other" ? (
+        <>
+          <label className="lbl" htmlFor="vehicle_make_other">
+            Other make
+          </label>
+          <input
+            className="field"
+            id="vehicle_make_other"
+            list="fw-make-all"
+            required
+            disabled={!year}
+            value={otherMake}
+            onChange={(e) => {
+              setOtherMake(e.target.value);
+              setModel("");
+              setEngine("");
+            }}
+            placeholder={busy === "makes-all" ? "Loading makes…" : "Start typing a make"}
+            autoComplete="off"
+          />
+          <datalist id="fw-make-all">
+            {otherHits.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
+        </>
+      ) : null}
 
       <label className="lbl" htmlFor="vehicle_model">
         Model
       </label>
-      <select
-        className="field"
-        id="vehicle_model"
-        name="vehicle_model"
-        required
-        disabled={!make || busy === "models"}
-        value={model}
-        onChange={(e) => {
-          setModel(e.target.value);
-          setEngine("");
-        }}
-      >
-        <option value="">{busy === "models" ? "Loading models…" : "Model"}</option>
-        {models.map((m) => (
-          <option key={m} value={m}>
-            {m}
-          </option>
-        ))}
-      </select>
+      {freeModel ? (
+        <input
+          className="field"
+          id="vehicle_model"
+          name="vehicle_model"
+          required
+          disabled={!make}
+          value={model}
+          onChange={(e) => {
+            setModel(e.target.value);
+            setEngine("");
+          }}
+          placeholder="Model"
+        />
+      ) : (
+        <select
+          className="field"
+          id="vehicle_model"
+          name="vehicle_model"
+          required
+          disabled={!make || busy === "models"}
+          value={model}
+          onChange={(e) => {
+            setModel(e.target.value);
+            setEngine("");
+          }}
+        >
+          <option value="">{busy === "models" ? "Loading models…" : "Model"}</option>
+          {models.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      )}
 
       <label className="lbl" htmlFor="vehicle_engine">
         Engine size
       </label>
-      <select
-        className="field"
-        id="vehicle_engine"
-        name="vehicle_engine"
-        required
-        disabled={!model || busy === "engines"}
-        value={engine}
-        onChange={(e) => setEngine(e.target.value)}
-      >
-        <option value="">{busy === "engines" ? "Loading engines…" : "Engine size"}</option>
-        {engines.map((m) => (
-          <option key={m} value={m}>
-            {m}
-          </option>
-        ))}
-      </select>
+      {freeModel ? (
+        <input
+          className="field"
+          id="vehicle_engine"
+          name="vehicle_engine"
+          required
+          disabled={!model}
+          value={engine}
+          onChange={(e) => setEngine(e.target.value)}
+          placeholder="e.g. 2.0L"
+        />
+      ) : (
+        <select
+          className="field"
+          id="vehicle_engine"
+          name="vehicle_engine"
+          required
+          disabled={!model || busy === "engines"}
+          value={engine}
+          onChange={(e) => setEngine(e.target.value)}
+        >
+          <option value="">{busy === "engines" ? "Loading engines…" : "Engine size"}</option>
+          {engines.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      )}
 
       {error ? (
         <div className="mt-3">

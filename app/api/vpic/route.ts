@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { bookingYears, vpicMakes, vpicModels, ymmEngines } from "@/lib/vpic";
+import { bookingYears, vpicMakes, vpicModels, ymmEngines, COMMON_MAKES } from "@/lib/vpic";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +15,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, options: bookingYears().map(String) });
     }
     if (kind === "makes") {
-      if (!year) return NextResponse.json({ ok: false, error: "Pick a year first." }, { status: 400 });
+      return NextResponse.json({
+        ok: true,
+        options: COMMON_MAKES.map((m) => m.value),
+      });
+    }
+    if (kind === "makes-all") {
       const options = await vpicMakes();
       if (!options.length) return NextResponse.json({ ok: false, error: "No makes returned. Retry." });
       return NextResponse.json({ ok: true, options });

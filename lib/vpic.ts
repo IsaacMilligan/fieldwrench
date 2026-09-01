@@ -16,6 +16,42 @@ function titleCase(s: string) {
     .replace(/(^|[\s/-])([a-z])/g, (_, p, c) => p + c.toUpperCase());
 }
 
+export const COMMON_MAKES: { label: string; value: string }[] = [
+  { label: "Acura", value: "Acura" },
+  { label: "Audi", value: "Audi" },
+  { label: "BMW", value: "BMW" },
+  { label: "Buick", value: "Buick" },
+  { label: "Cadillac", value: "Cadillac" },
+  { label: "Chevy", value: "Chevrolet" },
+  { label: "Chrysler", value: "Chrysler" },
+  { label: "Dodge", value: "Dodge" },
+  { label: "Ford", value: "Ford" },
+  { label: "GMC", value: "GMC" },
+  { label: "Honda", value: "Honda" },
+  { label: "Hyundai", value: "Hyundai" },
+  { label: "Jeep", value: "Jeep" },
+  { label: "Kia", value: "Kia" },
+  { label: "Lexus", value: "Lexus" },
+  { label: "Lincoln", value: "Lincoln" },
+  { label: "Mazda", value: "Mazda" },
+  { label: "Mercedes-Benz", value: "Mercedes-Benz" },
+  { label: "Nissan", value: "Nissan" },
+  { label: "Ram", value: "Ram" },
+  { label: "Subaru", value: "Subaru" },
+  { label: "Tesla", value: "Tesla" },
+  { label: "Toyota", value: "Toyota" },
+  { label: "Volkswagen", value: "Volkswagen" },
+  { label: "Volvo", value: "Volvo" },
+];
+
+export function commonMakeValue(labelOrValue: string): string | null {
+  const s = labelOrValue.trim().toLowerCase();
+  const hit = COMMON_MAKES.find(
+    (m) => m.value.toLowerCase() === s || m.label.toLowerCase() === s,
+  );
+  return hit?.value ?? null;
+}
+
 export function bookingYears(): number[] {
   const top = new Date().getFullYear() + 1;
   const years: number[] = [];
