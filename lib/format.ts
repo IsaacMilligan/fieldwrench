@@ -28,6 +28,27 @@ export function denverDateISO(d = new Date()): string {
   }).format(d);
 }
 
+export function earliestBookDateISO(leadHours: number, now = new Date()): string {
+  const hours = Math.min(168, Math.max(0, Math.round(Number(leadHours) || 0)));
+  return denverDateISO(new Date(now.getTime() + hours * 60 * 60 * 1000));
+}
+
+export function preferredDateLabel(raw: unknown): string {
+  if (raw == null || raw === "") return "not set";
+  const s = String(raw).trim();
+  const day = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!day) return "not set";
+  const y = Number(day[1]);
+  const m = Number(day[2]);
+  const d = Number(day[3]);
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(Date.UTC(y, m - 1, d, 18, 0, 0)));
+}
+
 export function formatDate(iso: string | Date | null | undefined): string {
   if (!iso) return "—";
   const d = typeof iso === "string" ? new Date(iso) : iso;

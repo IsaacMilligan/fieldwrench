@@ -55,8 +55,10 @@ export async function saveSettingsAction(form: FormData) {
   const labor = parseMoney(str(form, "labor_rate"));
   const miles = Math.round(parseNumber(str(form, "mileage_rate")) * 100) / 100;
   const mileageCents = Math.round(miles);
-  await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents} WHERE id = 1`;
+  const lead = Math.min(168, Math.max(0, Math.round(parseNumber(str(form, "lead_hours")))));
+  await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead} WHERE id = 1`;
   revalidatePath("/");
+  revalidatePath("/book");
   redirect("/more?tab=settings");
 }
 
@@ -350,6 +352,7 @@ export async function acceptBookingAction(form: FormData) {
     name: string; phone: string; address: string; vehicle: string; issue: string;
     preferred_time: string; status: string; services: string; notes: string; customer_email: string;
     vehicle_year: number | null; vehicle_make: string; vehicle_model: string; vehicle_engine: string;
+    preferred_date: string | null;
   }[]>`SELECT * FROM bookings WHERE id = ${bid}`;
   if (!b || b.status !== "pending") return;
   let customerId: string;
@@ -382,7 +385,8 @@ export async function acceptBookingAction(form: FormData) {
   )`;
   const jobId = crypto.randomUUID();
   const notesBit = b.notes ? ` Notes: ${b.notes}` : "";
-  const complaint = `${b.issue}${notesBit}${b.preferred_time ? ` Preferred: ${b.preferred_time}` : ""}`;
+  const dateBit = b.preferred_date ? ` Preferred date: ${String(b.preferred_date).slice(0, 10)}` : "";
+  const complaint = `${b.issue}${notesBit}${dateBit}`;
   await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, address, complaint, services) VALUES (
     ${jobId}, ${customerId}, ${vehicleId}, 'scheduled', ${b.address}, ${complaint}, ${b.services || "[]"}
   )`;

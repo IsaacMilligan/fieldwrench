@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { listBookings } from "@/lib/db/queries";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, preferredDateLabel } from "@/lib/format";
 import { formatServiceList, parseServiceIds } from "@/lib/services";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +41,7 @@ export default async function BookingsPage() {
               <p className="mt-2 text-base font-bold text-amber">{services || "—"}</p>
               {notes ? <p className="mt-1 text-sm">{notes}</p> : null}
               <div className="mt-2 text-sm text-steel">
-                Preferred: {String(b.preferred_time) || "—"} · {formatDateTime(b.created_at as string)}
+                Preferred date: {preferredDateLabel(b.preferred_date ?? b.preferred_time)} · {formatDateTime(b.created_at as string)}
               </div>
               {b.status === "pending" ? (
                 <div className="mt-4 grid grid-cols-2 gap-2">

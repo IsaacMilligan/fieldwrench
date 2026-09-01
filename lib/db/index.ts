@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS settings (
   shop_name TEXT NOT NULL,
   labor_rate_cents INTEGER NOT NULL,
   mileage_rate_cents INTEGER NOT NULL,
+  lead_hours INTEGER NOT NULL DEFAULT 24,
   seeded INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS customers (
@@ -158,6 +159,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   services TEXT NOT NULL DEFAULT '[]',
   notes TEXT NOT NULL DEFAULT '',
   preferred_time TEXT NOT NULL DEFAULT '',
+  preferred_date DATE,
   status TEXT NOT NULL DEFAULT 'pending',
   customer_email TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -191,6 +193,8 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_make TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_model TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_engine TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS lead_hours INTEGER NOT NULL DEFAULT 24`);
+        await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS preferred_date DATE`);
         await sql.unsafe(`
           UPDATE jobs SET services = '["battery_test"]', service_mileage = COALESCE(service_mileage, 164000)
           WHERE work_performed LIKE 'Installed Group 35 AGM%' AND (services = '[]' OR services = '' OR services IS NULL)

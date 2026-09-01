@@ -13,6 +13,7 @@ export function BookForm({
   ok,
   failed,
   savedVehicles = [],
+  minDate,
 }: {
   signedIn: boolean;
   name?: string;
@@ -20,6 +21,7 @@ export function BookForm({
   ok?: boolean;
   failed?: boolean;
   savedVehicles?: { year: number | null; make: string; model: string }[];
+  minDate: string;
 }) {
   const [needService, setNeedService] = useState(false);
 
@@ -74,6 +76,11 @@ export function BookForm({
           if (!fd.getAll("service").length) {
             e.preventDefault();
             setNeedService(true);
+            return;
+          }
+          const day = String(fd.get("preferred_date") ?? "");
+          if (!day || day < minDate) {
+            e.preventDefault();
           }
         }}
       >
@@ -108,8 +115,16 @@ export function BookForm({
           name="notes"
           placeholder="Anything else — driveway, Saturday morning, noise details…"
         />
-        <label className="lbl">Preferred time</label>
-        <input className="field" name="preferred_time" placeholder="Saturday morning" />
+        <label className="lbl">Preferred Date</label>
+        <input
+          className="field"
+          type="date"
+          name="preferred_date"
+          required
+          min={minDate}
+          defaultValue={minDate}
+        />
+        <p className="mt-2 text-sm text-muted">I’ll confirm the time when I reply.</p>
         {needService ? <p className="mt-3 text-lg font-bold text-red">Pick at least one service.</p> : null}
         {failed ? <p className="mt-3 text-red">Could not save the request. Try again.</p> : null}
         <button className="tap mt-6" type="submit">

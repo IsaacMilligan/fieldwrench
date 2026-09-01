@@ -93,6 +93,7 @@ export type Settings = {
   shop_name: string;
   labor_rate_cents: number;
   mileage_rate_cents: number;
+  lead_hours: number;
 };
 
 function mapLabor(r: Record<string, unknown>): LaborLine {
@@ -144,8 +145,8 @@ export function profitFor(lines: {
 
 export async function getSettings(): Promise<Settings> {
   const sql = await db();
-  const [s] = await sql<Settings[]>`SELECT shop_name, labor_rate_cents, mileage_rate_cents FROM settings WHERE id = 1`;
-  return s ?? { shop_name: "FieldWrench", labor_rate_cents: 12500, mileage_rate_cents: 76 };
+  const [s] = await sql<Settings[]>`SELECT shop_name, labor_rate_cents, mileage_rate_cents, lead_hours FROM settings WHERE id = 1`;
+  return s ?? { shop_name: "FieldWrench", labor_rate_cents: 12500, mileage_rate_cents: 76, lead_hours: 24 };
 }
 
 export async function dashboardStats() {

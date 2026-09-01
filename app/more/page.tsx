@@ -3,6 +3,7 @@ import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { getSettings, listReceipts, listMileage, listJobsLite } from "@/lib/db/queries";
 import { denverDateISO, formatDate, money } from "@/lib/format";
+import { LeadHoursField } from "./LeadHoursField";
 
 export const dynamic = "force-dynamic";
 
@@ -129,6 +130,7 @@ export default async function MorePage({
           <p className="mt-2 text-xs text-muted">
             Default is the current IRS business rate (76¢ from July 1, 2026). You can edit it.
           </p>
+          <LeadHoursField value={Number(s.lead_hours ?? 24)} />
           <button className="tap mt-4" type="submit">Save settings</button>
         </form>
         <form action="/api/shop" method="post" className="mt-8">

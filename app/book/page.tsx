@@ -1,5 +1,6 @@
 import { getCustomerUser } from "@/lib/supabase/server";
-import { listCustomerGarage } from "@/lib/db/queries";
+import { getSettings, listCustomerGarage } from "@/lib/db/queries";
+import { earliestBookDateISO } from "@/lib/format";
 import { BookForm } from "./ui";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,8 @@ export default async function BookPage({
 }) {
   const user = await getCustomerUser();
   const q = await searchParams;
+  const settings = await getSettings().catch(() => ({ lead_hours: 24 }));
+  const minDate = earliestBookDateISO(Number(settings.lead_hours ?? 24));
   const savedVehicles = user?.email
     ? (await listCustomerGarage(user.email)).vehicles.map((v) => ({
         year: v.year,
@@ -26,6 +29,7 @@ export default async function BookPage({
       ok={q.ok === "1"}
       failed={q.e === "1"}
       savedVehicles={savedVehicles}
+      minDate={minDate}
     />
   );
 }

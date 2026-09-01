@@ -48,8 +48,8 @@ export async function seedDemo(sql: Sql) {
   const hash = bcrypt.hashSync(DEMO_PASSWORD, 10);
   await sql`INSERT INTO users (id, email, password_hash) VALUES (${id()}, ${DEMO_EMAIL}, ${hash})`;
   await sql`
-    INSERT INTO settings (id, shop_name, labor_rate_cents, mileage_rate_cents, seeded)
-    VALUES (1, 'FieldWrench', 12500, 76, 1)
+    INSERT INTO settings (id, shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, seeded)
+    VALUES (1, 'FieldWrench', 12500, 76, 24, 1)
   `;
 
   const mara = id();
