@@ -260,6 +260,214 @@ export async function dashboardStats() {
   return { jobsToday, unpaid: unpaidWithTotals, ytdMiles, weekProfit, today };
 }
 
+export type HomeNext =
+  | {
+      kind: "job";
+      id: string;
+      href: string;
+      customer: string;
+      vehicleYear: number | null;
+      make: string;
+      model: string;
+      services: string;
+      scheduledAt: string | null;
+      status: string;
+    }
+  | {
+      kind: "booking";
+      id: string;
+      href: string;
+      customer: string;
+      vehicleYear: number | null;
+      make: string;
+      model: string;
+      services: string;
+      scheduledAt: null;
+      preferredDate: string | null;
+      status: string;
+    };
+
+export async function homeDashboard() {
+  const sql = await db();
+  const today = denverDateISO();
+
+  const [counts] = await sql<{ jobs: number; bookings: number }[]>`
+    SELECT
+      (SELECT COUNT(*)::int FROM jobs j
+        WHERE j.scheduled_at IS NOT NULL
+          AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date) AS jobs,
+      (SELECT COUNT(*)::int FROM bookings b
+        WHERE b.preferred_date = ${today}::date) AS bookings
+  `;
+  const todayCount = Number(counts?.jobs ?? 0) + Number(counts?.bookings ?? 0);
+
+  const nextJobs = await sql<
+    {
+      id: string;
+      status: string;
+      scheduled_at: Date | string | null;
+      services: string;
+      customer_name: string;
+      vehicle_year: number | null;
+      make: string;
+      model: string;
+    }[]
+  >`
+    SELECT j.id, j.status, j.scheduled_at, j.services,
+      c.name AS customer_name, v.year AS vehicle_year, v.make, v.model
+    FROM jobs j
+    JOIN customers c ON c.id = j.customer_id
+    JOIN vehicles v ON v.id = j.vehicle_id
+    WHERE j.status IN ('scheduled','in_progress','waiting_parts')
+      AND (
+        j.status = 'in_progress'
+        OR (j.scheduled_at IS NOT NULL AND j.scheduled_at >= now())
+      )
+    ORDER BY CASE WHEN j.status = 'in_progress' THEN 0 ELSE 1 END,
+      j.scheduled_at ASC NULLS LAST
+    LIMIT 1
+  `;
+
+  let next: HomeNext | null = null;
+  const nj = nextJobs[0];
+  if (nj) {
+    next = {
+      kind: "job",
+      id: String(nj.id),
+      href: `/jobs/${nj.id}`,
+      customer: String(nj.customer_name),
+      vehicleYear: nj.vehicle_year,
+      make: String(nj.make ?? ""),
+      model: String(nj.model ?? ""),
+      services: String(nj.services ?? ""),
+      scheduledAt: nj.scheduled_at ? new Date(nj.scheduled_at as string | Date).toISOString() : null,
+      status: String(nj.status),
+    };
+  } else {
+    const nextBook = await sql<
+      {
+        id: string;
+        name: string;
+        vehicle_year: number | null;
+        vehicle_make: string;
+        vehicle_model: string;
+        vehicle: string;
+        services: string;
+        preferred_date: Date | string | null;
+        status: string;
+      }[]
+    >`
+      SELECT id, name, vehicle_year, vehicle_make, vehicle_model, vehicle, services, preferred_date, status
+      FROM bookings
+      WHERE status = 'pending'
+        AND preferred_date IS NOT NULL
+        AND preferred_date >= ${today}::date
+      ORDER BY preferred_date ASC
+      LIMIT 1
+    `;
+    const nb = nextBook[0];
+    if (nb) {
+      next = {
+        kind: "booking",
+        id: String(nb.id),
+        href: "/bookings",
+        customer: String(nb.name),
+        vehicleYear: nb.vehicle_year,
+        make: String(nb.vehicle_make || ""),
+        model: String(nb.vehicle_model || nb.vehicle || ""),
+        services: String(nb.services ?? ""),
+        scheduledAt: null,
+        preferredDate: nb.preferred_date ? String(nb.preferred_date) : null,
+        status: String(nb.status),
+      };
+    }
+  }
+
+  const [moneyRow] = await sql<{ revenue: number; profit: number }[]>`
+    SELECT
+      COALESCE((
+        SELECT SUM(CASE WHEN l.is_flat = 1 THEN l.flat_cents ELSE ROUND(l.hours * l.rate_cents) END)
+        FROM labor_lines l JOIN jobs j ON j.id = l.job_id
+        WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+      ), 0)
+      + COALESCE((
+        SELECT SUM(p.qty * p.price_cents)
+        FROM part_lines p JOIN jobs j ON j.id = p.job_id
+        WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+      ), 0)
+      AS revenue,
+      COALESCE((
+        SELECT SUM(CASE WHEN l.is_flat = 1 THEN l.flat_cents ELSE ROUND(l.hours * l.rate_cents) END)
+        FROM labor_lines l JOIN jobs j ON j.id = l.job_id
+        WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+      ), 0)
+      + COALESCE((
+        SELECT SUM(p.qty * p.price_cents)
+        FROM part_lines p JOIN jobs j ON j.id = p.job_id
+        WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+      ), 0)
+      - COALESCE((
+        SELECT SUM(p.qty * p.cost_cents)
+        FROM part_lines p JOIN jobs j ON j.id = p.job_id
+        WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+      ), 0)
+      - COALESCE((
+        SELECT SUM(r.amount_cents)
+        FROM receipts r JOIN jobs j ON j.id = r.job_id
+        WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+      ), 0)
+      AS profit
+  `;
+
+  const unpaid = await sql<
+    {
+      id: string;
+      job_id: string;
+      customer_name: string;
+      vehicle_year: number | null;
+      make: string;
+      model: string;
+    }[]
+  >`
+    SELECT i.id, j.id AS job_id, c.name AS customer_name, v.year AS vehicle_year, v.make, v.model
+    FROM invoices i
+    JOIN jobs j ON j.id = i.job_id
+    JOIN customers c ON c.id = j.customer_id
+    JOIN vehicles v ON v.id = j.vehicle_id
+    WHERE i.status = 'unpaid'
+    ORDER BY i.created_at DESC
+    LIMIT 8
+  `;
+  const unpaidTotals = await sql<{ job_id: string; total: number }[]>`
+    SELECT j.id AS job_id,
+      COALESCE((
+        SELECT SUM(CASE WHEN l.is_flat = 1 THEN l.flat_cents ELSE ROUND(l.hours * l.rate_cents) END)
+        FROM labor_lines l WHERE l.job_id = j.id
+      ), 0)
+      + COALESCE((SELECT SUM(p.qty * p.price_cents) FROM part_lines p WHERE p.job_id = j.id), 0)
+      AS total
+    FROM jobs j
+  `;
+  const totalByJob = Object.fromEntries(unpaidTotals.map((r) => [String(r.job_id), Number(r.total)]));
+
+  return {
+    today,
+    todayCount,
+    next,
+    todayRevenue: Number(moneyRow?.revenue ?? 0),
+    todayProfit: Number(moneyRow?.profit ?? 0),
+    unpaid: unpaid.map((row) => ({
+      id: String(row.id),
+      job_id: String(row.job_id),
+      customer_name: String(row.customer_name),
+      vehicle_year: row.vehicle_year,
+      make: String(row.make),
+      model: String(row.model),
+      total: totalByJob[String(row.job_id)] ?? 0,
+    })),
+  };
+}
+
 export async function listJobs() {
   const sql = await db();
   return sql`
