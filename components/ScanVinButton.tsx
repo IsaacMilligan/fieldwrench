@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { BrowserMultiFormatReader } from "@zxing/browser";
+import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import { vinCheckDigitOk } from "@/lib/format";
 
 export const VIN_PAIR_BTN =
@@ -11,48 +12,57 @@ export const VIN_PAIR_BTN =
 const CTRL =
   "relative z-[1] flex min-h-12 w-full items-center justify-center rounded-lg border-2 px-3 text-center text-sm font-extrabold uppercase tracking-widest disabled:opacity-40";
 
-/** Barcode payload must be exactly 17 chars (optional spaces/hyphens) with ISO check digit. */
-export function vinFromBarcodePayload(raw: string): string | null {
-  const trimmed = String(raw ?? "").trim().toUpperCase();
-  if (vinCheckDigitOk(trimmed)) return trimmed;
-  const compact = trimmed.replace(/[\s-]/g, "");
-  if (compact.length === 17 && vinCheckDigitOk(compact)) return compact;
+const NOT_VIN = "That’s not the VIN barcode — use the VIN bar on the door sticker.";
+
+function zxingHints() {
+  const hints = new Map();
+  hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+    BarcodeFormat.CODE_39,
+    BarcodeFormat.CODE_128,
+    BarcodeFormat.PDF_417,
+    BarcodeFormat.QR_CODE,
+    BarcodeFormat.DATA_MATRIX,
+  ]);
+  hints.set(DecodeHintType.TRY_HARDER, true);
+  return hints;
+}
+
+function findVinWindow(s: string): string | null {
+  const chars = s.replace(/[^A-HJ-NPR-Z0-9]/g, "");
+  for (let i = 0; i + 17 <= chars.length; i++) {
+    const slice = chars.slice(i, i + 17);
+    if (vinCheckDigitOk(slice)) return slice;
+  }
   return null;
 }
 
-export async function readVinFromFile(file: File): Promise<string | null> {
-  try {
-    const bmp = await createImageBitmap(file);
-    const Detector = (
-      window as unknown as {
-        BarcodeDetector?: new (o: { formats: string[] }) => {
-          detect: (s: ImageBitmap) => Promise<Array<{ rawValue?: string }>>;
-        };
-      }
-    ).BarcodeDetector;
-    if (Detector) {
-      const det = new Detector({ formats: ["code_39", "code_128", "qr_code"] });
-      const hits = await det.detect(bmp);
-      for (const h of hits) {
-        const v = vinFromBarcodePayload(String(h.rawValue ?? ""));
-        if (v) return v;
-      }
-    }
-  } catch {
-    /* still photo OCR only — never live overlay text */
+/** VIN from a barcode payload: exact 17, leading I, or 17-char VIN inside a longer string. Check digit required. */
+export function vinFromBarcodePayload(raw: string): string | null {
+  const upper = String(raw ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s\-_]/g, "");
+  if (!upper) return null;
+  if (vinCheckDigitOk(upper)) return upper;
+  if (upper.startsWith("I")) {
+    const rest = upper.slice(1);
+    if (vinCheckDigitOk(rest.slice(0, 17))) return rest.slice(0, 17);
+    const inner = findVinWindow(rest);
+    if (inner) return inner;
   }
+  return findVinWindow(upper);
+}
+
+export async function readVinFromFile(file: File): Promise<string | null> {
+  const url = URL.createObjectURL(file);
   try {
-    const { createWorker } = await import("tesseract.js");
-    const worker = await createWorker("eng");
-    const { data } = await worker.recognize(file);
-    await worker.terminate();
-    const compact = String(data.text ?? "")
-      .toUpperCase()
-      .replace(/[\s-]/g, "");
-    if (compact.length === 17 && vinCheckDigitOk(compact)) return compact;
-    return vinFromBarcodePayload(compact);
+    const reader = new BrowserMultiFormatReader(zxingHints());
+    const result = await reader.decodeFromImageUrl(url);
+    return vinFromBarcodePayload(result.getText());
   } catch {
     return null;
+  } finally {
+    URL.revokeObjectURL(url);
   }
 }
 
@@ -63,44 +73,42 @@ function ScanVinOverlay({
   onVin: (vin: string) => void;
   onClose: () => void;
 }) {
-  const reactId = useId().replace(/:/g, "");
-  const readerId = `vin-reader-${reactId}`;
+  const videoRef = useRef<HTMLVideoElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const stopRef = useRef<(() => void) | null>(null);
   const locked = useRef(false);
   const [denied, setDenied] = useState(false);
-  const [hint, setHint] = useState<string | null>(null);
+  const [status, setStatus] = useState("Looking for VIN barcode…");
   const [photoBusy, setPhotoBusy] = useState(false);
   const [candidate, setCandidate] = useState<string | null>(null);
 
-  function stopScanner() {
-    const s = scannerRef.current;
-    scannerRef.current = null;
-    if (s?.isScanning) {
-      void s
-        .stop()
-        .catch(() => undefined)
-        .then(() => s.clear());
-    }
+  function stopCamera() {
+    stopRef.current?.();
+    stopRef.current = null;
+    const el = videoRef.current;
+    const stream = el?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach((t) => t.stop());
+    if (el) el.srcObject = null;
+  }
+
+  function cancel() {
+    stopCamera();
+    onClose();
   }
 
   function propose(vin: string) {
     if (!vinCheckDigitOk(vin)) return;
     if (locked.current) return;
     locked.current = true;
-    stopScanner();
+    stopCamera();
     setCandidate(vin);
-  }
-
-  function cancel() {
-    stopScanner();
-    onClose();
+    setStatus(`VIN: ${vin}`);
   }
 
   function scanAgain() {
     locked.current = false;
     setCandidate(null);
-    setHint(null);
+    setStatus("Looking for VIN barcode…");
   }
 
   useEffect(() => {
@@ -114,61 +122,82 @@ function ScanVinOverlay({
 
   useEffect(() => {
     if (denied || candidate) return;
+    const video = videoRef.current;
+    if (!video) return;
     let cancelled = false;
-    const scanner = new Html5Qrcode(readerId, {
-      verbose: false,
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.QR_CODE,
-      ],
-    });
-    scannerRef.current = scanner;
+    video.setAttribute("playsinline", "true");
+    video.setAttribute("webkit-playsinline", "true");
+    video.muted = true;
+    video.playsInline = true;
 
-    const start = scanner
-      .start(
-        { facingMode: "environment" },
-        { fps: 12 },
-        (text) => {
-          const v = vinFromBarcodePayload(text);
-          if (v) propose(v);
-        },
-        () => undefined,
-      )
+    const reader = new BrowserMultiFormatReader(zxingHints());
+    const constraints: MediaStreamConstraints = {
+      audio: false,
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+    };
+
+    const run = reader
+      .decodeFromConstraints(constraints, video, (result) => {
+        if (cancelled || locked.current || !result) return;
+        const text = result.getText();
+        const vin = vinFromBarcodePayload(text);
+        if (vin) {
+          propose(vin);
+          return;
+        }
+        setStatus(NOT_VIN);
+      })
+      .then((controls) => {
+        stopRef.current = () => controls.stop();
+        const stream = video.srcObject as MediaStream | null;
+        const track = stream?.getVideoTracks()[0];
+        try {
+          void track?.applyConstraints({
+            // @ts-expect-error iOS focusMode is not in every lib.dom
+            advanced: [{ focusMode: "continuous" }],
+          });
+        } catch {
+          /* autofocus not available */
+        }
+      })
       .catch((e: unknown) => {
         if (cancelled) return;
         const name = e instanceof Error ? e.name : "";
         const msg = e instanceof Error ? e.message : String(e);
         if (name === "NotAllowedError" || /permission|denied|notallowed/i.test(msg)) {
           setDenied(true);
-          setHint("Camera permission denied.");
+          setStatus("Camera permission denied.");
         } else {
           setDenied(true);
-          setHint("Couldn’t open the camera. Use Take photo or type the VIN.");
+          setStatus("Couldn’t open the camera. Use Take photo or type the VIN.");
         }
       });
 
     return () => {
       cancelled = true;
-      void start.finally(async () => {
+      void run.finally(() => {
         try {
-          if (scanner.isScanning) await scanner.stop();
-          scanner.clear();
+          stopRef.current?.();
         } catch {
           /* already stopped */
         }
       });
+      const stream = video.srcObject as MediaStream | null;
+      stream?.getTracks().forEach((t) => t.stop());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [denied, readerId, candidate]);
+  }, [denied, candidate]);
 
   async function onPhoto(file: File) {
     setPhotoBusy(true);
-    setHint(null);
     const vin = await readVinFromFile(file);
     setPhotoBusy(false);
     if (vin) propose(vin);
-    else setHint("Couldn’t read a VIN. Type the 17 characters.");
+    else setStatus(NOT_VIN);
   }
 
   const valid = candidate !== null && vinCheckDigitOk(candidate);
@@ -189,21 +218,29 @@ function ScanVinOverlay({
         </button>
       </header>
 
-      <div className="relative z-0 mx-4 mt-3 min-h-0 flex-1 overflow-hidden rounded-xl bg-black">
-        {candidate && valid ? (
+      <div className="relative z-0 mx-4 mt-3 min-h-[45dvh] flex-1 overflow-hidden rounded-xl bg-black">
+        {valid ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
             <p className="font-mono text-lg font-bold tracking-wide text-white">VIN: {candidate}</p>
           </div>
-        ) : !denied ? (
-          <div id={readerId} className="h-full w-full overflow-hidden" />
-        ) : (
+        ) : denied ? (
           <div className="flex h-full items-center justify-center px-4 text-center text-white">
-            Camera is off. Take a photo or type the VIN.
+            Camera is off. Take a photo of the VIN barcode or type the VIN.
           </div>
+        ) : (
+          <video
+            ref={videoRef}
+            className="h-full w-full object-cover"
+            muted
+            playsInline
+            autoPlay
+          />
         )}
       </div>
 
-      {hint ? <p className="relative z-[10000] px-4 pt-2 text-center text-sm font-bold text-amber">{hint}</p> : null}
+      <p className="relative z-[10000] px-4 pt-2 text-center text-sm font-bold text-amber" aria-live="polite">
+        {status}
+      </p>
 
       <input
         ref={fileRef}
@@ -229,7 +266,7 @@ function ScanVinOverlay({
             cancel();
           }}
         >
-          Use
+          Use VIN
         </button>
         <button
           type="button"
