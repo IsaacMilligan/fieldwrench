@@ -173,6 +173,10 @@ function menuItems(raw: unknown): Array<{ text: string; value: string }> {
     .filter((x) => x.text);
 }
 
+function modelKey(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 function engineLabel(text: string): string | null {
   const m = text.match(/(\d+(?:\.\d+)?)\s*L\b/i);
   if (m) return `${m[1]}L`;
@@ -225,14 +229,16 @@ export async function ymmEngines(year: number, make: string, model: string): Pro
     try {
       const menuUrl = `${EPA}/model?year=${year}&make=${encodeURIComponent(make)}`;
       const menu = await getJson(menuUrl);
-      const needle = model.toLowerCase();
+      const needle = modelKey(model);
       const matches = menuItems(menu)
         .map((it) => it.value || it.text)
         .filter((name) => {
-          const n = name.toLowerCase();
-          return n === needle || n.startsWith(`${needle} `) || n.startsWith(`${needle}-`);
+          const n = modelKey(name);
+          return n === needle || n.startsWith(needle) || n.includes(needle);
         });
-      for (const name of matches.slice(0, 8)) {
+      for (const name of matches.slice(0, 12)) {
+        const lab = engineLabel(name);
+        if (lab) found.add(lab);
         try {
           await addFrom(name);
         } catch {
