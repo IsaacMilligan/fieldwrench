@@ -18,6 +18,16 @@ function str(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
 }
 
+function ymmFrom(form: FormData) {
+  const year = parseNumber(str(form, "vehicle_year") || str(form, "year")) || null;
+  const make = str(form, "vehicle_make") || str(form, "make");
+  const model = str(form, "vehicle_model") || str(form, "model");
+  let engine = str(form, "vehicle_engine") || str(form, "engine");
+  if (engine === "__unsure__") engine = "";
+  if (isElectricEngine(engine)) engine = ELECTRIC_ENGINE;
+  return { year, make, model, engine };
+}
+
 export async function loginAction(_prev: { error?: string } | null, form: FormData) {
   try {
     await import("./db/index").then((m) => m.ensureReady());
@@ -90,6 +100,12 @@ export async function createCustomerAction(form: FormData) {
     ${id}, ${str(form, "name") || "Customer"}, ${str(form, "phone")}, ${str(form, "email")},
     ${str(form, "address")}, ${str(form, "notes")}
   )`;
+  const ymm = ymmFrom(form);
+  if (ymm.year && ymm.make && ymm.model) {
+    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine) VALUES (
+      ${crypto.randomUUID()}, ${id}, ${ymm.year}, ${ymm.make}, ${ymm.model}, ${ymm.engine}
+    )`;
+  }
   revalidatePath("/customers");
   redirect(`/customers/${id}`);
 }
@@ -114,10 +130,10 @@ export async function createVehicleAction(form: FormData) {
   const sql = await db();
   const id = crypto.randomUUID();
   const customerId = str(form, "customer_id");
-  const year = parseNumber(str(form, "year")) || null;
+  const ymm = ymmFrom(form);
   const mileage = parseNumber(str(form, "mileage")) || null;
-  await sql`INSERT INTO vehicles (id, customer_id, year, make, model, plate, vin, mileage, history_notes) VALUES (
-    ${id}, ${customerId}, ${year}, ${str(form, "make")}, ${str(form, "model")},
+  await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, plate, vin, mileage, history_notes) VALUES (
+    ${id}, ${customerId}, ${ymm.year}, ${ymm.make}, ${ymm.model}, ${ymm.engine},
     ${str(form, "plate")}, ${str(form, "vin").toUpperCase()}, ${mileage}, ${str(form, "history_notes")}
   )`;
   revalidatePath(`/customers/${customerId}`);
@@ -128,12 +144,13 @@ export async function updateVehicleAction(form: FormData) {
   await requireSession();
   const sql = await db();
   const id = str(form, "id");
-  const year = parseNumber(str(form, "year")) || null;
+  const ymm = ymmFrom(form);
   const mileage = parseNumber(str(form, "mileage")) || null;
   await sql`UPDATE vehicles SET
-    year = ${year},
-    make = ${str(form, "make")},
-    model = ${str(form, "model")},
+    year = ${ymm.year},
+    make = ${ymm.make},
+    model = ${ymm.model},
+    engine = ${ymm.engine},
     plate = ${str(form, "plate")},
     vin = ${str(form, "vin").toUpperCase()},
     mileage = ${mileage},

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { COMMON_MAKES, commonMakeValue, ELECTRIC_ENGINE, isKnownBev } from "@/lib/vpic";
 
-type Saved = { year: number | null; make: string; model: string };
+type Saved = { year: number | null; make: string; model: string; engine?: string };
 
 async function load(kind: string, q: Record<string, string | number>) {
   const p = new URLSearchParams({
@@ -16,7 +16,13 @@ async function load(kind: string, q: Record<string, string | number>) {
   return json.options ?? [];
 }
 
-export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
+export function VehiclePicker({
+  saved = [],
+  initial,
+}: {
+  saved?: Saved[];
+  initial?: { year?: number | null; make?: string; model?: string; engine?: string };
+}) {
   const years = useMemo(() => {
     const top = new Date().getFullYear() + 1;
     const list: number[] = [];
@@ -24,12 +30,13 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
     return list;
   }, []);
 
-  const [year, setYear] = useState("");
-  const [brand, setBrand] = useState("");
-  const [otherMake, setOtherMake] = useState("");
+  const knownInit = initial?.make ? commonMakeValue(initial.make) : null;
+  const [year, setYear] = useState(initial?.year ? String(initial.year) : "");
+  const [brand, setBrand] = useState(knownInit ?? (initial?.make ? "Other" : ""));
+  const [otherMake, setOtherMake] = useState(knownInit || !initial?.make ? "" : initial.make);
   const [allMakes, setAllMakes] = useState<string[]>([]);
-  const [model, setModel] = useState("");
-  const [engine, setEngine] = useState("");
+  const [model, setModel] = useState(initial?.model ?? "");
+  const [engine, setEngine] = useState(initial?.engine && initial.engine !== "__unsure__" ? initial.engine : "");
   const [models, setModels] = useState<string[]>([]);
   const [engines, setEngines] = useState<string[]>([]);
   const [freeModel, setFreeModel] = useState(false);
@@ -126,11 +133,13 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
         if (!opts.length) {
           setEngines([]);
           setEngineFallback(true);
+          if (initial?.engine) setEngine(initial.engine);
           return;
         }
         setEngines(opts);
         setEngineFallback(false);
         if (opts.length === 1 && opts[0] === "Electric") setEngine("Electric");
+        else if (initial?.engine && opts.includes(initial.engine)) setEngine(initial.engine);
       })
       .catch(() => {
         if (!live) return;

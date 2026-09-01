@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { getVehicle } from "@/lib/db/queries";
 import { vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
+import { VehiclePicker } from "@/app/book/VehiclePicker";
 import { lookupOilCatalog } from "@/lib/oil-specs";
 import { STATUS_LABEL, type JobStatus } from "@/lib/status";
 
@@ -42,12 +43,14 @@ export default async function VehiclePage({
       <form action="/api/shop" method="post" className="mt-4">
             <input type="hidden" name="_op" value="update_vehicle" />
         <input type="hidden" name="id" value={vehicle.id} />
-        <label className="lbl">Year</label>
-        <input className="field" name="year" defaultValue={vehicle.year ?? ""} />
-        <label className="lbl">Make</label>
-        <input className="field" name="make" defaultValue={vehicle.make} />
-        <label className="lbl">Model</label>
-        <input className="field" name="model" defaultValue={vehicle.model} />
+        <VehiclePicker
+          initial={{
+            year: vehicle.year,
+            make: vehicle.make,
+            model: vehicle.model,
+            engine: vehicle.engine,
+          }}
+        />
         <label className="lbl">Plate</label>
         <input className="field" name="plate" defaultValue={vehicle.plate} />
         <label className="lbl">VIN</label>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { listCustomers } from "@/lib/db/queries";
+import { VehiclePicker } from "@/app/book/VehiclePicker";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export default async function CustomersPage({
           <input className="field" name="address" />
           <label className="lbl">Notes</label>
           <textarea className="field min-h-24" name="notes" />
+          <VehiclePicker />
           <button className="tap mt-6" type="submit">
             Save customer
           </button>
