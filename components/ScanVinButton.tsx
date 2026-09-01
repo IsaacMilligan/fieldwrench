@@ -3,29 +3,20 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
-import { vinCheckDigitOk, vinOk } from "@/lib/format";
+import { vinCheckDigitOk } from "@/lib/format";
 
 export const VIN_PAIR_BTN =
   "flex h-12 w-full items-center justify-center rounded-lg border-2 border-amber px-2 text-center text-sm font-extrabold uppercase tracking-widest text-amber disabled:opacity-50";
 
-/** Barcode: payload must be exactly 17 chars (spaces/hyphens stripped) with ISO check digit. */
+const CTRL =
+  "relative z-[1] flex min-h-12 w-full items-center justify-center rounded-lg border-2 px-3 text-center text-sm font-extrabold uppercase tracking-widest disabled:opacity-40";
+
+/** Barcode payload must be exactly 17 chars (optional spaces/hyphens) with ISO check digit. */
 export function vinFromBarcodePayload(raw: string): string | null {
   const trimmed = String(raw ?? "").trim().toUpperCase();
   if (vinCheckDigitOk(trimmed)) return trimmed;
   const compact = trimmed.replace(/[\s-]/g, "");
   if (compact.length === 17 && vinCheckDigitOk(compact)) return compact;
-  return null;
-}
-
-/** OCR second pass: a 17-char run that passes the check digit. */
-export function vinFromOcrText(raw: string): string | null {
-  const stripped = String(raw ?? "")
-    .toUpperCase()
-    .replace(/[^A-HJ-NPR-Z0-9]/g, "");
-  for (let i = 0; i + 17 <= stripped.length; i++) {
-    const slice = stripped.slice(i, i + 17);
-    if (vinCheckDigitOk(slice)) return slice;
-  }
   return null;
 }
 
@@ -40,7 +31,7 @@ export async function readVinFromFile(file: File): Promise<string | null> {
       }
     ).BarcodeDetector;
     if (Detector) {
-      const det = new Detector({ formats: ["code_39", "code_128", "code_93", "codabar", "qr_code"] });
+      const det = new Detector({ formats: ["code_39", "code_128", "qr_code"] });
       const hits = await det.detect(bmp);
       for (const h of hits) {
         const v = vinFromBarcodePayload(String(h.rawValue ?? ""));
@@ -48,14 +39,18 @@ export async function readVinFromFile(file: File): Promise<string | null> {
       }
     }
   } catch {
-    /* OCR */
+    /* still photo OCR only — never live overlay text */
   }
   try {
     const { createWorker } = await import("tesseract.js");
     const worker = await createWorker("eng");
     const { data } = await worker.recognize(file);
     await worker.terminate();
-    return vinFromOcrText(String(data.text ?? ""));
+    const compact = String(data.text ?? "")
+      .toUpperCase()
+      .replace(/[\s-]/g, "");
+    if (compact.length === 17 && vinCheckDigitOk(compact)) return compact;
+    return vinFromBarcodePayload(compact);
   } catch {
     return null;
   }
@@ -82,16 +77,40 @@ function ScanVinOverlay({
     const s = scannerRef.current;
     scannerRef.current = null;
     if (s?.isScanning) {
-      void s.stop().catch(() => undefined).then(() => s.clear());
+      void s
+        .stop()
+        .catch(() => undefined)
+        .then(() => s.clear());
     }
   }
 
   function propose(vin: string) {
+    if (!vinCheckDigitOk(vin)) return;
     if (locked.current) return;
     locked.current = true;
     stopScanner();
     setCandidate(vin);
   }
+
+  function cancel() {
+    stopScanner();
+    onClose();
+  }
+
+  function scanAgain() {
+    locked.current = false;
+    setCandidate(null);
+    setHint(null);
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") cancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (denied || candidate) return;
@@ -101,9 +120,7 @@ function ScanVinOverlay({
       formatsToSupport: [
         Html5QrcodeSupportedFormats.CODE_39,
         Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_93,
         Html5QrcodeSupportedFormats.QR_CODE,
-        Html5QrcodeSupportedFormats.ITF,
       ],
     });
     scannerRef.current = scanner;
@@ -131,35 +148,8 @@ function ScanVinOverlay({
         }
       });
 
-    let ocrTick = 0;
-    const ocrStart = window.setTimeout(() => {
-      ocrTick = window.setInterval(async () => {
-      if (locked.current || cancelled) return;
-      const video = document.querySelector(`#${readerId} video`) as HTMLVideoElement | null;
-      if (!video || video.readyState < 2) return;
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 360;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        ctx.drawImage(video, 0, 0);
-        const { createWorker } = await import("tesseract.js");
-        const worker = await createWorker("eng");
-        const { data } = await worker.recognize(canvas);
-        await worker.terminate();
-        const v = vinFromOcrText(String(data.text ?? ""));
-        if (v) propose(v);
-      } catch {
-        /* keep scanning barcodes */
-      }
-      }, 2500);
-    }, 4000);
-
     return () => {
       cancelled = true;
-      window.clearTimeout(ocrStart);
-      window.clearInterval(ocrTick);
       void start.finally(async () => {
         try {
           if (scanner.isScanning) await scanner.stop();
@@ -169,7 +159,6 @@ function ScanVinOverlay({
         }
       });
     };
-    // readerId is stable for this mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [denied, readerId, candidate]);
 
@@ -182,26 +171,40 @@ function ScanVinOverlay({
     else setHint("Couldn’t read a VIN. Type the 17 characters.");
   }
 
+  const valid = candidate !== null && vinCheckDigitOk(candidate);
+
   const ui = (
-    <div className="fixed inset-0 z-[80] flex flex-col bg-black/90 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
-      <p className="text-center text-sm font-bold text-white">
-        Use the VIN barcode on the driver’s door sticker, not the other labels.
-      </p>
-      <div className="mt-3 min-h-52 flex-1 overflow-hidden rounded-xl bg-black">
-        {candidate ? (
-          <div className="flex h-full min-h-52 flex-col items-center justify-center gap-3 px-4 text-center">
+    <div className="fixed inset-0 z-[9999] flex h-[100dvh] flex-col bg-[#070806] pointer-events-auto">
+      <header className="relative z-[10000] flex shrink-0 items-start justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <p className="flex-1 pt-2 text-sm font-bold leading-snug text-white">
+          Use the VIN barcode on the driver’s door sticker, not the other labels.
+        </p>
+        <button
+          type="button"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border-2 border-amber text-2xl leading-none text-amber"
+          aria-label="Cancel"
+          onClick={cancel}
+        >
+          ×
+        </button>
+      </header>
+
+      <div className="relative z-0 mx-4 mt-3 min-h-0 flex-1 overflow-hidden rounded-xl bg-black">
+        {candidate && valid ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
             <p className="font-mono text-lg font-bold tracking-wide text-white">VIN: {candidate}</p>
-            <p className="text-sm text-white/80">Use this VIN, or scan again.</p>
           </div>
         ) : !denied ? (
-          <div id={readerId} className="h-full w-full" />
+          <div id={readerId} className="h-full w-full overflow-hidden" />
         ) : (
-          <div className="flex h-full min-h-52 items-center justify-center px-4 text-center text-white">
+          <div className="flex h-full items-center justify-center px-4 text-center text-white">
             Camera is off. Take a photo or type the VIN.
           </div>
         )}
       </div>
-      {hint ? <p className="mt-3 text-center text-sm font-bold text-amber">{hint}</p> : null}
+
+      {hint ? <p className="relative z-[10000] px-4 pt-2 text-center text-sm font-bold text-amber">{hint}</p> : null}
+
       <input
         ref={fileRef}
         className="sr-only"
@@ -214,45 +217,35 @@ function ScanVinOverlay({
           if (f) void onPhoto(f);
         }}
       />
-      {candidate ? (
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            className={VIN_PAIR_BTN}
-            onClick={() => {
-              onVin(candidate);
-              onClose();
-            }}
-          >
-            Use
-          </button>
-          <button
-            type="button"
-            className={`${VIN_PAIR_BTN} border-line text-white`}
-            onClick={() => {
-              locked.current = false;
-              setCandidate(null);
-              setHint(null);
-            }}
-          >
-            Scan again
-          </button>
-        </div>
-      ) : (
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            className={VIN_PAIR_BTN}
-            onClick={() => fileRef.current?.click()}
-            disabled={photoBusy}
-          >
-            {photoBusy ? "Reading…" : "Take photo"}
-          </button>
-          <button type="button" className={`${VIN_PAIR_BTN} border-line text-white`} onClick={onClose}>
-            Cancel
-          </button>
-        </div>
-      )}
+
+      <div className="relative z-[10000] mt-3 flex shrink-0 flex-col gap-2 bg-[#070806] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
+        <button
+          type="button"
+          className={`${CTRL} border-amber bg-amber text-[#120e04]`}
+          disabled={!valid}
+          onClick={() => {
+            if (!valid || !candidate) return;
+            onVin(candidate);
+            cancel();
+          }}
+        >
+          Use
+        </button>
+        <button
+          type="button"
+          className={`${CTRL} border-amber text-amber`}
+          disabled={!candidate && !denied}
+          onClick={() => {
+            if (candidate) scanAgain();
+            else fileRef.current?.click();
+          }}
+        >
+          {photoBusy ? "Reading…" : candidate ? "Scan again" : "Take photo"}
+        </button>
+        <button type="button" className={`${CTRL} border-line text-white`} onClick={cancel}>
+          Cancel
+        </button>
+      </div>
     </div>
   );
 
@@ -272,12 +265,7 @@ export function ScanVinButton({
       <button type="button" className={VIN_PAIR_BTN} onClick={() => setOpen(true)}>
         Scan VIN
       </button>
-      {open ? (
-        <ScanVinOverlay
-          onVin={onVin}
-          onClose={() => setOpen(false)}
-        />
-      ) : null}
+      {open ? <ScanVinOverlay onVin={onVin} onClose={() => setOpen(false)} /> : null}
     </div>
   );
 }
