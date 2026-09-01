@@ -10,5 +10,5 @@ export default async function LoginPage({
   const s = await readSession();
   if (s) redirect("/");
   const q = await searchParams;
-  return <LoginForm failed={q.e === "1"} />;
+  return <LoginForm failed={q.e === "1"} dbDown={q.e === "db"} />;
 }

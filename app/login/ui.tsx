@@ -3,7 +3,7 @@
 import { Mark } from "@/components/Mark";
 import { PasswordField } from "@/components/PasswordField";
 
-export function LoginForm({ failed }: { failed?: boolean }) {
+export function LoginForm({ failed, dbDown }: { failed?: boolean; dbDown?: boolean }) {
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-5 py-10">
       <Mark big />
@@ -31,7 +31,11 @@ export function LoginForm({ failed }: { failed?: boolean }) {
           Password
         </label>
         <PasswordField id="password" name="password" autoComplete="current-password" required />
-        {failed ? <p className="mt-3 text-red">Wrong email or password.</p> : null}
+        {dbDown ? (
+          <p className="mt-3 text-red">Shop database is unreachable. Try again in a minute.</p>
+        ) : failed ? (
+          <p className="mt-3 text-red">Wrong email or password.</p>
+        ) : null}
         <button className="tap tap-ghost mt-6" type="submit">
           Sign in
         </button>

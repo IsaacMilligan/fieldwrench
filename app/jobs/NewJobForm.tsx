@@ -18,10 +18,10 @@ export type JobVehicle = {
 
 export function NewJobForm({
   customers,
-  vehicles,
+  vehicles = [],
 }: {
   customers: JobCustomer[];
-  vehicles: JobVehicle[];
+  vehicles?: JobVehicle[];
 }) {
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [customerId, setCustomerId] = useState("");

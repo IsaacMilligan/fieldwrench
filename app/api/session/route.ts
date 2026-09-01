@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
     return res;
   } catch (e) {
     console.error("session POST", e);
-    return NextResponse.redirect(new URL("/login?e=1", origin), 303);
+    const msg = e instanceof Error ? e.message : String(e);
+    const dbDown = /identify your database|credentials are incorrect|DATABASE_URL|ECONN|timeout|connect/i.test(msg);
+    return NextResponse.redirect(new URL(dbDown ? "/login?e=db" : "/login?e=1", origin), 303);
   }
 }
