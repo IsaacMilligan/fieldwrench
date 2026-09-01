@@ -62,6 +62,7 @@ export default async function JobDetailPage({
           savedViscosity={saved ? String(vehicle.oil_viscosity ?? "") : ""}
           savedQtWithout={saved ? Number(vehicle.oil_qt_without) || null : null}
           savedViscosityAlt={saved ? String(vehicle.oil_viscosity_alt ?? "") : ""}
+          engine={vehicle.engine}
         />
       ) : null}
 

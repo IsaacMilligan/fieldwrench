@@ -68,6 +68,7 @@ export default async function VehiclePage({
         savedViscosity={saved ? String(vehicle.oil_viscosity ?? "") : ""}
         savedQtWithout={saved ? Number(vehicle.oil_qt_without) || null : null}
         savedViscosityAlt={saved ? String(vehicle.oil_viscosity_alt ?? "") : ""}
+        engine={vehicle.engine}
       />
       <Link href={`/tools?vehicle=${vehicle.id}&vin=${vehicle.vin}`} className="tap tap-ghost mt-3 flex items-center justify-center">
         Decode VIN

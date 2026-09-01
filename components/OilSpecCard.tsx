@@ -1,4 +1,5 @@
 import { formatQt, type OilCatalog } from "@/lib/oil-specs";
+import { isElectricEngine } from "@/lib/vpic";
 
 export function OilSpecCard({
   vehicleId,
@@ -9,6 +10,7 @@ export function OilSpecCard({
   savedViscosityAlt,
   compact = false,
   next,
+  engine,
 }: {
   vehicleId?: string;
   catalog: OilCatalog | null;
@@ -18,7 +20,19 @@ export function OilSpecCard({
   savedViscosityAlt?: string | null;
   compact?: boolean;
   next?: string;
+  engine?: string | null;
 }) {
+  if (isElectricEngine(engine)) {
+    return (
+      <section className={compact ? "mt-3 panel" : "mt-6 panel"}>
+        <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
+          Engine oil
+        </h2>
+        <div className="num mt-3 text-4xl text-amber">N/A</div>
+        <p className="mt-2 text-sm text-muted">This vehicle does not take engine oil.</p>
+      </section>
+    );
+  }
   const saved = Boolean((savedQt && savedQt > 0) || (savedViscosity && savedViscosity.trim()));
   const primaryQt = saved ? savedQt ?? null : catalog?.qtWithFilter ?? null;
   const primaryVis = saved ? String(savedViscosity ?? "").trim() : catalog?.viscosity ?? "";

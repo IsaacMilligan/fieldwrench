@@ -16,6 +16,7 @@ type Decode = {
     viscosityAlt: string;
     oilType: string;
   } | null;
+  bev?: boolean;
 };
 
 export function VinTool({
@@ -69,7 +70,15 @@ export function VinTool({
             {result.year} {result.make} {result.model}
             {result.engine ? ` ${result.engine}` : ""}
           </div>
-          {result.oil && (result.oil.qtWithFilter || result.oil.viscosity) ? (
+          {result.bev || result.engine === "Electric" ? (
+            <div className="mt-4 panel">
+              <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
+                Engine oil
+              </h2>
+              <div className="num mt-3 text-4xl text-amber">N/A</div>
+              <p className="mt-2 text-sm text-muted">This vehicle does not take engine oil.</p>
+            </div>
+          ) : result.oil && (result.oil.qtWithFilter || result.oil.viscosity) ? (
             <div className="mt-4 panel">
               <div className="flex items-baseline justify-between gap-3">
                 <div className="num text-4xl text-amber">
@@ -100,6 +109,7 @@ export function VinTool({
             <input type="hidden" name="year" value={result.year ?? ""} />
             <input type="hidden" name="make" value={result.make ?? ""} />
             <input type="hidden" name="model" value={result.model ?? ""} />
+            <input type="hidden" name="engine" value={result.engine ?? ""} />
             <label className="lbl">Save onto vehicle</label>
             <select className="field" name="vehicle_id" required>
               {vehicles.map((v) => (
@@ -108,7 +118,8 @@ export function VinTool({
                 </option>
               ))}
             </select>
-            {!(result.oil && (result.oil.qtWithFilter || result.oil.viscosity)) ? (
+            {!(result.bev || result.engine === "Electric") &&
+            !(result.oil && (result.oil.qtWithFilter || result.oil.viscosity)) ? (
               <>
                 <label className="lbl">Capacity (qt, with filter)</label>
                 <input className="field" name="oil_qt" inputMode="decimal" placeholder="5.0" />

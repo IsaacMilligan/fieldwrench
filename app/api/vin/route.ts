@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { readSession } from "@/lib/auth";
 import { vinOk } from "@/lib/format";
 import { lookupOilCatalog } from "@/lib/oil-specs";
+import { ELECTRIC_ENGINE, isVpicBev } from "@/lib/vpic";
 
 export async function POST(req: Request) {
   const session = await readSession();
@@ -31,13 +32,22 @@ export async function POST(req: Request) {
       errorCode,
     });
   }
+  const bev = isVpicBev(row);
   const displacement = String(row.DisplacementL ?? "").trim();
-  const engine = displacement ? (displacement.toUpperCase().endsWith("L") ? displacement : `${displacement}L`) : "";
+  const engine = bev
+    ? ELECTRIC_ENGINE
+    : displacement
+      ? displacement.toUpperCase().endsWith("L")
+        ? displacement
+        : `${displacement}L`
+      : "";
   let oil = null;
-  try {
-    oil = await lookupOilCatalog({ year, make, model, engine, vin });
-  } catch {
-    oil = null;
+  if (!bev) {
+    try {
+      oil = await lookupOilCatalog({ year, make, model, engine, vin });
+    } catch {
+      oil = null;
+    }
   }
-  return NextResponse.json({ vin, year, make, model, engine, oil });
+  return NextResponse.json({ vin, year, make, model, engine, oil, bev });
 }

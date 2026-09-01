@@ -11,6 +11,8 @@ import { getSql } from "./db/index";
 import { parseMoney, parseNumber, vinOk } from "./format";
 import type { JobStatus, PayMethod } from "./status";
 import { JOB_STATUSES, PAY_METHODS } from "./status";
+import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "./services";
+import { ELECTRIC_ENGINE, isElectricEngine } from "./vpic";
 
 function str(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -157,12 +159,14 @@ export async function applyVinAction(form: FormData) {
   const year = parseNumber(str(form, "year")) || null;
   const qt = parseNumber(str(form, "oil_qt"));
   const vis = str(form, "oil_viscosity");
+  const engine = str(form, "engine");
   if (qt || vis) {
     await sql`UPDATE vehicles SET
       year = ${year},
       make = ${str(form, "make")},
       model = ${str(form, "model")},
       vin = ${str(form, "vin").toUpperCase()},
+      engine = ${engine},
       oil_qt = ${qt || null},
       oil_viscosity = ${vis},
       oil_saved = 1
@@ -172,7 +176,8 @@ export async function applyVinAction(form: FormData) {
       year = ${year},
       make = ${str(form, "make")},
       model = ${str(form, "model")},
-      vin = ${str(form, "vin").toUpperCase()}
+      vin = ${str(form, "vin").toUpperCase()},
+      engine = ${engine}
       WHERE id = ${id}`;
   }
   revalidatePath(`/vehicles/${id}`);
@@ -183,18 +188,62 @@ export async function createJobAction(form: FormData) {
   await requireSession();
   const sql = await db();
   const id = crypto.randomUUID();
-  const vehicleId = str(form, "vehicle_id");
-  const [veh] = await sql<{ customer_id: string }[]>`SELECT customer_id FROM vehicles WHERE id = ${vehicleId}`;
-  if (!veh) redirect("/jobs/new");
+  const services = form
+    .getAll("service")
+    .map(String)
+    .filter(isServiceId) as ServiceId[];
+  const notes = str(form, "notes");
+  if (!services.length) redirect("/jobs?new=1");
+  const complaint = formatServiceList(services);
   const status = (JOB_STATUSES.includes(str(form, "status") as JobStatus)
     ? str(form, "status")
     : "scheduled") as JobStatus;
   const when = str(form, "scheduled_at");
   const scheduled = when ? new Date(when).toISOString() : null;
-  await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, scheduled_at, address, complaint, diagnosis, work_performed)
-    VALUES (${id}, ${veh.customer_id}, ${vehicleId}, ${status}, ${scheduled}, ${str(form, "address")},
-      ${str(form, "complaint")}, ${str(form, "diagnosis")}, ${str(form, "work_performed")})`;
+  const address = str(form, "address");
+
+  let customerId = str(form, "customer_id");
+  let vehicleId = str(form, "vehicle_id");
+  if (vehicleId === "__new__") vehicleId = "";
+
+  const year = parseNumber(str(form, "vehicle_year")) || null;
+  const make = str(form, "vehicle_make");
+  const model = str(form, "vehicle_model");
+  let engine = str(form, "vehicle_engine");
+  if (engine === "__unsure__") engine = "";
+  if (isElectricEngine(engine)) engine = ELECTRIC_ENGINE;
+
+  if (str(form, "new_customer") === "1") {
+    const name = str(form, "name");
+    const phone = str(form, "phone");
+    if (!name || !phone || !year || !make || !model) redirect("/jobs?new=1");
+    customerId = crypto.randomUUID();
+    vehicleId = crypto.randomUUID();
+    await sql`INSERT INTO customers (id, name, phone, email) VALUES (
+      ${customerId}, ${name}, ${phone}, ${str(form, "email")}
+    )`;
+    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine) VALUES (
+      ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}
+    )`;
+  } else {
+    if (!customerId) redirect("/jobs?new=1");
+    if (!vehicleId) {
+      if (!year || !make || !model) redirect("/jobs?new=1");
+      vehicleId = crypto.randomUUID();
+      await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine) VALUES (
+        ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}
+      )`;
+    } else {
+      const [veh] = await sql<{ customer_id: string }[]>`SELECT customer_id FROM vehicles WHERE id = ${vehicleId}`;
+      if (!veh || veh.customer_id !== customerId) redirect("/jobs?new=1");
+    }
+  }
+
+  await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, scheduled_at, address, complaint, services, notes)
+    VALUES (${id}, ${customerId}, ${vehicleId}, ${status}, ${scheduled}, ${address},
+      ${complaint}, ${servicesToJson(services)}, ${notes})`;
   revalidatePath("/jobs");
+  revalidatePath(`/customers/${customerId}`);
   redirect(`/jobs/${id}`);
 }
 

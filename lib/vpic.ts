@@ -52,6 +52,39 @@ export function commonMakeValue(labelOrValue: string): string | null {
   return hit?.value ?? null;
 }
 
+export const ELECTRIC_ENGINE = "Electric";
+
+export function isElectricEngine(raw: unknown): boolean {
+  return /^electric$/i.test(String(raw ?? "").trim());
+}
+
+/** Battery-electric only (no ICE). Hybrids / PHEVs are false. */
+export function isKnownBev(make: string, model: string): boolean {
+  const mk = make.trim().toLowerCase();
+  const mo = model.trim().toLowerCase();
+  if (mk !== "tesla") return false;
+  if (/\bcybertruck\b/.test(mo)) return true;
+  if (/\bmodel\s*3\b/.test(mo) || mo === "3") return true;
+  if (/\bmodel\s*y\b/.test(mo) || mo === "y") return true;
+  if (/\bmodel\s*s\b/.test(mo) || mo === "s") return true;
+  if (/\bmodel\s*x\b/.test(mo) || mo === "x") return true;
+  return false;
+}
+
+export function isVpicBev(row: Record<string, string | undefined>): boolean {
+  const level = String(row.ElectrificationLevel ?? "");
+  const primary = String(row.FuelTypePrimary ?? "");
+  const secondary = String(row.FuelTypeSecondary ?? "");
+  const blob = `${level} ${primary} ${secondary}`;
+  if (/phev|plug-?in hybrid|strong hev|mild hybrid|\bhev\b|hybrid/i.test(blob) && !/\bbev\b|battery electric/i.test(level)) {
+    return false;
+  }
+  if (/\bbev\b|battery electric/i.test(level)) return true;
+  if (/^electric(ity)?$/i.test(primary.trim()) && !secondary.trim()) return true;
+  if (isKnownBev(String(row.Make ?? ""), String(row.Model ?? ""))) return true;
+  return false;
+}
+
 export function bookingYears(): number[] {
   const top = new Date().getFullYear() + 1;
   const years: number[] = [];
@@ -112,6 +145,7 @@ function engineLabel(text: string): string | null {
 }
 
 export async function ymmEngines(year: number, make: string, model: string): Promise<string[]> {
+  if (isKnownBev(make, model)) return [ELECTRIC_ENGINE];
   const found = new Set<string>();
   const addFrom = async (epaModel: string) => {
     const url = `${EPA}/options?year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(epaModel)}`;
@@ -151,11 +185,13 @@ export async function ymmEngines(year: number, make: string, model: string): Pro
   }
 
   const list = [...found];
-  list.sort((a, b) => {
+  const liters = list.filter((x) => x !== ELECTRIC_ENGINE);
+  if (liters.length) return liters.sort((a, b) => {
     const na = parseFloat(a);
     const nb = parseFloat(b);
     if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
     return a.localeCompare(b);
   });
-  return list;
+  if (list.includes(ELECTRIC_ENGINE)) return [ELECTRIC_ENGINE];
+  return [];
 }

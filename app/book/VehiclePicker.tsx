@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { COMMON_MAKES, commonMakeValue } from "@/lib/vpic";
+import { COMMON_MAKES, commonMakeValue, ELECTRIC_ENGINE, isKnownBev } from "@/lib/vpic";
 
 type Saved = { year: number | null; make: string; model: string };
 
@@ -109,6 +109,12 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
       setEngineFallback(false);
       return;
     }
+    if (isKnownBev(make, model)) {
+      setEngines([ELECTRIC_ENGINE]);
+      setEngine(ELECTRIC_ENGINE);
+      setEngineFallback(false);
+      return;
+    }
     let live = true;
     setBusy("engines");
     setError(null);
@@ -124,6 +130,7 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
         }
         setEngines(opts);
         setEngineFallback(false);
+        if (opts.length === 1 && opts[0] === "Electric") setEngine("Electric");
       })
       .catch(() => {
         if (!live) return;
@@ -343,7 +350,12 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
       <label className="lbl" htmlFor="vehicle_engine">
         Engine size
       </label>
-      {engineFallback ? (
+      {engines.length === 1 && engines[0] === "Electric" ? (
+        <>
+          <input type="hidden" name="vehicle_engine" value="Electric" />
+          <div className="field flex items-center font-bold">Electric</div>
+        </>
+      ) : engineFallback ? (
         <>
           <p className="mt-1 text-sm text-muted">
             Couldn&apos;t load engines for this vehicle — type it or pick Not sure.
