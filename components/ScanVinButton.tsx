@@ -12,7 +12,6 @@ const CTRL =
 
 const NOT_VIN = "Not the VIN code.";
 const LOOKING = "Looking for VIN barcode…";
-const TESLA_WMI = ["5YJ", "7SA", "LRW"];
 
 type ReaderOptions = {
   tryHarder: boolean;
@@ -65,19 +64,16 @@ function loadZxing(): Promise<ZxingReader> {
 }
 
 function pickVin(hits: string[]): string | null {
-  if (!hits.length) return null;
-  const tesla = hits.find((v) => TESLA_WMI.some((p) => v.startsWith(p)));
-  return tesla ?? hits[0];
+  return hits[0] ?? null;
 }
 
 function findVinWindow(s: string): string | null {
   const chars = s.replace(/[^A-HJ-NPR-Z0-9]/g, "");
-  const hits: string[] = [];
   for (let i = 0; i + 17 <= chars.length; i++) {
     const slice = chars.slice(i, i + 17);
-    if (vinCheckDigitOk(slice)) hits.push(slice);
+    if (vinCheckDigitOk(slice)) return slice;
   }
-  return pickVin(hits);
+  return null;
 }
 
 /** VIN from a barcode payload: exact 17, leading I, or 17-char VIN inside a longer string. Check digit required. */
@@ -370,7 +366,7 @@ function ScanVinOverlay({
     <div className="fixed inset-0 z-[9999] flex h-[100dvh] flex-col bg-[#070806] pointer-events-auto">
       <header className="relative z-[10000] flex shrink-0 items-start justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <p className="flex-1 pt-2 text-sm font-bold leading-snug text-white">
-          Point at the VIN barcode or the square Data Matrix on the driver’s door sticker.
+          Point at the VIN barcode or the square 2D code on the door sticker.
         </p>
         <button
           type="button"
