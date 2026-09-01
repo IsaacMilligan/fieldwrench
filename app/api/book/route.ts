@@ -4,7 +4,7 @@ import { getCustomerUser } from "@/lib/supabase/server";
 import { ensureReady } from "@/lib/db/index";
 import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "@/lib/services";
 import { getSettings } from "@/lib/db/queries";
-import { earliestBookDateISO } from "@/lib/format";
+import { earliestBookDateISO, normalizeLeadHours } from "@/lib/format";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,18 +28,13 @@ export async function POST(req: NextRequest) {
       .map(String)
       .filter(isServiceId) as ServiceId[];
     const settings = await getSettings().catch(() => ({ lead_hours: 24 }));
-    const minDate = earliestBookDateISO(Number(settings.lead_hours ?? 24));
-    if (
-      !name ||
-      !phone ||
-      !services.length ||
-      !year ||
-      !make ||
-      !model ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(preferredDate) ||
-      preferredDate < minDate
-    ) {
+    const leadHours = normalizeLeadHours(settings.lead_hours ?? 24);
+    const minDate = earliestBookDateISO(leadHours);
+    if (!name || !phone || !services.length || !year || !make || !model) {
       return NextResponse.redirect(new URL("/book?e=1", origin), 303);
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(preferredDate) || preferredDate < minDate) {
+      return NextResponse.redirect(new URL("/book?e=lead", origin), 303);
     }
     const user = await getCustomerUser();
     const email = (user?.email ?? String(form.get("email") ?? "")).toLowerCase();

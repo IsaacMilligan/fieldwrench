@@ -3,7 +3,7 @@
 export function LeadHoursField({ value }: { value: number }) {
   return (
     <>
-      <label className="lbl">Minimum lead time (hours)</label>
+      <label className="lbl">Soonest a customer can request</label>
       <input
         className="field"
         id="lead_hours"

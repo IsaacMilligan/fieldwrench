@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Mark } from "@/components/Mark";
 import { SERVICES } from "@/lib/services";
@@ -12,18 +12,43 @@ export function BookForm({
   phone,
   ok,
   failed,
+  leadRejected,
   savedVehicles = [],
   minDate,
+  leadHours,
 }: {
   signedIn: boolean;
   name?: string;
   phone?: string;
   ok?: boolean;
   failed?: boolean;
+  leadRejected?: boolean;
   savedVehicles?: { year: number | null; make: string; model: string }[];
   minDate: string;
+  leadHours: number;
 }) {
   const [needService, setNeedService] = useState(false);
+  const [date, setDate] = useState(minDate);
+  const [leadErr, setLeadErr] = useState(Boolean(leadRejected));
+  const leadMsg = `Pick a date at least ${leadHours} hours out.`;
+
+  useEffect(() => {
+    setDate((d) => (!d || d < minDate ? minDate : d));
+  }, [minDate]);
+
+  function applyDate(raw: string) {
+    if (!raw) {
+      setDate("");
+      return;
+    }
+    if (raw < minDate) {
+      setDate(minDate);
+      setLeadErr(true);
+      return;
+    }
+    setDate(raw);
+    setLeadErr(false);
+  }
 
   if (ok) {
     return (
@@ -81,6 +106,8 @@ export function BookForm({
           const day = String(fd.get("preferred_date") ?? "");
           if (!day || day < minDate) {
             e.preventDefault();
+            setDate(minDate);
+            setLeadErr(true);
           }
         }}
       >
@@ -115,16 +142,42 @@ export function BookForm({
           name="notes"
           placeholder="Anything else — driveway, Saturday morning, noise details…"
         />
-        <label className="lbl">Preferred Date</label>
+        <label className="lbl" htmlFor="preferred_date">
+          Preferred Date
+        </label>
         <input
+          id="preferred_date"
           className="field"
           type="date"
           name="preferred_date"
           required
           min={minDate}
-          defaultValue={minDate}
+          value={date}
+          aria-invalid={leadErr}
+          aria-describedby="preferred-date-help preferred-date-err"
+          onKeyDown={(e) => {
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            if (e.key.length === 1) e.preventDefault();
+          }}
+          onPaste={(e) => {
+            const text = e.clipboardData.getData("text").trim();
+            e.preventDefault();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(text)) applyDate(text);
+          }}
+          onInput={(e) => applyDate(e.currentTarget.value)}
+          onChange={(e) => applyDate(e.target.value)}
+          onBlur={(e) => applyDate(e.target.value || minDate)}
         />
-        <p className="mt-2 text-sm text-muted">I’ll confirm the time when I reply.</p>
+        <p id="preferred-date-help" className="mt-2 text-sm text-muted">
+          I’ll confirm the time when I reply.
+        </p>
+        {leadErr ? (
+          <p id="preferred-date-err" className="mt-3 text-lg font-bold text-red">
+            {leadMsg}
+          </p>
+        ) : (
+          <span id="preferred-date-err" className="hidden" />
+        )}
         {needService ? <p className="mt-3 text-lg font-bold text-red">Pick at least one service.</p> : null}
         {failed ? <p className="mt-3 text-red">Could not save the request. Try again.</p> : null}
         <button className="tap mt-6" type="submit">

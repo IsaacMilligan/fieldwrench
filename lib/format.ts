@@ -28,8 +28,15 @@ export function denverDateISO(d = new Date()): string {
   }).format(d);
 }
 
+export function normalizeLeadHours(raw: unknown): number {
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n)) return 24;
+  return Math.min(168, Math.max(0, n));
+}
+
+/** Denver calendar date of (now + lead hours). That day is the first selectable day. */
 export function earliestBookDateISO(leadHours: number, now = new Date()): string {
-  const hours = Math.min(168, Math.max(0, Math.round(Number(leadHours) || 0)));
+  const hours = normalizeLeadHours(leadHours);
   return denverDateISO(new Date(now.getTime() + hours * 60 * 60 * 1000));
 }
 
