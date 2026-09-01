@@ -24,19 +24,20 @@ export async function POST(req: NextRequest) {
       .getAll("service")
       .map(String)
       .filter(isServiceId) as ServiceId[];
-    if (!name || !phone || !services.length || !year || !make || !model || !engine) {
+    if (!name || !phone || !services.length || !year || !make || !model) {
       return NextResponse.redirect(new URL("/book?e=1", origin), 303);
     }
     const user = await getCustomerUser();
     const email = (user?.email ?? String(form.get("email") ?? "")).toLowerCase();
     const issue = formatServiceList(services);
-    const vehicle = `${year} ${make} ${model} ${engine}`.trim();
+    const engineStored = !engine || engine === "__unsure__" ? "" : engine;
+    const vehicle = `${year} ${make} ${model}${engineStored ? ` ${engineStored}` : ""}`.trim();
     await sql`INSERT INTO bookings (
       id, name, phone, address, vehicle, vehicle_year, vehicle_make, vehicle_model, vehicle_engine,
       issue, services, notes, preferred_time, status, customer_email
     ) VALUES (
       ${crypto.randomUUID()}, ${name}, ${phone}, ${String(form.get("address") ?? "").trim()}, ${vehicle},
-      ${year}, ${make}, ${model}, ${engine},
+      ${year}, ${make}, ${model}, ${engineStored},
       ${issue}, ${servicesToJson(services)}, ${notes}, ${String(form.get("preferred_time") ?? "").trim()}, 'pending', ${email}
     )`;
     return NextResponse.redirect(new URL("/book?ok=1", origin), 303);

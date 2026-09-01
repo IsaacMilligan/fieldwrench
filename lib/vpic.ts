@@ -112,13 +112,44 @@ function engineLabel(text: string): string | null {
 }
 
 export async function ymmEngines(year: number, make: string, model: string): Promise<string[]> {
-  const url = `${EPA}/options?year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}`;
-  const data = await getJson(url);
   const found = new Set<string>();
-  for (const it of menuItems(data)) {
-    const lab = engineLabel(it.text);
-    if (lab) found.add(lab);
+  const addFrom = async (epaModel: string) => {
+    const url = `${EPA}/options?year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(epaModel)}`;
+    const data = await getJson(url);
+    for (const it of menuItems(data)) {
+      const lab = engineLabel(it.text);
+      if (lab) found.add(lab);
+    }
+  };
+
+  try {
+    await addFrom(model);
+  } catch {
+    /* try EPA model variants */
   }
+  if (!found.size) {
+    try {
+      const menuUrl = `${EPA}/model?year=${year}&make=${encodeURIComponent(make)}`;
+      const menu = await getJson(menuUrl);
+      const needle = model.toLowerCase();
+      const matches = menuItems(menu)
+        .map((it) => it.value || it.text)
+        .filter((name) => {
+          const n = name.toLowerCase();
+          return n === needle || n.startsWith(`${needle} `) || n.startsWith(`${needle}-`);
+        });
+      for (const name of matches.slice(0, 8)) {
+        try {
+          await addFrom(name);
+        } catch {
+          /* skip variant */
+        }
+      }
+    } catch {
+      /* no EPA menu */
+    }
+  }
+
   const list = [...found];
   list.sort((a, b) => {
     const na = parseFloat(a);

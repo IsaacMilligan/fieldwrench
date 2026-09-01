@@ -33,6 +33,7 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
   const [models, setModels] = useState<string[]>([]);
   const [engines, setEngines] = useState<string[]>([]);
   const [freeModel, setFreeModel] = useState(false);
+  const [engineFallback, setEngineFallback] = useState(false);
   const [busy, setBusy] = useState<"models" | "engines" | "makes-all" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,6 +71,7 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
       setEngine("");
       setEngines([]);
       setFreeModel(false);
+      setEngineFallback(false);
       return;
     }
     let live = true;
@@ -101,30 +103,33 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
   }, [year, make]);
 
   useEffect(() => {
-    if (freeModel || !year || !make || !model) {
-      if (freeModel) return;
+    if (!year || !make || !model) {
       setEngines([]);
       setEngine("");
+      setEngineFallback(false);
       return;
     }
     let live = true;
     setBusy("engines");
     setError(null);
+    setEngineFallback(false);
+    setEngine("");
     load("engines", { year, make, model })
       .then((opts) => {
         if (!live) return;
         if (!opts.length) {
           setEngines([]);
-          setFreeModel(true);
+          setEngineFallback(true);
           return;
         }
         setEngines(opts);
+        setEngineFallback(false);
       })
-      .catch((e: Error) => {
+      .catch(() => {
         if (!live) return;
         setEngines([]);
-        setFreeModel(true);
-        setError(e.message);
+        setEngineFallback(true);
+        setError(null);
       })
       .finally(() => {
         if (live) setBusy(null);
@@ -132,7 +137,7 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
     return () => {
       live = false;
     };
-  }, [year, make, model, freeModel]);
+  }, [year, make, model]);
 
   function applySaved(idx: string) {
     const v = saved[Number(idx)];
@@ -161,14 +166,22 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
         .finally(() => setBusy(null));
       return;
     }
-    if (make && model && !freeModel) {
+    if (make && model) {
       setBusy("engines");
       load("engines", { year, make, model })
         .then((opts) => {
-          if (!opts.length) setFreeModel(true);
-          else setEngines(opts);
+          if (!opts.length) {
+            setEngines([]);
+            setEngineFallback(true);
+          } else {
+            setEngines(opts);
+            setEngineFallback(false);
+          }
         })
-        .catch((e: Error) => setError(e.message))
+        .catch(() => {
+          setEngines([]);
+          setEngineFallback(true);
+        })
         .finally(() => setBusy(null));
     } else if (make) {
       setBusy("models");
@@ -219,6 +232,7 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
           setModels([]);
           setEngines([]);
           setFreeModel(false);
+          setEngineFallback(false);
         }}
       >
         <option value="">Year</option>
@@ -246,6 +260,7 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
           setModels([]);
           setEngines([]);
           setFreeModel(false);
+          setEngineFallback(false);
         }}
       >
         <option value="">Make</option>
@@ -328,23 +343,40 @@ export function VehiclePicker({ saved = [] }: { saved?: Saved[] }) {
       <label className="lbl" htmlFor="vehicle_engine">
         Engine size
       </label>
-      {freeModel ? (
-        <input
-          className="field"
-          id="vehicle_engine"
-          name="vehicle_engine"
-          required
-          disabled={!model}
-          value={engine}
-          onChange={(e) => setEngine(e.target.value)}
-          placeholder="e.g. 2.0L"
-        />
+      {engineFallback ? (
+        <>
+          <p className="mt-1 text-sm text-muted">
+            Couldn&apos;t load engines for this vehicle — type it or pick Not sure.
+          </p>
+          <input
+            className="field"
+            id="vehicle_engine"
+            name={engine === "__unsure__" ? undefined : "vehicle_engine"}
+            disabled={!model}
+            value={engine === "__unsure__" ? "" : engine}
+            onChange={(e) => setEngine(e.target.value)}
+            placeholder="e.g. 3.7L V6"
+          />
+          {engine === "__unsure__" ? (
+            <input type="hidden" name="vehicle_engine" value="__unsure__" />
+          ) : null}
+          <button
+            className="tap tap-ghost mt-2"
+            type="button"
+            onClick={() => setEngine("__unsure__")}
+          >
+            Not sure
+          </button>
+          {engine === "__unsure__" ? (
+            <p className="mt-2 text-sm text-muted">Engine: not specified</p>
+          ) : null}
+        </>
       ) : (
         <select
           className="field"
           id="vehicle_engine"
           name="vehicle_engine"
-          required
+          required={engines.length > 0}
           disabled={!model || busy === "engines"}
           value={engine}
           onChange={(e) => setEngine(e.target.value)}

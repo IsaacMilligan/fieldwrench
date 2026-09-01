@@ -37,11 +37,13 @@ export async function GET(req: NextRequest) {
       if (!year || !make || !model) {
         return NextResponse.json({ ok: false, error: "Pick year, make, and model first." }, { status: 400 });
       }
-      const options = await ymmEngines(year, make, model);
-      if (!options.length) {
-        return NextResponse.json({ ok: false, error: `No engine sizes for ${year} ${make} ${model}. Retry.` });
+      try {
+        const options = await ymmEngines(year, make, model);
+        return NextResponse.json({ ok: true, options });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Lookup failed.";
+        return NextResponse.json({ ok: true, options: [], error: msg });
       }
-      return NextResponse.json({ ok: true, options });
     }
     return NextResponse.json({ ok: false, error: "Unknown lookup." }, { status: 400 });
   } catch (e) {
