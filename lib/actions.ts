@@ -279,6 +279,7 @@ export async function updateJobAction(form: FormData) {
   const sql = await db();
   const id = str(form, "id");
   const status = str(form, "status") as JobStatus;
+  if (!JOB_STATUSES.includes(status)) return;
   const when = str(form, "scheduled_at");
   const scheduled = when ? new Date(when).toISOString() : null;
   await sql`UPDATE jobs SET
@@ -303,6 +304,19 @@ export async function setJobStatusAction(form: FormData) {
   await sql`UPDATE jobs SET status = ${status}, updated_at = NOW() WHERE id = ${id}`;
   revalidatePath(`/jobs/${id}`);
   revalidatePath("/jobs");
+  revalidatePath("/");
+}
+
+export async function deleteJobAction(form: FormData) {
+  await requireSession();
+  const sql = await db();
+  const id = str(form, "id");
+  if (!id) return;
+  await sql`DELETE FROM jobs WHERE id = ${id}`;
+  revalidatePath("/jobs");
+  revalidatePath("/");
+  revalidatePath("/calendar");
+  redirect("/jobs");
 }
 
 export async function addLaborAction(form: FormData) {

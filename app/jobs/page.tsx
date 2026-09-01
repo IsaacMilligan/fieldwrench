@@ -47,8 +47,9 @@ export default async function JobsPage({
 
   const jobs = await listJobs();
   const today = denverDateISO();
-  const active = jobs.filter((j) => j.status !== "completed");
+  const active = jobs.filter((j) => j.status !== "completed" && j.status !== "cancelled");
   const done = jobs.filter((j) => j.status === "completed");
+  const cancelled = jobs.filter((j) => j.status === "cancelled");
 
   function row(j: (typeof jobs)[number]) {
     const day = j.scheduled_at ? denverDateISO(new Date(j.scheduled_at as string | Date)) : "";
@@ -91,6 +92,12 @@ export default async function JobsPage({
           Completed ({done.length})
         </summary>
         <ul className="mt-3 space-y-3">{done.map(row)}</ul>
+      </details>
+      <details className="mt-8">
+        <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
+          Cancelled ({cancelled.length})
+        </summary>
+        <ul className="mt-3 space-y-3">{cancelled.map(row)}</ul>
       </details>
     </Shell>
   );

@@ -10,6 +10,7 @@ import { OilSpecCard } from "@/components/OilSpecCard";
 import { lookupOilCatalog } from "@/lib/oil-specs";
 import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { laborLineCents, partCostCents, partCustomerCents } from "@/lib/profit";
+import { JobDangerActions } from "../JobDangerActions";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,12 @@ export default async function JobDetailPage({
         </div>
         <StatusBadge tone={STATUS_TONE[job.status]}>{STATUS_LABEL[job.status]}</StatusBadge>
       </div>
+      <JobDangerActions
+        jobId={job.id}
+        cancelled={job.status === "cancelled"}
+        hasInvoice={Boolean(invoice)}
+        hasReceipts={receipts.length > 0}
+      />
       {vehicle ? (
         <OilSpecCard
           compact
@@ -71,7 +78,7 @@ export default async function JobDetailPage({
         <input type="hidden" name="id" value={job.id} />
         <label className="lbl">Status</label>
         <select className="field" name="status" defaultValue={job.status}>
-          {JOB_STATUSES.map((s) => (
+          {JOB_STATUSES.filter((s) => s !== "cancelled" || job.status === "cancelled").map((s) => (
             <option key={s} value={s}>
               {STATUS_LABEL[s]}
             </option>

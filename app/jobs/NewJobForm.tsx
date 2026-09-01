@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { VehiclePicker } from "@/app/book/VehiclePicker";
 import { ServiceChips } from "@/components/ServiceChips";
-import { JOB_STATUSES, STATUS_LABEL, type JobStatus } from "@/lib/status";
+import { OPEN_JOB_STATUSES, STATUS_LABEL, type JobStatus } from "@/lib/status";
 import { vehicleLabel } from "@/lib/format";
 
 export type JobCustomer = { id: string; name: string; phone: string; email: string };
@@ -132,7 +132,7 @@ export function NewJobForm({
 
       <label className="lbl">Status</label>
       <select className="field" name="status" defaultValue="scheduled">
-        {JOB_STATUSES.map((s) => (
+        {OPEN_JOB_STATUSES.map((s) => (
           <option key={s} value={s}>
             {STATUS_LABEL[s as JobStatus]}
           </option>

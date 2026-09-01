@@ -294,11 +294,14 @@ export async function homeDashboard() {
   const [counts] = await sql<{ jobs: number; bookings: number }[]>`
     SELECT
       (SELECT COUNT(*)::int FROM jobs j
-        WHERE j.status IN ('in_progress','waiting_parts')
-           OR (
-             j.scheduled_at IS NOT NULL
-             AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
-           )) AS jobs,
+        WHERE j.status NOT IN ('cancelled','completed')
+          AND (
+            j.status IN ('in_progress','waiting_parts')
+            OR (
+              j.scheduled_at IS NOT NULL
+              AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+            )
+          )) AS jobs,
       (SELECT COUNT(*)::int FROM bookings b
         WHERE b.status = 'pending' AND b.preferred_date = ${today}::date) AS bookings
   `;
@@ -489,7 +492,9 @@ export async function listJobs() {
         WHEN 'in_progress' THEN 0
         WHEN 'scheduled' THEN 1
         WHEN 'waiting_parts' THEN 2
-        ELSE 3
+        WHEN 'completed' THEN 3
+        WHEN 'cancelled' THEN 4
+        ELSE 5
       END,
       j.scheduled_at ASC NULLS LAST
   `;
@@ -635,6 +640,7 @@ export async function listCalendarMonth(year: number, month: number) {
     JOIN customers c ON c.id = j.customer_id
     JOIN vehicles v ON v.id = j.vehicle_id
     WHERE j.scheduled_at IS NOT NULL
+      AND j.status <> 'cancelled'
       AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date >= ${start}::date
       AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date < ${end}::date
     ORDER BY j.scheduled_at
