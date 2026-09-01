@@ -76,14 +76,24 @@ export function CalendarMonth({
 
   return (
     <div>
-      <div className="flex items-center gap-2">
-        <button className="tap tap-steel min-h-14 w-14 shrink-0 px-0" type="button" onClick={() => go(-1)} aria-label="Previous month">
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-line bg-panel2 text-2xl leading-none text-ink"
+          type="button"
+          onClick={() => go(-1)}
+          aria-label="Previous month"
+        >
           ‹
         </button>
-        <div className="flex-1 text-center font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
+        <div className="min-w-0 flex-1 whitespace-nowrap text-center font-[family-name:var(--font-display)] text-lg font-bold uppercase tracking-wide">
           {title}
         </div>
-        <button className="tap tap-steel min-h-14 w-14 shrink-0 px-0" type="button" onClick={() => go(1)} aria-label="Next month">
+        <button
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-line bg-panel2 text-2xl leading-none text-ink"
+          type="button"
+          onClick={() => go(1)}
+          aria-label="Next month"
+        >
           ›
         </button>
       </div>
