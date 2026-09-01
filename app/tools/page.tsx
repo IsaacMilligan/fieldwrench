@@ -2,8 +2,7 @@ import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db/queries";
 import { vehicleLabel } from "@/lib/format";
-import { DTC_CODES } from "@/lib/dtc";
-import { DtcTool, VinTool } from "./ui";
+import { VinTool } from "./ui";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +28,6 @@ export default async function ToolsPage({
           label: `${v.name} · ${vehicleLabel({ year: v.year as number, make: String(v.make), model: String(v.model) })}`,
         }))}
       />
-      <DtcTool initial={DTC_CODES} />
     </Shell>
   );
 }

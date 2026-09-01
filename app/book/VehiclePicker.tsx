@@ -19,9 +19,11 @@ async function load(kind: string, q: Record<string, string | number>) {
 export function VehiclePicker({
   saved = [],
   initial,
+  onYmme,
 }: {
   saved?: Saved[];
   initial?: { year?: number | null; make?: string; model?: string; engine?: string };
+  onYmme?: (v: { year: string; make: string; model: string; engine: string }) => void;
 }) {
   const years = useMemo(() => {
     const top = new Date().getFullYear() + 1;
@@ -45,6 +47,10 @@ export function VehiclePicker({
   const [error, setError] = useState<string | null>(null);
 
   const make = brand === "Other" ? otherMake.trim() : brand;
+
+  useEffect(() => {
+    onYmme?.({ year, make, model, engine });
+  }, [year, make, model, engine, onYmme]);
 
   const otherHits = useMemo(() => {
     const q = otherMake.trim().toLowerCase();

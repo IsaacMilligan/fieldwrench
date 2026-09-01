@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { VehiclePicker } from "@/app/book/VehiclePicker";
-import { SERVICES } from "@/lib/services";
+import { ServiceChips } from "@/components/ServiceChips";
 import { JOB_STATUSES, STATUS_LABEL, type JobStatus } from "@/lib/status";
 import { vehicleLabel } from "@/lib/format";
 
@@ -123,7 +123,7 @@ export function NewJobForm({
                 {v.engine ? ` ${v.engine}` : ""}
               </option>
             ))}
-            {customerId ? <option value="__new__">New vehicle</option> : null}
+            {customerId ? <option value="__new__">Add vehicle</option> : null}
           </select>
         </>
       )}
@@ -145,22 +145,7 @@ export function NewJobForm({
 
       <p className="lbl">Services</p>
       <p className="mb-2 text-sm text-muted">Tap every job. You can pick more than one.</p>
-      <ul className="space-y-2">
-        {SERVICES.map((s) => (
-          <li key={s.id}>
-            <label className="flex min-h-14 cursor-pointer items-center gap-4 border-2 border-line bg-panel2 px-3 py-3">
-              <input
-                className="h-8 w-8 shrink-0 accent-amber"
-                type="checkbox"
-                name="service"
-                value={s.id}
-                onChange={() => setNeedService(false)}
-              />
-              <span className="text-lg font-bold">{s.label}</span>
-            </label>
-          </li>
-        ))}
-      </ul>
+      <ServiceChips onChange={() => setNeedService(false)} />
       <label className="lbl">Additional notes</label>
       <textarea className="field min-h-24" name="notes" placeholder="Anything else" />
       {needService ? <p className="mt-3 text-lg font-bold text-red">Pick at least one service.</p> : null}

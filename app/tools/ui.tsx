@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { ScanVinButton } from "@/components/ScanVinButton";
 
 type Decode = {
   error?: string;
@@ -59,6 +60,11 @@ export function VinTool({
         maxLength={17}
         onChange={(e) => setVin(e.target.value.toUpperCase())}
         placeholder="1FTFW1E59JFA12345"
+      />
+      <ScanVinButton
+        onVin={(v) => {
+          setVin(v);
+        }}
       />
       <button className="tap mt-4" type="button" onClick={decode} disabled={busy}>
         {busy ? "Talking to NHTSA…" : "Decode VIN"}
@@ -137,43 +143,3 @@ export function VinTool({
   );
 }
 
-export function DtcTool({ initial }: { initial: { code: string; desc: string }[] }) {
-  const [q, setQ] = useState("");
-  const hits = useMemo(() => {
-    const s = q.trim().toUpperCase();
-    if (!s) return initial.slice(0, 12);
-    return initial
-      .filter((c) => c.code.includes(s) || c.desc.toUpperCase().includes(s))
-      .slice(0, 30);
-  }, [q, initial]);
-
-  return (
-    <section className="mt-6 panel">
-      <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
-        DTC lookup
-      </h2>
-      <p className="mt-1 text-sm text-muted">
-        Bundled generic OBD-II list. Works offline. No paid API.
-      </p>
-      <label className="lbl">Code</label>
-      <input
-        className="field font-mono uppercase"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="P0302"
-      />
-      <ul className="mt-4 space-y-2">
-        {hits.length === 0 ? (
-          <li className="text-red">No match in the bundled list.</li>
-        ) : (
-          hits.map((h) => (
-            <li key={h.code} className="border-b border-line pb-2">
-              <div className="font-mono text-xl font-bold text-amber">{h.code}</div>
-              <div className="text-sm">{h.desc}</div>
-            </li>
-          ))
-        )}
-      </ul>
-    </section>
-  );
-}

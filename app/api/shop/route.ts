@@ -18,6 +18,7 @@ import {
   markInvoiceUnpaidAction,
   openInvoiceAction,
   resetDemoAction,
+  restoreBookingAction,
   saveOilSpecAction,
   saveSettingsAction,
   saveThemeAction,
@@ -56,6 +57,7 @@ const OPS: Record<string, (form: FormData) => Promise<unknown>> = {
   add_receipt: addReceiptAction,
   add_mileage: addMileageAction,
   dismiss_booking: dismissBookingAction,
+  restore_booking: restoreBookingAction,
   accept_booking: acceptBookingAction,
 };
 

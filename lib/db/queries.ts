@@ -294,10 +294,13 @@ export async function homeDashboard() {
   const [counts] = await sql<{ jobs: number; bookings: number }[]>`
     SELECT
       (SELECT COUNT(*)::int FROM jobs j
-        WHERE j.scheduled_at IS NOT NULL
-          AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date) AS jobs,
+        WHERE j.status IN ('in_progress','waiting_parts')
+           OR (
+             j.scheduled_at IS NOT NULL
+             AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+           )) AS jobs,
       (SELECT COUNT(*)::int FROM bookings b
-        WHERE b.preferred_date = ${today}::date) AS bookings
+        WHERE b.status = 'pending' AND b.preferred_date = ${today}::date) AS bookings
   `;
   const todayCount = Number(counts?.jobs ?? 0) + Number(counts?.bookings ?? 0);
 
@@ -318,13 +321,10 @@ export async function homeDashboard() {
     FROM jobs j
     JOIN customers c ON c.id = j.customer_id
     JOIN vehicles v ON v.id = j.vehicle_id
-    WHERE j.status IN ('scheduled','in_progress','waiting_parts')
-      AND (
-        j.status = 'in_progress'
-        OR (j.scheduled_at IS NOT NULL AND j.scheduled_at >= now())
-      )
-    ORDER BY CASE WHEN j.status = 'in_progress' THEN 0 ELSE 1 END,
-      j.scheduled_at ASC NULLS LAST
+    WHERE j.status = 'scheduled'
+      AND j.scheduled_at IS NOT NULL
+      AND j.scheduled_at >= now()
+    ORDER BY j.scheduled_at ASC
     LIMIT 1
   `;
 
@@ -449,6 +449,19 @@ export async function homeDashboard() {
     FROM jobs j
   `;
   const totalByJob = Object.fromEntries(unpaidTotals.map((r) => [String(r.job_id), Number(r.total)]));
+  const unpaidRows = unpaid.map((row) => ({
+    id: String(row.id),
+    job_id: String(row.job_id),
+    customer_name: String(row.customer_name),
+    vehicle_year: row.vehicle_year,
+    make: String(row.make),
+    model: String(row.model),
+    total: totalByJob[String(row.job_id)] ?? 0,
+  }));
+  const unpaidCents = unpaidRows.reduce((s, r) => s + r.total, 0);
+  const [pendingRow] = await sql<{ n: number }[]>`
+    SELECT COUNT(*)::int AS n FROM bookings WHERE status = 'pending'
+  `;
 
   return {
     today,
@@ -456,15 +469,9 @@ export async function homeDashboard() {
     next,
     todayRevenue: Number(moneyRow?.revenue ?? 0),
     todayProfit: Number(moneyRow?.profit ?? 0),
-    unpaid: unpaid.map((row) => ({
-      id: String(row.id),
-      job_id: String(row.job_id),
-      customer_name: String(row.customer_name),
-      vehicle_year: row.vehicle_year,
-      make: String(row.make),
-      model: String(row.model),
-      total: totalByJob[String(row.job_id)] ?? 0,
-    })),
+    unpaid: unpaidRows,
+    unpaidCents,
+    pendingBookings: Number(pendingRow?.n ?? 0),
   };
 }
 
@@ -491,7 +498,8 @@ export async function listJobs() {
 export async function listCustomers() {
   const sql = await db();
   return sql`
-    SELECT c.*, COUNT(v.id)::int AS vehicle_count
+    SELECT c.*, COUNT(v.id)::int AS vehicle_count,
+      (SELECT MAX(j.scheduled_at) FROM jobs j WHERE j.customer_id = c.id) AS last_visit
     FROM customers c
     LEFT JOIN vehicles v ON v.customer_id = c.id
     GROUP BY c.id
@@ -617,11 +625,12 @@ export async function listCalendarMonth(year: number, month: number) {
       model: string;
       engine: string;
       services: string;
+      status: string;
     }[]
   >`
     SELECT j.id,
       to_char((j.scheduled_at AT TIME ZONE 'America/Denver')::date, 'YYYY-MM-DD') AS day,
-      c.name AS customer_name, v.year, v.make, v.model, v.engine, j.services
+      c.name AS customer_name, v.year, v.make, v.model, v.engine, j.services, j.status
     FROM jobs j
     JOIN customers c ON c.id = j.customer_id
     JOIN vehicles v ON v.id = j.vehicle_id

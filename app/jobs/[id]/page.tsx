@@ -66,41 +66,17 @@ export default async function JobDetailPage({
         />
       ) : null}
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        {JOB_STATUSES.map((s) => (
-          <form action="/api/shop" method="post" key={s}>
-            <input type="hidden" name="_op" value="set_status" />
-            <input type="hidden" name="id" value={job.id} />
-            <input type="hidden" name="status" value={s} />
-            <button
-              className={`tap ${job.status === s ? "" : "tap-steel"}`}
-              type="submit"
-            >
-              {STATUS_LABEL[s]}
-            </button>
-          </form>
-        ))}
-      </div>
-
-      <div className="mt-6">
-        <ProfitPanel p={profit} />
-      </div>
-
       <form action="/api/shop" method="post" className="mt-4">
-            <input type="hidden" name="_op" value="open_invoice" />
-        <input type="hidden" name="job_id" value={job.id} />
-        <button className="tap tap-ghost" type="submit">
-          Invoice {invoice?.status === "paid" ? "(paid)" : "(unpaid)"}
-        </button>
-      </form>
-
-      <h2 className="mt-8 font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
-        Notes
-      </h2>
-      <form action="/api/shop" method="post" className="mt-2">
             <input type="hidden" name="_op" value="update_job" />
         <input type="hidden" name="id" value={job.id} />
-        <input type="hidden" name="status" value={job.status} />
+        <label className="lbl">Status</label>
+        <select className="field" name="status" defaultValue={job.status}>
+          {JOB_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {STATUS_LABEL[s]}
+            </option>
+          ))}
+        </select>
         <label className="lbl">When</label>
         <input className="field" type="datetime-local" name="scheduled_at" defaultValue={scheduled} />
         <label className="lbl">Address</label>
@@ -112,13 +88,25 @@ export default async function JobDetailPage({
         <label className="lbl">Work performed</label>
         <textarea className="field min-h-24" name="work_performed" defaultValue={job.work_performed} />
         <button className="tap mt-4" type="submit">
-          Save notes
+          Save
         </button>
       </form>
 
-      <h2 className="mt-10 font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
-        Labor
-      </h2>
+      <div className="mt-6">
+        <ProfitPanel p={profit} />
+      </div>
+      <form action="/api/shop" method="post" className="mt-4">
+            <input type="hidden" name="_op" value="open_invoice" />
+        <input type="hidden" name="job_id" value={job.id} />
+        <button className="tap tap-ghost" type="submit">
+          Invoice {invoice?.status === "paid" ? "(paid)" : "(unpaid)"}
+        </button>
+      </form>
+
+      <details className="mt-8" open={labor.length > 0}>
+        <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
+          + Add labor
+        </summary>
       <ul className="mt-3 space-y-2">
         {labor.map((l) => (
           <li key={l.id} className="panel flex items-start justify-between gap-3">
@@ -169,10 +157,12 @@ export default async function JobDetailPage({
           Add labor
         </button>
       </form>
+      </details>
 
-      <h2 className="mt-10 font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
-        Parts
-      </h2>
+      <details className="mt-8" open={parts.length > 0}>
+        <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
+          + Add parts
+        </summary>
       <ul className="mt-3 space-y-2">
         {parts.map((p) => (
           <li key={p.id} className="panel">
@@ -210,10 +200,12 @@ export default async function JobDetailPage({
           Add part
         </button>
       </form>
+      </details>
 
-      <h2 className="mt-10 font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
-        Photos
-      </h2>
+      <details className="mt-8" open={photos.length > 0}>
+        <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
+          + Add photos
+        </summary>
       <div className="mt-3 grid grid-cols-2 gap-2">
         {photos.map((ph) => (
           // eslint-disable-next-line @next/next/no-img-element
@@ -234,6 +226,7 @@ export default async function JobDetailPage({
           Save photo
         </button>
       </form>
+      </details>
 
       {receipts.length > 0 ? (
         <div className="mt-8 panel">

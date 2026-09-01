@@ -12,6 +12,7 @@ export type CalItem = {
   vehicle: string;
   services: string;
   href: string;
+  status?: string;
 };
 
 const WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -45,8 +46,19 @@ export function CalendarMonth({
   const start = useRef<{ x: number; y: number } | null>(null);
 
   const marked = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const it of items) m.set(it.day, (m.get(it.day) ?? 0) + 1);
+    const m = new Map<string, { count: number; tone: string }>();
+    for (const it of items) {
+      const prev = m.get(it.day) ?? { count: 0, tone: "bg-amber" };
+      const tone =
+        it.status === "waiting_parts"
+          ? "bg-red"
+          : it.status === "in_progress"
+            ? "bg-amber"
+            : it.status === "completed"
+              ? "bg-green"
+              : "bg-amber";
+      m.set(it.day, { count: prev.count + 1, tone });
+    }
     return m;
   }, [items]);
 
@@ -127,7 +139,8 @@ export function CalendarMonth({
             if (!c) return <div key={`e-${i}`} className="min-h-12" />;
             const isToday = c.iso === today;
             const isSel = c.iso === selected;
-            const count = marked.get(c.iso) ?? 0;
+            const mark = marked.get(c.iso);
+            const count = mark?.count ?? 0;
             return (
               <button
                 key={c.iso}
@@ -138,7 +151,11 @@ export function CalendarMonth({
                 } ${isToday && !isSel ? "ring-2 ring-amber" : ""}`}
               >
                 {c.day}
-                <span className={`mt-0.5 h-1.5 w-1.5 rounded-full ${count ? (isSel ? "bg-[#120e04]" : "bg-amber") : "bg-transparent"}`} />
+                {count > 1 ? (
+                  <span className={`mt-0.5 text-[10px] leading-none ${isSel ? "text-[#120e04]" : "text-amber"}`}>{count}</span>
+                ) : (
+                  <span className={`mt-0.5 h-1.5 w-1.5 rounded-full ${count ? (isSel ? "bg-[#120e04]" : mark?.tone ?? "bg-amber") : "bg-transparent"}`} />
+                )}
               </button>
             );
           })}
@@ -147,7 +164,12 @@ export function CalendarMonth({
 
       <div className="mt-4 rounded-2xl border border-line bg-panel p-4">
         <h2 className="font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
-          {selected}
+          {new Intl.DateTimeFormat("en-US", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            timeZone: "UTC",
+          }).format(new Date(`${selected}T12:00:00Z`))}
         </h2>
         {dayItems.length === 0 ? (
           <>

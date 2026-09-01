@@ -90,10 +90,14 @@ export function StartsIn({ iso }: { iso: string }) {
 const HIDE_KEY = "fw-hide-money";
 
 export function MoneyAmounts({
+  unpaidLabel,
+  unpaidCount,
   revenueLabel,
   profitLabel,
   profitNegative,
 }: {
+  unpaidLabel: string;
+  unpaidCount: number;
   revenueLabel: string;
   profitLabel: string;
   profitNegative: boolean;
@@ -119,8 +123,11 @@ export function MoneyAmounts({
     <div>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">Today’s revenue</div>
-          <div className="num mt-1 text-3xl">{hide ? "••••" : revenueLabel}</div>
+          <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">Unpaid AR</div>
+          <div className="num mt-1 text-3xl text-red">{hide ? "••••" : unpaidLabel}</div>
+          <div className="mt-1 text-sm text-muted">
+            {unpaidCount} unpaid
+          </div>
         </div>
         <button
           type="button"
@@ -129,6 +136,10 @@ export function MoneyAmounts({
         >
           {hide ? "Show" : "Hide"}
         </button>
+      </div>
+      <div className="mt-3">
+        <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">Today’s revenue</div>
+        <div className="num mt-1 text-2xl">{hide ? "••••" : revenueLabel}</div>
       </div>
       <div className="mt-3">
         <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-muted">Profit</div>

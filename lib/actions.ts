@@ -405,9 +405,23 @@ export async function addReceiptAction(form: FormData) {
   await requireSession();
   const sql = await db();
   const jobId = str(form, "job_id") || null;
-  await sql`INSERT INTO receipts (id, amount_cents, vendor, category, date, job_id) VALUES (
-    ${crypto.randomUUID()}, ${parseMoney(str(form, "amount"))}, ${str(form, "vendor") || "Vendor"},
-    ${str(form, "category") || "parts"}, ${str(form, "date")}, ${jobId}
+  const id = crypto.randomUUID();
+  const file = form.get("file");
+  let photoUrl = "";
+  if (file instanceof File && file.size > 0) {
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    if (token) {
+      const blob = await put(`receipts/${id}`, Buffer.from(await file.arrayBuffer()), {
+        access: "public",
+        contentType: file.type || "image/jpeg",
+        token,
+      });
+      photoUrl = blob.url;
+    }
+  }
+  await sql`INSERT INTO receipts (id, amount_cents, vendor, category, date, job_id, photo_url) VALUES (
+    ${id}, ${parseMoney(str(form, "amount"))}, ${str(form, "vendor") || "Vendor"},
+    ${str(form, "category") || "parts"}, ${str(form, "date")}, ${jobId}, ${photoUrl}
   )`;
   revalidatePath("/more");
   if (jobId) revalidatePath(`/jobs/${jobId}`);
@@ -446,11 +460,20 @@ export async function publicBookAction(_prev: { ok?: boolean; error?: string } |
   }
 }
 
+export async function restoreBookingAction(form: FormData) {
+  await requireSession();
+  const sql = await db();
+  await sql`UPDATE bookings SET status = 'pending' WHERE id = ${str(form, "id")} AND status = 'dismissed'`;
+  revalidatePath("/bookings");
+  revalidatePath("/");
+}
+
 export async function dismissBookingAction(form: FormData) {
   await requireSession();
   const sql = await db();
   await sql`UPDATE bookings SET status = 'dismissed' WHERE id = ${str(form, "id")}`;
   revalidatePath("/bookings");
+  revalidatePath("/");
 }
 
 export async function acceptBookingAction(form: FormData) {

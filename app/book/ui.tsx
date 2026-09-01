@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Mark } from "@/components/Mark";
-import { SERVICES } from "@/lib/services";
+import { ServiceChips } from "@/components/ServiceChips";
 import { VehiclePicker } from "./VehiclePicker";
+import { ELECTRIC_ENGINE, isKnownBev } from "@/lib/vpic";
 
 export function BookForm({
   signedIn,
@@ -28,6 +29,7 @@ export function BookForm({
   leadHours: number;
 }) {
   const [needService, setNeedService] = useState(false);
+  const [bev, setBev] = useState(false);
   const [date, setDate] = useState(minDate);
   const [leadErr, setLeadErr] = useState(Boolean(leadRejected));
   const leadMsg = `Pick a date at least ${leadHours} hours out.`;
@@ -117,25 +119,13 @@ export function BookForm({
         <input className="field" name="phone" type="tel" required defaultValue={phone ?? ""} />
         <label className="lbl">Address</label>
         <input className="field" name="address" required />
-        <VehiclePicker saved={savedVehicles} />
+        <VehiclePicker
+          saved={savedVehicles}
+          onYmme={(v) => setBev(isKnownBev(v.make, v.model) || v.engine === ELECTRIC_ENGINE)}
+        />
         <p className="lbl">Services</p>
         <p className="mb-2 text-sm text-muted">Tap every job you want. You can pick more than one.</p>
-        <ul className="space-y-2">
-          {SERVICES.map((s) => (
-            <li key={s.id}>
-              <label className="flex min-h-14 cursor-pointer items-center gap-4 border-2 border-line bg-panel2 px-3 py-3">
-                <input
-                  className="h-8 w-8 shrink-0 accent-amber"
-                  type="checkbox"
-                  name="service"
-                  value={s.id}
-                  onChange={() => setNeedService(false)}
-                />
-                <span className="text-lg font-bold">{s.label}</span>
-              </label>
-            </li>
-          ))}
-        </ul>
+        <ServiceChips bev={bev} onChange={() => setNeedService(false)} />
         <label className="lbl">Additional notes</label>
         <textarea
           className="field min-h-24"

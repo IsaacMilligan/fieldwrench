@@ -110,3 +110,16 @@ export function vehicleLabel(v: {
 export function vinOk(vin: string): boolean {
   return /^[A-HJ-NPR-Z0-9]{17}$/i.test(vin.trim());
 }
+
+export function formatPhone(raw: unknown): string {
+  const d = String(raw ?? "").replace(/\D/g, "");
+  if (d.length === 11 && d.startsWith("1")) {
+    return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  }
+  if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  return String(raw ?? "").trim();
+}
+
+export function vehicleNoun(n: number): string {
+  return n === 1 ? "1 vehicle" : `${n} vehicles`;
+}

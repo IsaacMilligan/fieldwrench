@@ -6,6 +6,7 @@ import { getVehicle } from "@/lib/db/queries";
 import { vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
 import { VehiclePicker } from "@/app/book/VehiclePicker";
+import { VinField } from "@/components/VinField";
 import { lookupOilCatalog } from "@/lib/oil-specs";
 import { STATUS_LABEL, type JobStatus } from "@/lib/status";
 
@@ -54,7 +55,7 @@ export default async function VehiclePage({
         <label className="lbl">Plate</label>
         <input className="field" name="plate" defaultValue={vehicle.plate} />
         <label className="lbl">VIN</label>
-        <input className="field font-mono" name="vin" defaultValue={vehicle.vin} maxLength={17} />
+        <VinField defaultValue={vehicle.vin} />
         <label className="lbl">Mileage</label>
         <input className="field" name="mileage" defaultValue={vehicle.mileage ?? ""} />
         <label className="lbl">Vehicle history notes</label>

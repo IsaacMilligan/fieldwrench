@@ -28,6 +28,7 @@ export default async function CalendarPage({
       vehicle: vehicleLabel({ year: j.year, make: j.make, model: j.model }) + (j.engine ? ` ${j.engine}` : ""),
       services: formatServiceList(parseServiceIds(j.services)),
       href: `/jobs/${j.id}`,
+      status: String(j.status ?? ""),
     })),
     ...bookings.map((b) => ({
       kind: "booking" as const,

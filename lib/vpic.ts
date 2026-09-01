@@ -94,7 +94,37 @@ export function bookingYears(): number[] {
 
 type VpicList = { Results?: Array<Record<string, unknown>> };
 
-const globalMakes = globalThis as unknown as { fwMakes?: { at: number; names: string[] } };
+const globalMakes = globalThis as unknown as {
+  fwMakes?: { at: number; names: string[] };
+  fwMakeIds?: { at: number; ids: Record<string, number> };
+};
+
+async function vpicMakeId(make: string): Promise<number | null> {
+  const want = make.trim().toLowerCase();
+  if (!want) return null;
+  const hit = globalMakes.fwMakeIds;
+  if (!hit || Date.now() - hit.at > 6 * 60 * 60 * 1000) {
+    const ids: Record<string, number> = {};
+    const types = ["car", "truck", "mpv"];
+    for (const t of types) {
+      try {
+        const data = (await getJson(`${VPIC}/GetMakesForVehicleType/${encodeURIComponent(t)}?format=json`)) as VpicList;
+        for (const row of data.Results ?? []) {
+          const n = String(row.MakeName ?? row.Make_Name ?? "").trim().toLowerCase();
+          const id = Number(row.MakeId ?? row.Make_ID ?? 0);
+          if (n && Number.isFinite(id) && id > 0) ids[n] = id;
+        }
+      } catch {
+        /* skip type */
+      }
+    }
+    globalMakes.fwMakeIds = { at: Date.now(), ids };
+  }
+  const map = globalMakes.fwMakeIds?.ids ?? {};
+  if (map[want]) return map[want];
+  const chevy = want === "chevy" ? map.chevrolet : null;
+  return chevy ?? null;
+}
 
 export async function vpicMakes(): Promise<string[]> {
   const hit = globalMakes.fwMakes;
@@ -114,10 +144,16 @@ export async function vpicMakes(): Promise<string[]> {
 }
 
 export async function vpicModels(year: number, make: string): Promise<string[]> {
-  const url = `${VPIC}/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`;
+  const id = await vpicMakeId(make);
+  const url = id
+    ? `${VPIC}/GetModelsForMakeIdYear/makeId/${id}/modelyear/${year}?format=json`
+    : `${VPIC}/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`;
   const data = (await getJson(url)) as VpicList;
   const names = new Set<string>();
+  const want = make.trim().toLowerCase();
   for (const row of data.Results ?? []) {
+    const makeName = String(row.Make_Name ?? row.MakeName ?? "").trim().toLowerCase();
+    if (makeName && makeName !== want) continue;
     const n = String(row.Model_Name ?? row.ModelName ?? "").trim();
     if (n) names.add(n);
   }
@@ -147,6 +183,30 @@ function engineLabel(text: string): string | null {
 export async function ymmEngines(year: number, make: string, model: string): Promise<string[]> {
   if (isKnownBev(make, model)) return [ELECTRIC_ENGINE];
   const found = new Set<string>();
+
+  try {
+    const url =
+      `${VPIC}/GetCanadianVehicleSpecifications/?year=${year}` +
+      `&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&units=US&format=json`;
+    const data = (await getJson(url)) as VpicList;
+    for (const row of data.Results ?? []) {
+      const specs = (row.Specs ?? row.specs) as Array<Record<string, unknown>> | undefined;
+      const bag = specs
+        ? specs.map((s) => `${s.Name ?? s.name ?? ""} ${s.Value ?? s.value ?? ""}`).join(" ")
+        : JSON.stringify(row);
+      const liters = bag.match(/(\d+(?:\.\d+)?)\s*L\b/gi) ?? [];
+      for (const lit of liters) {
+        const n = lit.match(/(\d+(?:\.\d+)?)/);
+        if (n) found.add(`${n[1]}L`);
+      }
+      if (isVpicBev(row as Record<string, string | undefined>)) found.add(ELECTRIC_ENGINE);
+      const lab = engineLabel(bag);
+      if (lab) found.add(lab);
+    }
+  } catch {
+    /* vPIC specs miss is ok */
+  }
+
   const addFrom = async (epaModel: string) => {
     const url = `${EPA}/options?year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(epaModel)}`;
     const data = await getJson(url);

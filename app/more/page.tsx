@@ -5,6 +5,7 @@ import { getSettings, listReceipts, listMileage, listJobsLite } from "@/lib/db/q
 import { denverDateISO, formatDate, money } from "@/lib/format";
 import { LeadHoursField } from "./LeadHoursField";
 import { ThemeToggle } from "./ThemeToggle";
+import { ReceiptScanForm } from "./ReceiptScanForm";
 
 export const dynamic = "force-dynamic";
 
@@ -21,33 +22,13 @@ export default async function MorePage({
     const rows = await listReceipts();
     return (
       <Shell title="Receipts">
-        <form action="/api/shop" method="post" className="panel">
-            <input type="hidden" name="_op" value="add_receipt" />
-          <label className="lbl">Amount $</label>
-          <input className="field" name="amount" inputMode="decimal" required />
-          <label className="lbl">Vendor</label>
-          <input className="field" name="vendor" required />
-          <label className="lbl">Category</label>
-          <select className="field" name="category" defaultValue="parts">
-            <option value="parts">Parts</option>
-            <option value="fuel">Fuel</option>
-            <option value="shop">Shop</option>
-            <option value="other">Other</option>
-          </select>
-          <label className="lbl">Date</label>
-          <input className="field" type="date" name="date" defaultValue={denverDateISO()} />
-          <label className="lbl">Link to job (optional)</label>
-          <select className="field" name="job_id" defaultValue="">
-            <option value="">None</option>
-            {jobs.map((j) => (
-              <option key={String(j.id)} value={String(j.id)}>
-                {String(j.customer_name)} · {String(j.make)} {String(j.model)}
-              </option>
-            ))}
-          </select>
-          <p className="mt-2 text-xs text-muted">Linked receipts reduce that job&apos;s profit.</p>
-          <button className="tap mt-4" type="submit">Save receipt</button>
-        </form>
+        <ReceiptScanForm
+          defaultDate={denverDateISO()}
+          jobs={jobs.map((j) => ({
+            id: String(j.id),
+            label: `${String(j.customer_name)} · ${String(j.make)} ${String(j.model)}`,
+          }))}
+        />
         <ul className="mt-6 space-y-3">
           {rows.map((r) => (
             <li key={String(r.id)} className="panel flex justify-between gap-3">
@@ -120,6 +101,10 @@ export default async function MorePage({
     const s = await getSettings();
     return (
       <Shell title="Settings">
+        <form action="/api/shop" method="post" className="mb-6">
+            <input type="hidden" name="_op" value="logout" />
+          <button className="tap tap-red" type="submit">Log out</button>
+        </form>
         <form action="/api/shop" method="post" className="panel">
             <input type="hidden" name="_op" value="save_settings" />
           <label className="lbl">Shop name</label>

@@ -203,6 +203,8 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_viscosity_alt TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_saved INTEGER NOT NULL DEFAULT 0`);
         await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS photo_url TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS photo_content_type TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`
           UPDATE jobs SET services = '["battery_test"]', service_mileage = COALESCE(service_mileage, 164000)
           WHERE work_performed LIKE 'Installed Group 35 AGM%' AND (services = '[]' OR services = '' OR services IS NULL)

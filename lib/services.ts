@@ -20,6 +20,8 @@ export type ServiceDef = {
   months: number | null;
 };
 
+export const BEV_HIDDEN_SERVICES = new Set<ServiceId>(["oil_change", "spark_plugs", "coolant"]);
+
 export const SERVICES: ServiceDef[] = [
   { id: "oil_change", label: "Oil change", miles: 3000, months: 3 },
   { id: "tire_rotation", label: "Tire rotation", miles: 6000, months: 6 },

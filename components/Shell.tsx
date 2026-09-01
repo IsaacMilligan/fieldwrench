@@ -12,7 +12,7 @@ export function Shell({
   hideHeader?: boolean;
 }) {
   return (
-    <div className="mx-auto min-h-dvh max-w-lg pb-28">
+    <div className="mx-auto min-h-dvh max-w-lg pb-[calc(5.25rem+env(safe-area-inset-bottom))]">
       {hideHeader ? null : (
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-bg/95 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
           <Mark />
