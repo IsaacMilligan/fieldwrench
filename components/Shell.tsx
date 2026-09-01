@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Mark } from "./Mark";
 import { Nav } from "./Nav";
 
@@ -9,7 +10,7 @@ export function Shell({
   title?: string;
 }) {
   return (
-    <div className="mx-auto min-h-dvh max-w-lg pb-24">
+    <div className="mx-auto min-h-dvh max-w-lg pb-28">
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-bg/95 px-4 py-3 backdrop-blur">
         <Mark />
         {title ? (
@@ -19,7 +20,9 @@ export function Shell({
         ) : null}
       </header>
       <main className="px-4 py-4">{children}</main>
-      <Nav />
+      <Suspense fallback={null}>
+        <Nav />
+      </Suspense>
     </div>
   );
 }

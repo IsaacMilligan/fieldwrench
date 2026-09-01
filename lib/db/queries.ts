@@ -378,6 +378,62 @@ export async function listMileage() {
   return { rows, ytd };
 }
 
+export async function listCalendarMonth(year: number, month: number) {
+  const sql = await db();
+  const y = Number.isFinite(year) ? year : new Date().getFullYear();
+  const m = Math.min(12, Math.max(1, Math.round(month) || 1));
+  const start = `${y}-${String(m).padStart(2, "0")}-01`;
+  const nm = m === 12 ? 1 : m + 1;
+  const ny = m === 12 ? y + 1 : y;
+  const end = `${ny}-${String(nm).padStart(2, "0")}-01`;
+  const jobs = await sql<
+    {
+      id: string;
+      day: string;
+      customer_name: string;
+      year: number | null;
+      make: string;
+      model: string;
+      engine: string;
+      services: string;
+    }[]
+  >`
+    SELECT j.id,
+      to_char((j.scheduled_at AT TIME ZONE 'America/Denver')::date, 'YYYY-MM-DD') AS day,
+      c.name AS customer_name, v.year, v.make, v.model, v.engine, j.services
+    FROM jobs j
+    JOIN customers c ON c.id = j.customer_id
+    JOIN vehicles v ON v.id = j.vehicle_id
+    WHERE j.scheduled_at IS NOT NULL
+      AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date >= ${start}::date
+      AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date < ${end}::date
+    ORDER BY j.scheduled_at
+  `;
+  const bookings = await sql<
+    {
+      id: string;
+      day: string;
+      name: string;
+      vehicle: string;
+      vehicle_year: number | null;
+      vehicle_make: string;
+      vehicle_model: string;
+      vehicle_engine: string;
+      services: string;
+    }[]
+  >`
+    SELECT id,
+      to_char(preferred_date, 'YYYY-MM-DD') AS day,
+      name, vehicle, vehicle_year, vehicle_make, vehicle_model, vehicle_engine, services
+    FROM bookings
+    WHERE preferred_date IS NOT NULL
+      AND preferred_date >= ${start}::date
+      AND preferred_date < ${end}::date
+    ORDER BY preferred_date
+  `;
+  return { jobs, bookings };
+}
+
 export async function listBookings() {
   const sql = await db();
   return sql`SELECT * FROM bookings ORDER BY

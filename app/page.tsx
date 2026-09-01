@@ -96,6 +96,10 @@ export default async function HomePage() {
           ))
         )}
       </ul>
+
+      <Link href="/bookings" className="tap tap-ghost mt-8 flex items-center justify-center">
+        Bookings inbox
+      </Link>
     </Shell>
   );
 }
