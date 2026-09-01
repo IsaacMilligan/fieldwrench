@@ -111,6 +111,28 @@ export function vinOk(vin: string): boolean {
   return /^[A-HJ-NPR-Z0-9]{17}$/i.test(vin.trim());
 }
 
+/** ISO 3779 check digit (position 9). Scan must pass this; typing still uses vinOk. */
+export function vinCheckDigitOk(vin: string): boolean {
+  const v = vin.trim().toUpperCase();
+  if (!vinOk(v)) return false;
+  const map: Record<string, number> = {
+    A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7, H: 8,
+    J: 1, K: 2, L: 3, M: 4, N: 5, P: 7, R: 9,
+    S: 2, T: 3, U: 4, V: 5, W: 6, X: 7, Y: 8, Z: 9,
+  };
+  const weights = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2];
+  let sum = 0;
+  for (let i = 0; i < 17; i++) {
+    const ch = v[i];
+    const val = ch >= "0" && ch <= "9" ? Number(ch) : map[ch];
+    if (val == null) return false;
+    sum += val * weights[i];
+  }
+  const rem = sum % 11;
+  const expect = rem === 10 ? "X" : String(rem);
+  return v[8] === expect;
+}
+
 export function formatPhone(raw: unknown): string {
   const d = String(raw ?? "").replace(/\D/g, "");
   if (d.length === 11 && d.startsWith("1")) {

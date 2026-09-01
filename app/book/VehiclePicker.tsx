@@ -224,6 +224,10 @@ export function VehiclePicker({
         setVinError(json.error);
         return;
       }
+      if (!json.year || !json.make || !json.model) {
+        setVinError("Couldn’t decode that VIN — check the characters.");
+        return;
+      }
       applyFill({
         year: json.year,
         make: json.make ?? "",
