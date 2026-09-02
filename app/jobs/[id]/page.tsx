@@ -7,7 +7,6 @@ import { requireSession } from "@/lib/auth";
 import { getJobBundle, getShopOilDefault } from "@/lib/db/queries";
 import { formatDateTime, money, vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
-import { lookupOilCatalog } from "@/lib/oil-specs";
 import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { laborLineCents, partCostCents, partCustomerCents } from "@/lib/profit";
 import { JobDangerActions } from "../JobDangerActions";
@@ -27,15 +26,6 @@ export default async function JobDetailPage({
   const scheduled = job.scheduled_at
     ? new Date(job.scheduled_at).toISOString().slice(0, 16)
     : "";
-  const catalog = vehicle?.id
-    ? await lookupOilCatalog({
-        year: vehicle.year,
-        make: vehicle.make,
-        model: vehicle.model,
-        engine: vehicle.engine,
-        vin: vehicle.vin,
-      }).catch(() => null)
-    : null;
   const saved = vehicle ? Number(vehicle.oil_saved) === 1 : false;
   const shop =
     vehicle?.id && !saved
@@ -83,13 +73,14 @@ export default async function JobDetailPage({
           compact
           vehicleId={vehicle.id}
           next={`/jobs/${job.id}`}
-          catalog={catalog}
           savedQt={saved ? Number(vehicle.oil_qt) || null : null}
           savedViscosity={saved ? String(vehicle.oil_viscosity ?? "") : ""}
-          savedQtWithout={saved ? Number(vehicle.oil_qt_without) || null : null}
-          savedViscosityAlt={saved ? String(vehicle.oil_viscosity_alt ?? "") : ""}
+          savedTq={saved ? Number(vehicle.oil_drain_tq) || null : null}
+          savedSocket={saved ? String(vehicle.oil_socket ?? "") : ""}
           shopQt={shop?.oil_qt ?? null}
           shopViscosity={shop?.oil_viscosity ?? ""}
+          shopTq={shop?.oil_drain_tq ?? null}
+          shopSocket={shop?.oil_socket ?? ""}
           engine={vehicle.engine}
         />
       ) : null}

@@ -53,6 +53,8 @@ export type Vehicle = {
   oil_qt_without: number | null;
   oil_viscosity_alt: string;
   oil_saved: boolean;
+  oil_drain_tq: number | null;
+  oil_socket: string;
 };
 
 export type Job = {
@@ -551,12 +553,19 @@ export async function getShopOilDefault(q: {
   make?: string | null;
   model?: string | null;
   engine?: string | null;
-}): Promise<{ oil_qt: number | null; oil_viscosity: string } | null> {
+}): Promise<{
+  oil_qt: number | null;
+  oil_viscosity: string;
+  oil_drain_tq: number | null;
+  oil_socket: string;
+} | null> {
   const key = oilYmmeKey(q.year, q.make, q.model, q.engine);
   if (!key) return null;
   const sql = await db();
-  const [row] = await sql<{ oil_qt: number | null; oil_viscosity: string }[]>`
-    SELECT oil_qt, oil_viscosity FROM oil_defaults
+  const [row] = await sql<
+    { oil_qt: number | null; oil_viscosity: string; oil_drain_tq: number | null; oil_socket: string }[]
+  >`
+    SELECT oil_qt, oil_viscosity, oil_drain_tq, oil_socket FROM oil_defaults
     WHERE year = ${key.year} AND make_key = ${key.make_key}
       AND model_key = ${key.model_key} AND engine_key = ${key.engine_key}
     LIMIT 1
@@ -564,8 +573,15 @@ export async function getShopOilDefault(q: {
   if (!row) return null;
   const qt = row.oil_qt != null ? Number(row.oil_qt) : null;
   const vis = String(row.oil_viscosity ?? "").trim();
-  if (!(qt && qt > 0) && !vis) return null;
-  return { oil_qt: qt && qt > 0 ? qt : null, oil_viscosity: vis };
+  const tq = row.oil_drain_tq != null ? Number(row.oil_drain_tq) : null;
+  const socket = String(row.oil_socket ?? "").trim();
+  if (!(qt && qt > 0) && !vis && !(tq && tq > 0) && !socket) return null;
+  return {
+    oil_qt: qt && qt > 0 ? qt : null,
+    oil_viscosity: vis,
+    oil_drain_tq: tq && tq > 0 ? tq : null,
+    oil_socket: socket,
+  };
 }
 
 export async function getJobBundle(jobId: string) {
@@ -605,6 +621,8 @@ export async function getJobBundle(jobId: string) {
           oil_qt_without: null,
           oil_viscosity_alt: "",
           oil_saved: false,
+          oil_drain_tq: null,
+          oil_socket: "",
         }
       : null;
   const laborRaw = await sql`SELECT * FROM labor_lines WHERE job_id = ${jobId}`;

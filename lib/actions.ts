@@ -204,7 +204,9 @@ export async function saveOilSpecAction(form: FormData) {
   const id = str(form, "id");
   const qt = parseNumber(str(form, "oil_qt"));
   const vis = str(form, "oil_viscosity");
-  if (!id || (!qt && !vis)) redirect(`/vehicles/${id || ""}`);
+  const tq = parseNumber(str(form, "oil_drain_tq"));
+  const socket = str(form, "oil_socket");
+  if (!id || (!qt && !vis && !tq && !socket)) redirect(`/vehicles/${id || ""}`);
   const [veh] = await sql<{ year: number | null; make: string; model: string; engine: string }[]>`
     SELECT year, make, model, engine FROM vehicles WHERE id = ${id}
   `;
@@ -215,15 +217,22 @@ export async function saveOilSpecAction(form: FormData) {
   await sql`UPDATE vehicles SET
     oil_qt = ${qt || null},
     oil_viscosity = ${vis},
+    oil_drain_tq = ${tq || null},
+    oil_socket = ${socket},
     oil_saved = 1
     WHERE id = ${id}`;
   const key = oilYmmeKey(veh?.year, veh?.make, veh?.model, veh?.engine);
   if (key) {
     await sql`
-      INSERT INTO oil_defaults (id, year, make_key, model_key, engine_key, oil_qt, oil_viscosity, updated_at)
-      VALUES (${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${qt || null}, ${vis}, NOW())
+      INSERT INTO oil_defaults (id, year, make_key, model_key, engine_key, oil_qt, oil_viscosity, oil_drain_tq, oil_socket, updated_at)
+      VALUES (${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${qt || null}, ${vis}, ${tq || null}, ${socket}, NOW())
       ON CONFLICT (year, make_key, model_key, engine_key)
-      DO UPDATE SET oil_qt = EXCLUDED.oil_qt, oil_viscosity = EXCLUDED.oil_viscosity, updated_at = NOW()
+      DO UPDATE SET
+        oil_qt = EXCLUDED.oil_qt,
+        oil_viscosity = EXCLUDED.oil_viscosity,
+        oil_drain_tq = EXCLUDED.oil_drain_tq,
+        oil_socket = EXCLUDED.oil_socket,
+        updated_at = NOW()
     `;
   }
   revalidatePath(`/vehicles/${id}`);

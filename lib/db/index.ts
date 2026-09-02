@@ -182,6 +182,8 @@ CREATE TABLE IF NOT EXISTS oil_defaults (
   engine_key TEXT NOT NULL DEFAULT '',
   oil_qt NUMERIC,
   oil_viscosity TEXT NOT NULL DEFAULT '',
+  oil_drain_tq NUMERIC,
+  oil_socket TEXT NOT NULL DEFAULT '',
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (year, make_key, model_key, engine_key)
 );
@@ -217,6 +219,10 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_qt_without NUMERIC`);
         await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_viscosity_alt TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_saved INTEGER NOT NULL DEFAULT 0`);
+        await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_drain_tq NUMERIC`);
+        await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_socket TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS oil_drain_tq NUMERIC`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS oil_socket TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS photo_url TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS photo_content_type TEXT NOT NULL DEFAULT ''`);

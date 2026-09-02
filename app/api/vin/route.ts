@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { readSession } from "@/lib/auth";
 import { vinOk } from "@/lib/format";
-import { lookupOilCatalog } from "@/lib/oil-specs";
 import { ELECTRIC_ENGINE, isVpicBev } from "@/lib/vpic";
 
 export async function POST(req: Request) {
@@ -41,13 +40,5 @@ export async function POST(req: Request) {
         ? displacement
         : `${displacement}L`
       : "";
-  let oil = null;
-  if (!bev) {
-    try {
-      oil = await lookupOilCatalog({ year, make, model, engine, vin });
-    } catch {
-      oil = null;
-    }
-  }
-  return NextResponse.json({ vin, year, make, model, engine, oil, bev });
+  return NextResponse.json({ vin, year, make, model, engine, oil: null, bev });
 }
