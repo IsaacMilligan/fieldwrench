@@ -2,9 +2,12 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import { db } from "./db/queries";
+import { ensureReady, getSql } from "./db/index";
+import { DEMO_EMAIL, DEMO_SHOP_ID, LIVE_SHOP_ID } from "./shop";
 
 const COOKIE = "fw_session";
+
+export type ShopSession = { email: string; shopId: string; isDemo: boolean };
 
 function secret() {
   const s = process.env.SESSION_SECRET;
@@ -12,20 +15,25 @@ function secret() {
   return new TextEncoder().encode(s);
 }
 
-export async function createSession(email: string) {
-  const jwt = await signSession(email);
+export async function createSession(s: ShopSession | string) {
+  const sess = typeof s === "string" ? await sessionForEmail(s) : s;
+  const jwt = await signSession(sess);
   const jar = await cookies();
   jar.set(COOKIE, jwt, cookieOpts());
 }
 
-export async function attachSession(res: { cookies: { set: (name: string, value: string, opts: object) => void } }, email: string) {
-  res.cookies.set(COOKIE, await signSession(email), cookieOpts());
+export async function attachSession(
+  res: { cookies: { set: (name: string, value: string, opts: object) => void } },
+  s: ShopSession | string,
+) {
+  const sess = typeof s === "string" ? await sessionForEmail(s) : s;
+  res.cookies.set(COOKIE, await signSession(sess), cookieOpts());
 }
 
-async function signSession(email: string) {
-  return new SignJWT({ email })
+async function signSession(s: ShopSession) {
+  return new SignJWT({ email: s.email, shopId: s.shopId, isDemo: s.isDemo })
     .setProtectedHeader({ alg: "HS256" })
-    .setSubject(email)
+    .setSubject(s.email)
     .setIssuedAt()
     .setExpirationTime("30d")
     .sign(secret());
@@ -46,7 +54,7 @@ export async function clearSession() {
   jar.delete(COOKIE);
 }
 
-export async function readSession(): Promise<{ email: string } | null> {
+export async function readSession(): Promise<ShopSession | null> {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
   if (!token) return null;
@@ -54,7 +62,11 @@ export async function readSession(): Promise<{ email: string } | null> {
     const { payload } = await jwtVerify(token, secret());
     const email = String(payload.email ?? payload.sub ?? "");
     if (!email) return null;
-    return { email };
+    const shopId = String(payload.shopId ?? "");
+    if (shopId) {
+      return { email, shopId, isDemo: Boolean(payload.isDemo) };
+    }
+    return sessionForEmail(email);
   } catch {
     return null;
   }
@@ -66,16 +78,70 @@ export async function requireSession() {
   return s;
 }
 
-export async function verifyLogin(email: string, password: string) {
-  const sql = await db();
-  const [user] = await sql<{ email: string; password_hash: string }[]>`
-    SELECT email, password_hash FROM users WHERE email = ${email.toLowerCase()}
+async function sessionForEmail(email: string): Promise<ShopSession> {
+  await ensureReady();
+  const sql = getSql();
+  const [user] = await sql<{ shop_id: string; is_demo: number }[]>`
+    SELECT shop_id, COALESCE(is_demo, 0)::int AS is_demo FROM users WHERE email = ${email.toLowerCase()}
   `;
-  if (!user) return false;
-  return bcrypt.compareSync(password, user.password_hash);
+  const isDemo = email.toLowerCase() === DEMO_EMAIL || Number(user?.is_demo) === 1;
+  return { email: email.toLowerCase(), shopId: user?.shop_id || (isDemo ? DEMO_SHOP_ID : LIVE_SHOP_ID), isDemo };
+}
+
+export async function verifyLogin(email: string, password: string): Promise<ShopSession | null> {
+  await ensureReady();
+  const sql = getSql();
+  const [user] = await sql<{ email: string; password_hash: string; shop_id: string; is_demo: number }[]>`
+    SELECT email, password_hash, shop_id, COALESCE(is_demo, 0)::int AS is_demo
+    FROM users WHERE email = ${email.toLowerCase()}
+  `;
+  if (!user) return null;
+  const ok = bcrypt.compareSync(password, user.password_hash);
+  if (!ok) return null;
+  return {
+    email: user.email,
+    shopId: user.shop_id || DEMO_SHOP_ID,
+    isDemo: Number(user.is_demo) === 1,
+  };
+}
+
+export async function ownerExists(): Promise<boolean> {
+  await ensureReady();
+  const sql = getSql();
+  const [row] = await sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM users WHERE is_demo = 0`;
+  return Number(row?.n ?? 0) > 0;
+}
+
+export async function bookingShopId(): Promise<string> {
+  return (await ownerExists()) ? LIVE_SHOP_ID : DEMO_SHOP_ID;
+}
+
+export async function signupMechanic(input: {
+  name: string;
+  email: string;
+  password: string;
+}): Promise<{ ok: true; session: ShopSession } | { ok: false; error: "closed" | "exists" | "invalid" }> {
+  const name = input.name.trim();
+  const email = input.email.trim().toLowerCase();
+  const password = input.password;
+  if (!name || !email || !email.includes("@") || password.length < 8) return { ok: false, error: "invalid" };
+  await ensureReady();
+  const sql = getSql();
+  if (await ownerExists()) return { ok: false, error: "closed" };
+  const [taken] = await sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM users WHERE email = ${email}`;
+  if (Number(taken?.n ?? 0) > 0) return { ok: false, error: "exists" };
+  const hash = bcrypt.hashSync(password, 10);
+  await sql`
+    INSERT INTO settings (id, shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme, seeded, shop_id)
+    SELECT 2, 'FieldWrench', 12500, 76, 24, 'light', 0, ${LIVE_SHOP_ID}
+    WHERE NOT EXISTS (SELECT 1 FROM settings WHERE shop_id = ${LIVE_SHOP_ID})
+  `;
+  await sql`INSERT INTO users (id, email, password_hash, name, shop_id, is_demo)
+    VALUES (${crypto.randomUUID()}, ${email}, ${hash}, ${name}, ${LIVE_SHOP_ID}, 0)`;
+  return { ok: true, session: { email, shopId: LIVE_SHOP_ID, isDemo: false } };
 }
 
 export const DEMO = {
-  email: "wrench@fieldwrench.local",
+  email: DEMO_EMAIL,
   password: "driveway",
 };

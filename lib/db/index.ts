@@ -276,6 +276,28 @@ export function ensureReady(): Promise<void> {
           UPDATE jobs SET services = '["brake_job"]', service_mileage = COALESCE(service_mileage, 118050)
           WHERE work_performed LIKE 'Rear pads and hardware%' AND (services = '[]' OR services = '' OR services IS NULL)
         `);
+        await tryAlter(`ALTER TABLE settings DROP CONSTRAINT IF EXISTS settings_id_check`);
+        await sql.unsafe(`ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE users ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'demo'`);
+        await sql.unsafe(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_demo INTEGER NOT NULL DEFAULT 0`);
+        await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'demo'`);
+        await sql.unsafe(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'demo'`);
+        await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'demo'`);
+        await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'demo'`);
+        await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'demo'`);
+        await sql.unsafe(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'demo'`);
+        await sql.unsafe(`ALTER TABLE mileage_trips ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'demo'`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'demo'`);
+        await tryAlter(`ALTER TABLE oil_defaults DROP CONSTRAINT IF EXISTS oil_defaults_year_make_key_model_key_engine_key_key`);
+        await sql.unsafe(
+          `CREATE UNIQUE INDEX IF NOT EXISTS oil_defaults_shop_ymme ON oil_defaults (shop_id, year, make_key, model_key, engine_key)`,
+        );
+        await sql.unsafe(`UPDATE users SET is_demo = 1, shop_id = 'demo' WHERE email = 'wrench@fieldwrench.local'`);
+        await sql.unsafe(`
+          INSERT INTO settings (id, shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme, seeded, shop_id)
+          SELECT 2, 'FieldWrench', 12500, 76, 24, 'light', 0, 'live'
+          WHERE NOT EXISTS (SELECT 1 FROM settings WHERE shop_id = 'live')
+        `);
         const { seedIfEmpty } = await import("./seed");
         await seedIfEmpty(sql);
       };

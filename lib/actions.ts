@@ -38,7 +38,7 @@ export async function loginAction(_prev: { error?: string } | null, form: FormDa
     const password = str(form, "password");
     const ok = await verifyLogin(email, password);
     if (!ok) return { error: "Wrong email or password." };
-    await createSession(email);
+    await createSession(ok);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Login failed.";
     return { error: msg.includes("DATABASE_URL") ? "Shop database is not configured." : "Login failed. Try again." };
@@ -51,7 +51,7 @@ export async function demoLoginAction() {
     await import("./db/index").then((m) => m.ensureReady());
     const ok = await verifyLogin(DEMO.email, DEMO.password);
     if (!ok) return;
-    await createSession(DEMO.email);
+    await createSession(ok);
   } catch {
     return;
   }
@@ -64,31 +64,32 @@ export async function logoutAction() {
 }
 
 export async function saveSettingsAction(form: FormData) {
-  await requireSession();
+  const s = await requireSession();
   const sql = await db();
   const shop = str(form, "shop_name") || "FieldWrench";
   const labor = parseMoney(str(form, "labor_rate"));
   const miles = Math.round(parseNumber(str(form, "mileage_rate")) * 100) / 100;
   const mileageCents = Math.round(miles);
   const lead = Math.min(168, Math.max(0, Math.round(parseNumber(str(form, "lead_hours")))));
-  await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead} WHERE id = 1`;
+  await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead} WHERE shop_id = ${s.shopId}`;
   revalidatePath("/");
   revalidatePath("/book");
   redirect("/more?tab=settings");
 }
 
 export async function saveThemeAction(form: FormData) {
-  await requireSession();
+  const s = await requireSession();
   const sql = await db();
   const theme = str(form, "theme") === "dark" ? "dark" : "light";
-  await sql`UPDATE settings SET theme = ${theme} WHERE id = 1`;
+  await sql`UPDATE settings SET theme = ${theme} WHERE shop_id = ${s.shopId}`;
   revalidatePath("/", "layout");
   revalidatePath("/book");
   revalidatePath("/more");
 }
 
 export async function resetDemoAction() {
-  await requireSession();
+  const s = await requireSession();
+  if (!s.isDemo) return;
   const sql = getSql();
   await seedDemo(sql);
   revalidatePath("/");
@@ -96,17 +97,17 @@ export async function resetDemoAction() {
 }
 
 export async function createCustomerAction(form: FormData) {
-  await requireSession();
+  const s = await requireSession();
   const sql = await db();
   const id = crypto.randomUUID();
-  await sql`INSERT INTO customers (id, name, phone, email, address, notes) VALUES (
+  await sql`INSERT INTO customers (id, name, phone, email, address, notes, shop_id) VALUES (
     ${id}, ${str(form, "name") || "Customer"}, ${str(form, "phone")}, ${str(form, "email")},
-    ${str(form, "address")}, ${str(form, "notes")}
+    ${str(form, "address")}, ${str(form, "notes")}, ${s.shopId}
   )`;
   const ymm = ymmFrom(form);
   if (ymm.year && ymm.make && ymm.model) {
-    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin) VALUES (
-      ${crypto.randomUUID()}, ${id}, ${ymm.year}, ${ymm.make}, ${ymm.model}, ${ymm.engine}, ${ymm.vin}
+    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, shop_id) VALUES (
+      ${crypto.randomUUID()}, ${id}, ${ymm.year}, ${ymm.make}, ${ymm.model}, ${ymm.engine}, ${ymm.vin}, ${s.shopId}
     )`;
   }
   revalidatePath("/customers");
@@ -164,15 +165,15 @@ export async function deleteCustomerAction(form: FormData) {
 }
 
 export async function createVehicleAction(form: FormData) {
-  await requireSession();
+  const s = await requireSession();
   const sql = await db();
   const id = crypto.randomUUID();
   const customerId = str(form, "customer_id");
   const ymm = ymmFrom(form);
   const mileage = parseNumber(str(form, "mileage")) || null;
-  await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, plate, vin, mileage, history_notes) VALUES (
+  await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, plate, vin, mileage, history_notes, shop_id) VALUES (
     ${id}, ${customerId}, ${ymm.year}, ${ymm.make}, ${ymm.model}, ${ymm.engine},
-    ${str(form, "plate")}, ${ymm.vin || str(form, "vin").toUpperCase()}, ${mileage}, ${str(form, "history_notes")}
+    ${str(form, "plate")}, ${ymm.vin || str(form, "vin").toUpperCase()}, ${mileage}, ${str(form, "history_notes")}, ${s.shopId}
   )`;
   revalidatePath(`/customers/${customerId}`);
   redirect(`/vehicles/${id}`);
@@ -199,7 +200,7 @@ export async function updateVehicleAction(form: FormData) {
 }
 
 export async function saveOilSpecAction(form: FormData) {
-  await requireSession();
+  const s = await requireSession();
   const sql = await db();
   const id = str(form, "id");
   const qt = parseNumber(str(form, "oil_qt"));
@@ -224,9 +225,9 @@ export async function saveOilSpecAction(form: FormData) {
   const key = oilYmmeKey(veh?.year, veh?.make, veh?.model, veh?.engine);
   if (key) {
     await sql`
-      INSERT INTO oil_defaults (id, year, make_key, model_key, engine_key, oil_qt, oil_viscosity, oil_drain_tq, oil_socket, updated_at)
-      VALUES (${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${qt || null}, ${vis}, ${tq || null}, ${socket}, NOW())
-      ON CONFLICT (year, make_key, model_key, engine_key)
+      INSERT INTO oil_defaults (id, year, make_key, model_key, engine_key, oil_qt, oil_viscosity, oil_drain_tq, oil_socket, shop_id, updated_at)
+      VALUES (${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${qt || null}, ${vis}, ${tq || null}, ${socket}, ${s.shopId}, NOW())
+      ON CONFLICT (shop_id, year, make_key, model_key, engine_key)
       DO UPDATE SET
         oil_qt = EXCLUDED.oil_qt,
         oil_viscosity = EXCLUDED.oil_viscosity,
@@ -275,7 +276,7 @@ export async function applyVinAction(form: FormData) {
 }
 
 export async function createJobAction(form: FormData) {
-  await requireSession();
+  const s = await requireSession();
   const sql = await db();
   const id = crypto.randomUUID();
   const services = form
@@ -311,19 +312,19 @@ export async function createJobAction(form: FormData) {
     if (!name || !phone || !year || !make || !model) redirect("/jobs?new=1");
     customerId = crypto.randomUUID();
     vehicleId = crypto.randomUUID();
-    await sql`INSERT INTO customers (id, name, phone, email) VALUES (
-      ${customerId}, ${name}, ${phone}, ${str(form, "email")}
+    await sql`INSERT INTO customers (id, name, phone, email, shop_id) VALUES (
+      ${customerId}, ${name}, ${phone}, ${str(form, "email")}, ${s.shopId}
     )`;
-    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin) VALUES (
-      ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}
+    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, shop_id) VALUES (
+      ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}, ${s.shopId}
     )`;
   } else {
     if (!customerId) redirect("/jobs?new=1");
     if (!vehicleId) {
       if (!year || !make || !model) redirect("/jobs?new=1");
       vehicleId = crypto.randomUUID();
-      await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin) VALUES (
-        ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}
+      await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, shop_id) VALUES (
+        ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}, ${s.shopId}
       )`;
     } else {
       const [veh] = await sql<{ customer_id: string }[]>`SELECT customer_id FROM vehicles WHERE id = ${vehicleId}`;
@@ -331,9 +332,9 @@ export async function createJobAction(form: FormData) {
     }
   }
 
-  await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, scheduled_at, address, complaint, services, notes)
+  await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, scheduled_at, address, complaint, services, notes, shop_id)
     VALUES (${id}, ${customerId}, ${vehicleId}, ${status}, ${scheduled}, ${address},
-      ${complaint}, ${servicesToJson(services)}, ${notes})`;
+      ${complaint}, ${servicesToJson(services)}, ${notes}, ${s.shopId})`;
   revalidatePath("/jobs");
   revalidatePath(`/customers/${customerId}`);
   redirect(`/jobs/${id}`);
@@ -385,11 +386,11 @@ export async function deleteJobAction(form: FormData) {
 }
 
 export async function addLaborAction(form: FormData) {
-  await requireSession();
+  const s = await requireSession();
   const sql = await db();
   const jobId = str(form, "job_id");
   const isFlat = str(form, "mode") === "flat";
-  const settings = (await sql<{ labor_rate_cents: number }[]>`SELECT labor_rate_cents FROM settings WHERE id = 1`)[0];
+  const settings = (await sql<{ labor_rate_cents: number }[]>`SELECT labor_rate_cents FROM settings WHERE shop_id = ${s.shopId} LIMIT 1`)[0];
   const rate = parseMoney(str(form, "rate")) || settings?.labor_rate_cents || 12500;
   await sql`INSERT INTO labor_lines (id, job_id, description, hours, rate_cents, is_flat, flat_cents) VALUES (
     ${crypto.randomUUID()}, ${jobId}, ${str(form, "description") || "Labor"},
@@ -481,7 +482,7 @@ export async function openInvoiceAction(form: FormData) {
 }
 
 export async function addReceiptAction(form: FormData) {
-  await requireSession();
+  const s = await requireSession();
   const sql = await db();
   const jobId = str(form, "job_id") || null;
   const id = crypto.randomUUID();
@@ -498,9 +499,9 @@ export async function addReceiptAction(form: FormData) {
       photoUrl = blob.url;
     }
   }
-  await sql`INSERT INTO receipts (id, amount_cents, vendor, category, date, job_id, photo_url) VALUES (
+  await sql`INSERT INTO receipts (id, amount_cents, vendor, category, date, job_id, photo_url, shop_id) VALUES (
     ${id}, ${parseMoney(str(form, "amount"))}, ${str(form, "vendor") || "Vendor"},
-    ${str(form, "category") || "parts"}, ${str(form, "date")}, ${jobId}, ${photoUrl}
+    ${str(form, "category") || "parts"}, ${str(form, "date")}, ${jobId}, ${photoUrl}, ${s.shopId}
   )`;
   revalidatePath("/more");
   if (jobId) revalidatePath(`/jobs/${jobId}`);
@@ -508,12 +509,12 @@ export async function addReceiptAction(form: FormData) {
 }
 
 export async function addMileageAction(form: FormData) {
-  await requireSession();
+  const s = await requireSession();
   const sql = await db();
   const jobId = str(form, "job_id") || null;
-  await sql`INSERT INTO mileage_trips (id, miles, purpose, job_id, date) VALUES (
+  await sql`INSERT INTO mileage_trips (id, miles, purpose, job_id, date, shop_id) VALUES (
     ${crypto.randomUUID()}, ${parseNumber(str(form, "miles"))}, ${str(form, "purpose") || "Shop miles"},
-    ${jobId}, ${str(form, "date")}
+    ${jobId}, ${str(form, "date")}, ${s.shopId}
   )`;
   revalidatePath("/more");
   redirect("/more?tab=mileage");
@@ -556,7 +557,7 @@ export async function dismissBookingAction(form: FormData) {
 }
 
 export async function acceptBookingAction(form: FormData) {
-  await requireSession();
+  const s = await requireSession();
   const sql = await db();
   const bid = str(form, "id");
   const [b] = await sql<{
@@ -567,12 +568,12 @@ export async function acceptBookingAction(form: FormData) {
   }[]>`SELECT * FROM bookings WHERE id = ${bid}`;
   if (!b || b.status !== "pending") return;
   let customerId: string;
-  const [existing] = await sql<{ id: string }[]>`SELECT id FROM customers WHERE phone = ${b.phone} LIMIT 1`;
+  const [existing] = await sql<{ id: string }[]>`SELECT id FROM customers WHERE shop_id = ${s.shopId} AND phone = ${b.phone} LIMIT 1`;
   if (existing) customerId = existing.id;
   else {
     customerId = crypto.randomUUID();
-    await sql`INSERT INTO customers (id, name, phone, email, address, notes) VALUES (
-      ${customerId}, ${b.name}, ${b.phone}, ${b.customer_email || ""}, ${b.address}, ${"From public booking"}
+    await sql`INSERT INTO customers (id, name, phone, email, address, notes, shop_id) VALUES (
+      ${customerId}, ${b.name}, ${b.phone}, ${b.customer_email || ""}, ${b.address}, ${"From public booking"}, ${s.shopId}
     )`;
   }
   const vehicleId = crypto.randomUUID();
@@ -591,15 +592,15 @@ export async function acceptBookingAction(form: FormData) {
       model = bits.slice(1).join(" ");
     }
   }
-  await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, history_notes) VALUES (
-    ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${"Created from booking"}
+  await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, history_notes, shop_id) VALUES (
+    ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${"Created from booking"}, ${s.shopId}
   )`;
   const jobId = crypto.randomUUID();
   const notesBit = b.notes ? ` Notes: ${b.notes}` : "";
   const dateBit = b.preferred_date ? ` Preferred date: ${String(b.preferred_date).slice(0, 10)}` : "";
   const complaint = `${b.issue}${notesBit}${dateBit}`;
-  await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, address, complaint, services) VALUES (
-    ${jobId}, ${customerId}, ${vehicleId}, 'scheduled', ${b.address}, ${complaint}, ${b.services || "[]"}
+  await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, address, complaint, services, shop_id) VALUES (
+    ${jobId}, ${customerId}, ${vehicleId}, 'scheduled', ${b.address}, ${complaint}, ${b.services || "[]"}, ${s.shopId}
   )`;
   await sql`UPDATE bookings SET status = 'accepted' WHERE id = ${bid}`;
   revalidatePath("/bookings");

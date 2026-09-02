@@ -14,7 +14,7 @@ export default async function MorePage({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
-  await requireSession();
+  const sess = await requireSession();
   const { tab } = await searchParams;
   const jobs = await listJobsLite();
 
@@ -120,11 +120,13 @@ export default async function MorePage({
           <button className="tap mt-4" type="submit">Save settings</button>
         </form>
         <ThemeToggle value={s.theme === "dark" ? "dark" : "light"} />
+        {sess.isDemo ? (
         <form action="/api/shop" method="post" className="mt-8">
             <input type="hidden" name="_op" value="reset_demo" />
-          <p className="text-sm text-muted">Demo reset wipes the shop book and reloads the sample driveway jobs.</p>
+          <p className="text-sm text-muted">Demo reset wipes the demo shop only and reloads sample driveway jobs. It does not touch a real mechanic account.</p>
           <button className="tap tap-red mt-3" type="submit">Reset demo data</button>
         </form>
+        ) : null}
       </Shell>
     );
   }

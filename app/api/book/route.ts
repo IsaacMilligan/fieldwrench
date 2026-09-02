@@ -3,6 +3,7 @@ import { db } from "@/lib/db/queries";
 import { getCustomerUser } from "@/lib/supabase/server";
 import { ensureReady } from "@/lib/db/index";
 import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "@/lib/services";
+import { bookingShopId } from "@/lib/auth";
 import { getSettings } from "@/lib/db/queries";
 import { earliestBookDateISO, normalizeLeadHours } from "@/lib/format";
 
@@ -41,13 +42,14 @@ export async function POST(req: NextRequest) {
     const issue = formatServiceList(services);
     const engineStored = !engine || engine === "__unsure__" ? "" : engine;
     const vehicle = `${year} ${make} ${model}${engineStored ? ` ${engineStored}` : ""}`.trim();
+    const shopId = await bookingShopId();
     await sql`INSERT INTO bookings (
       id, name, phone, address, vehicle, vehicle_year, vehicle_make, vehicle_model, vehicle_engine,
-      issue, services, notes, preferred_time, preferred_date, status, customer_email
+      issue, services, notes, preferred_time, preferred_date, status, customer_email, shop_id
     ) VALUES (
       ${crypto.randomUUID()}, ${name}, ${phone}, ${String(form.get("address") ?? "").trim()}, ${vehicle},
       ${year}, ${make}, ${model}, ${engineStored},
-      ${issue}, ${servicesToJson(services)}, ${notes}, ${""}, ${preferredDate}, 'pending', ${email}
+      ${issue}, ${servicesToJson(services)}, ${notes}, ${""}, ${preferredDate}, 'pending', ${email}, ${shopId}
     )`;
     return NextResponse.redirect(new URL("/book?ok=1", origin), 303);
   } catch (e) {

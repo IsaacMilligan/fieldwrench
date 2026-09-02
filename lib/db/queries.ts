@@ -8,6 +8,7 @@ import {
 import { denverDateISO } from "../format";
 import { oilYmmeKey } from "../oil-specs";
 import type { JobStatus, PayMethod } from "../status";
+import { bookingShopId, readSession } from "../auth";
 
 export async function db() {
   await ensureReady();
@@ -157,9 +158,16 @@ export function profitFor(lines: {
   });
 }
 
+async function shopId(): Promise<string> {
+  const s = await readSession();
+  if (s?.shopId) return s.shopId;
+  return bookingShopId();
+}
+
 export async function getSettings(): Promise<Settings> {
   const sql = await db();
-  const [s] = await sql<Settings[]>`SELECT shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme FROM settings WHERE id = 1`;
+  const sid = await shopId().catch(() => bookingShopId());
+  const [s] = await sql<Settings[]>`SELECT shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme FROM settings WHERE shop_id = ${sid} LIMIT 1`;
   const theme = s?.theme === "dark" ? "dark" : "light";
   return s
     ? { ...s, theme }
@@ -177,14 +185,16 @@ export async function getShopTheme(): Promise<"light" | "dark"> {
 
 export async function dashboardStats() {
   const sql = await db();
+  const sid = await shopId();
   const today = denverDateISO();
   const jobsToday = await sql`
     SELECT j.*, COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name, COALESCE(v.year, j.vehicle_year) AS vehicle_year, COALESCE(NULLIF(v.make, ''), j.vehicle_make) AS make, COALESCE(NULLIF(v.model, ''), j.vehicle_model) AS model
     FROM jobs j
     LEFT JOIN customers c ON c.id = j.customer_id
     LEFT JOIN vehicles v ON v.id = j.vehicle_id
-    WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
-       OR (j.status IN ('in_progress','waiting_parts') AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date <= ${today}::date)
+    WHERE j.shop_id = ${sid}
+      AND ((j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+       OR (j.status IN ('in_progress','waiting_parts') AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date <= ${today}::date))
     ORDER BY j.scheduled_at ASC NULLS LAST
   `;
   const unpaid = await sql`
@@ -193,12 +203,12 @@ export async function dashboardStats() {
     JOIN jobs j ON j.id = i.job_id
     LEFT JOIN customers c ON c.id = j.customer_id
     LEFT JOIN vehicles v ON v.id = j.vehicle_id
-    WHERE i.status = 'unpaid'
+    WHERE i.status = 'unpaid' AND j.shop_id = ${sid}
     ORDER BY i.created_at DESC
   `;
   const year = today.slice(0, 4);
   const trips = await sql<{ miles: string }[]>`
-    SELECT miles::text FROM mileage_trips WHERE date >= ${year + "-01-01"}::date
+    SELECT miles::text FROM mileage_trips WHERE shop_id = ${sid} AND date >= ${year + "-01-01"}::date
   `;
   const ytdMiles = trips.reduce((s, t) => s + Number(t.miles), 0);
 
@@ -296,12 +306,14 @@ export type HomeNext =
 
 export async function homeDashboard() {
   const sql = await db();
+  const sid = await shopId();
   const today = denverDateISO();
 
   const [counts] = await sql<{ jobs: number; bookings: number }[]>`
     SELECT
       (SELECT COUNT(*)::int FROM jobs j
-        WHERE j.status NOT IN ('cancelled','completed')
+        WHERE j.shop_id = ${sid}
+          AND j.status NOT IN ('cancelled','completed')
           AND (
             j.status IN ('in_progress','waiting_parts')
             OR (
@@ -310,7 +322,7 @@ export async function homeDashboard() {
             )
           )) AS jobs,
       (SELECT COUNT(*)::int FROM bookings b
-        WHERE b.status = 'pending' AND b.preferred_date = ${today}::date) AS bookings
+        WHERE b.shop_id = ${sid} AND b.status = 'pending' AND b.preferred_date = ${today}::date) AS bookings
   `;
   const todayCount = Number(counts?.jobs ?? 0) + Number(counts?.bookings ?? 0);
 
@@ -331,7 +343,8 @@ export async function homeDashboard() {
     FROM jobs j
     LEFT JOIN customers c ON c.id = j.customer_id
     LEFT JOIN vehicles v ON v.id = j.vehicle_id
-    WHERE j.status = 'scheduled'
+    WHERE j.shop_id = ${sid}
+      AND j.status = 'scheduled'
       AND j.scheduled_at IS NOT NULL
       AND j.scheduled_at >= now()
     ORDER BY j.scheduled_at ASC
@@ -398,33 +411,33 @@ export async function homeDashboard() {
       COALESCE((
         SELECT SUM(CASE WHEN l.is_flat = 1 THEN l.flat_cents ELSE ROUND(l.hours * l.rate_cents) END)
         FROM labor_lines l JOIN jobs j ON j.id = l.job_id
-        WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+        WHERE j.shop_id = ${sid} AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
       ), 0)
       + COALESCE((
         SELECT SUM(p.qty * p.price_cents)
         FROM part_lines p JOIN jobs j ON j.id = p.job_id
-        WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+        WHERE j.shop_id = ${sid} AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
       ), 0)
       AS revenue,
       COALESCE((
         SELECT SUM(CASE WHEN l.is_flat = 1 THEN l.flat_cents ELSE ROUND(l.hours * l.rate_cents) END)
         FROM labor_lines l JOIN jobs j ON j.id = l.job_id
-        WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+        WHERE j.shop_id = ${sid} AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
       ), 0)
       + COALESCE((
         SELECT SUM(p.qty * p.price_cents)
         FROM part_lines p JOIN jobs j ON j.id = p.job_id
-        WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+        WHERE j.shop_id = ${sid} AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
       ), 0)
       - COALESCE((
         SELECT SUM(p.qty * p.cost_cents)
         FROM part_lines p JOIN jobs j ON j.id = p.job_id
-        WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+        WHERE j.shop_id = ${sid} AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
       ), 0)
       - COALESCE((
         SELECT SUM(r.amount_cents)
         FROM receipts r JOIN jobs j ON j.id = r.job_id
-        WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
+        WHERE j.shop_id = ${sid} AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
       ), 0)
       AS profit
   `;
@@ -444,7 +457,7 @@ export async function homeDashboard() {
     JOIN jobs j ON j.id = i.job_id
     LEFT JOIN customers c ON c.id = j.customer_id
     LEFT JOIN vehicles v ON v.id = j.vehicle_id
-    WHERE i.status = 'unpaid'
+    WHERE i.status = 'unpaid' AND j.shop_id = ${sid}
     ORDER BY i.created_at DESC
     LIMIT 8
   `;
@@ -470,7 +483,7 @@ export async function homeDashboard() {
   }));
   const unpaidCents = unpaidRows.reduce((s, r) => s + r.total, 0);
   const [pendingRow] = await sql<{ n: number }[]>`
-    SELECT COUNT(*)::int AS n FROM bookings WHERE status = 'pending'
+    SELECT COUNT(*)::int AS n FROM bookings WHERE shop_id = ${sid} AND status = 'pending'
   `;
 
   return {
@@ -487,6 +500,7 @@ export async function homeDashboard() {
 
 export async function listJobs() {
   const sql = await db();
+  const sid = await shopId();
   return sql`
     SELECT j.*, COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name, COALESCE(v.year, j.vehicle_year) AS vehicle_year, COALESCE(NULLIF(v.make, ''), j.vehicle_make) AS make, COALESCE(NULLIF(v.model, ''), j.vehicle_model) AS model, v.plate,
       i.status AS invoice_status, i.token AS invoice_token
@@ -494,6 +508,7 @@ export async function listJobs() {
     LEFT JOIN customers c ON c.id = j.customer_id
     LEFT JOIN vehicles v ON v.id = j.vehicle_id
     LEFT JOIN invoices i ON i.job_id = j.id
+    WHERE j.shop_id = ${sid}
     ORDER BY
       CASE j.status
         WHEN 'in_progress' THEN 0
@@ -509,11 +524,13 @@ export async function listJobs() {
 
 export async function listCustomers() {
   const sql = await db();
+  const sid = await shopId();
   return sql`
     SELECT c.*, COUNT(v.id)::int AS vehicle_count,
       (SELECT MAX(j.scheduled_at) FROM jobs j WHERE j.customer_id = c.id) AS last_visit
     FROM customers c
     LEFT JOIN vehicles v ON v.customer_id = c.id
+    WHERE c.shop_id = ${sid}
     GROUP BY c.id
     ORDER BY c.name
   `;
@@ -521,7 +538,8 @@ export async function listCustomers() {
 
 export async function getCustomer(id: string) {
   const sql = await db();
-  const [c] = await sql<Customer[]>`SELECT * FROM customers WHERE id = ${id}`;
+  const sid = await shopId();
+  const [c] = await sql<Customer[]>`SELECT * FROM customers WHERE id = ${id} AND shop_id = ${sid}`;
   if (!c) return null;
   const vehicles = await sql<Vehicle[]>`SELECT * FROM vehicles WHERE customer_id = ${id} ORDER BY year DESC`;
   const jobs = await sql`
@@ -541,7 +559,8 @@ export async function getCustomer(id: string) {
 
 export async function getVehicle(id: string) {
   const sql = await db();
-  const [v] = await sql<Vehicle[]>`SELECT * FROM vehicles WHERE id = ${id}`;
+  const sid = await shopId();
+  const [v] = await sql<Vehicle[]>`SELECT * FROM vehicles WHERE id = ${id} AND shop_id = ${sid}`;
   if (!v) return null;
   const [c] = await sql<Customer[]>`SELECT * FROM customers WHERE id = ${v.customer_id}`;
   const jobs = await sql`SELECT * FROM jobs WHERE vehicle_id = ${id} ORDER BY scheduled_at DESC NULLS LAST`;
@@ -562,11 +581,12 @@ export async function getShopOilDefault(q: {
   const key = oilYmmeKey(q.year, q.make, q.model, q.engine);
   if (!key) return null;
   const sql = await db();
+  const sid = await shopId();
   const [row] = await sql<
     { oil_qt: number | null; oil_viscosity: string; oil_drain_tq: number | null; oil_socket: string }[]
   >`
     SELECT oil_qt, oil_viscosity, oil_drain_tq, oil_socket FROM oil_defaults
-    WHERE year = ${key.year} AND make_key = ${key.make_key}
+    WHERE shop_id = ${sid} AND year = ${key.year} AND make_key = ${key.make_key}
       AND model_key = ${key.model_key} AND engine_key = ${key.engine_key}
     LIMIT 1
   `;
@@ -586,7 +606,8 @@ export async function getShopOilDefault(q: {
 
 export async function getJobBundle(jobId: string) {
   const sql = await db();
-  const [job] = await sql<Job[]>`SELECT * FROM jobs WHERE id = ${jobId}`;
+  const sid = await shopId();
+  const [job] = await sql<Job[]>`SELECT * FROM jobs WHERE id = ${jobId} AND shop_id = ${sid}`;
   if (!job) return null;
   const [customer] = job.customer_id
     ? await sql<Customer[]>`SELECT * FROM customers WHERE id = ${job.customer_id}`
@@ -669,28 +690,32 @@ export async function getInvoiceByToken(token: string) {
 
 export async function listReceipts() {
   const sql = await db();
+  const sid = await shopId();
   return sql`
     SELECT r.*, COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name
     FROM receipts r
     LEFT JOIN jobs j ON j.id = r.job_id
     LEFT JOIN customers c ON c.id = j.customer_id
+    WHERE r.shop_id = ${sid}
     ORDER BY r.date DESC
   `;
 }
 
 export async function listMileage() {
   const sql = await db();
+  const sid = await shopId();
   const rows = await sql`
     SELECT m.*, COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name
     FROM mileage_trips m
     LEFT JOIN jobs j ON j.id = m.job_id
     LEFT JOIN customers c ON c.id = j.customer_id
+    WHERE m.shop_id = ${sid}
     ORDER BY m.date DESC
   `;
   const today = denverDateISO();
   const year = today.slice(0, 4);
   const [sum] = await sql<{ n: number }[]>`
-    SELECT COALESCE(SUM(miles), 0)::float AS n FROM mileage_trips WHERE date >= ${year + "-01-01"}::date
+    SELECT COALESCE(SUM(miles), 0)::float AS n FROM mileage_trips WHERE shop_id = ${sid} AND date >= ${year + "-01-01"}::date
   `;
   const ytd = Number(sum?.n ?? 0);
   return { rows, ytd };
@@ -698,6 +723,7 @@ export async function listMileage() {
 
 export async function listCalendarMonth(year: number, month: number) {
   const sql = await db();
+  const sid = await shopId();
   const y = Number.isFinite(year) ? year : new Date().getFullYear();
   const m = Math.min(12, Math.max(1, Math.round(month) || 1));
   const start = `${y}-${String(m).padStart(2, "0")}-01`;
@@ -727,7 +753,8 @@ export async function listCalendarMonth(year: number, month: number) {
     FROM jobs j
     LEFT JOIN customers c ON c.id = j.customer_id
     LEFT JOIN vehicles v ON v.id = j.vehicle_id
-    WHERE j.scheduled_at IS NOT NULL
+    WHERE j.shop_id = ${sid}
+      AND j.scheduled_at IS NOT NULL
       AND j.status <> 'cancelled'
       AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date >= ${start}::date
       AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date < ${end}::date
@@ -750,7 +777,8 @@ export async function listCalendarMonth(year: number, month: number) {
       to_char(preferred_date, 'YYYY-MM-DD') AS day,
       name, vehicle, vehicle_year, vehicle_make, vehicle_model, vehicle_engine, services
     FROM bookings
-    WHERE preferred_date IS NOT NULL
+    WHERE shop_id = ${sid}
+      AND preferred_date IS NOT NULL
       AND preferred_date >= ${start}::date
       AND preferred_date < ${end}::date
     ORDER BY preferred_date
@@ -760,22 +788,25 @@ export async function listCalendarMonth(year: number, month: number) {
 
 export async function listBookings() {
   const sql = await db();
-  return sql`SELECT * FROM bookings ORDER BY
+  const sid = await shopId();
+  return sql`SELECT * FROM bookings WHERE shop_id = ${sid} ORDER BY
     CASE status WHEN 'pending' THEN 0 WHEN 'accepted' THEN 1 ELSE 2 END,
     created_at DESC`;
 }
 
 export async function listBookingsByEmail(email: string) {
   const sql = await db();
+  const sid = await bookingShopId();
   const e = email.toLowerCase();
-  return sql`SELECT * FROM bookings WHERE lower(customer_email) = ${e} ORDER BY created_at DESC`;
+  return sql`SELECT * FROM bookings WHERE shop_id = ${sid} AND lower(customer_email) = ${e} ORDER BY created_at DESC`;
 }
 
 export async function listCustomerGarage(email: string) {
   const sql = await db();
+  const sid = await bookingShopId();
   const e = email.toLowerCase();
   const customers = await sql<{ id: string; name: string }[]>`
-    SELECT id, name FROM customers WHERE lower(email) = ${e}
+    SELECT id, name FROM customers WHERE shop_id = ${sid} AND lower(email) = ${e}
   `;
   if (!customers.length) {
     return { vehicles: [] as Array<{
@@ -837,6 +868,7 @@ export async function listCustomerGarage(email: string) {
 
 export async function listJobsLite() {
   const sql = await db();
+  const sid = await shopId();
   return sql`
     SELECT j.id, COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name,
       COALESCE(NULLIF(v.make, ''), j.vehicle_make) AS make,
@@ -844,6 +876,7 @@ export async function listJobsLite() {
     FROM jobs j
     LEFT JOIN customers c ON c.id = j.customer_id
     LEFT JOIN vehicles v ON v.id = j.vehicle_id
+    WHERE j.shop_id = ${sid}
     ORDER BY j.created_at DESC
   `;
 }
