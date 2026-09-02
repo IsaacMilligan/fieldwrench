@@ -27,7 +27,7 @@ export default async function JobDetailPage({
   const scheduled = job.scheduled_at
     ? new Date(job.scheduled_at).toISOString().slice(0, 16)
     : "";
-  const catalog = vehicle
+  const catalog = vehicle?.id
     ? await lookupOilCatalog({
         year: vehicle.year,
         make: vehicle.make,
@@ -42,13 +42,23 @@ export default async function JobDetailPage({
     <Shell title="Job">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <Link href={`/customers/${customer?.id}`} className="text-lg font-bold text-amber">
-            {customer?.name}
-          </Link>
-          <div className="text-muted">
-            <Link href={`/vehicles/${vehicle?.id}`}>
-              {vehicleLabel(vehicle ?? {})} {vehicle?.plate ? `· ${vehicle.plate}` : ""}
+          {customer?.id ? (
+            <Link href={`/customers/${customer.id}`} className="text-lg font-bold text-amber">
+              {customer.name}
             </Link>
+          ) : (
+            <div className="text-lg font-bold">{customer?.name || "Deleted customer"}</div>
+          )}
+          <div className="text-muted">
+            {vehicle?.id ? (
+              <Link href={`/vehicles/${vehicle.id}`}>
+                {vehicleLabel(vehicle)} {vehicle.plate ? `· ${vehicle.plate}` : ""}
+              </Link>
+            ) : (
+              <span>
+                {vehicleLabel(vehicle ?? {})} {vehicle?.plate ? `· ${vehicle.plate}` : ""}
+              </span>
+            )}
           </div>
         </div>
         <StatusBadge tone={STATUS_TONE[job.status]}>{STATUS_LABEL[job.status]}</StatusBadge>
@@ -59,7 +69,7 @@ export default async function JobDetailPage({
         hasInvoice={Boolean(invoice)}
         hasReceipts={receipts.length > 0}
       />
-      {vehicle ? (
+      {vehicle?.id ? (
         <OilSpecCard
           compact
           vehicleId={vehicle.id}

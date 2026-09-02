@@ -82,8 +82,12 @@ CREATE TABLE IF NOT EXISTS vehicles (
 );
 CREATE TABLE IF NOT EXISTS jobs (
   id TEXT PRIMARY KEY,
-  customer_id TEXT NOT NULL REFERENCES customers(id),
-  vehicle_id TEXT NOT NULL REFERENCES vehicles(id),
+  customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+  vehicle_id TEXT REFERENCES vehicles(id) ON DELETE SET NULL,
+  customer_name TEXT NOT NULL DEFAULT '',
+  vehicle_year INTEGER,
+  vehicle_make TEXT NOT NULL DEFAULT '',
+  vehicle_model TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL,
   scheduled_at TIMESTAMPTZ,
   address TEXT NOT NULL DEFAULT '',
@@ -205,6 +209,35 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS photo_url TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS photo_content_type TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS vehicle_year INTEGER`);
+        await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS vehicle_make TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS vehicle_model TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE jobs ALTER COLUMN customer_id DROP NOT NULL`);
+        await sql.unsafe(`ALTER TABLE jobs ALTER COLUMN vehicle_id DROP NOT NULL`);
+        await sql.unsafe(`
+          DO $fk$
+          DECLARE r record;
+          BEGIN
+            FOR r IN
+              SELECT conname FROM pg_constraint
+              WHERE conrelid = 'jobs'::regclass AND contype = 'f'
+                AND (
+                  pg_get_constraintdef(oid) ILIKE '%customer_id%'
+                  OR pg_get_constraintdef(oid) ILIKE '%vehicle_id%'
+                )
+            LOOP
+              EXECUTE 'ALTER TABLE jobs DROP CONSTRAINT ' || quote_ident(r.conname);
+            END LOOP;
+            ALTER TABLE jobs
+              ADD CONSTRAINT jobs_customer_id_fkey
+              FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL;
+            ALTER TABLE jobs
+              ADD CONSTRAINT jobs_vehicle_id_fkey
+              FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL;
+          END
+          $fk$
+        `);
         await sql.unsafe(`
           UPDATE jobs SET services = '["battery_test"]', service_mileage = COALESCE(service_mileage, 164000)
           WHERE work_performed LIKE 'Installed Group 35 AGM%' AND (services = '[]' OR services = '' OR services IS NULL)

@@ -127,6 +127,41 @@ export async function updateCustomerAction(form: FormData) {
   redirect(`/customers/${id}`);
 }
 
+export async function deleteCustomerAction(form: FormData) {
+  await requireSession();
+  const sql = await db();
+  const id = str(form, "id");
+  if (!id) return;
+  await sql`
+    UPDATE jobs j SET
+      customer_name = CASE
+        WHEN COALESCE(j.customer_name, '') = '' THEN COALESCE(c.name, 'Deleted customer')
+        ELSE j.customer_name
+      END,
+      vehicle_year = COALESCE(j.vehicle_year, v.year),
+      vehicle_make = CASE
+        WHEN COALESCE(j.vehicle_make, '') = '' THEN COALESCE(v.make, '')
+        ELSE j.vehicle_make
+      END,
+      vehicle_model = CASE
+        WHEN COALESCE(j.vehicle_model, '') = '' THEN COALESCE(v.model, '')
+        ELSE j.vehicle_model
+      END,
+      updated_at = NOW()
+    FROM customers c
+    LEFT JOIN vehicles v ON v.id = j.vehicle_id
+    WHERE j.customer_id = ${id} AND c.id = ${id}
+  `;
+  await sql`UPDATE jobs SET customer_id = NULL, vehicle_id = NULL WHERE customer_id = ${id}`;
+  await sql`DELETE FROM vehicles WHERE customer_id = ${id}`;
+  await sql`DELETE FROM customers WHERE id = ${id}`;
+  revalidatePath("/customers");
+  revalidatePath("/jobs");
+  revalidatePath("/");
+  revalidatePath("/calendar");
+  redirect("/customers");
+}
+
 export async function createVehicleAction(form: FormData) {
   await requireSession();
   const sql = await db();

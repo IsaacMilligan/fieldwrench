@@ -56,8 +56,12 @@ export type Vehicle = {
 
 export type Job = {
   id: string;
-  customer_id: string;
-  vehicle_id: string;
+  customer_id: string | null;
+  vehicle_id: string | null;
+  customer_name?: string;
+  vehicle_year?: number | null;
+  vehicle_make?: string;
+  vehicle_model?: string;
   status: JobStatus;
   scheduled_at: string | null;
   address: string;
@@ -172,20 +176,20 @@ export async function dashboardStats() {
   const sql = await db();
   const today = denverDateISO();
   const jobsToday = await sql`
-    SELECT j.*, c.name AS customer_name, v.year AS vehicle_year, v.make, v.model
+    SELECT j.*, COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name, COALESCE(v.year, j.vehicle_year) AS vehicle_year, COALESCE(NULLIF(v.make, ''), j.vehicle_make) AS make, COALESCE(NULLIF(v.model, ''), j.vehicle_model) AS model
     FROM jobs j
-    JOIN customers c ON c.id = j.customer_id
-    JOIN vehicles v ON v.id = j.vehicle_id
+    LEFT JOIN customers c ON c.id = j.customer_id
+    LEFT JOIN vehicles v ON v.id = j.vehicle_id
     WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
        OR (j.status IN ('in_progress','waiting_parts') AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date <= ${today}::date)
     ORDER BY j.scheduled_at ASC NULLS LAST
   `;
   const unpaid = await sql`
-    SELECT i.*, j.id AS job_id, c.name AS customer_name, v.year AS vehicle_year, v.make, v.model
+    SELECT i.*, j.id AS job_id, COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name, COALESCE(v.year, j.vehicle_year) AS vehicle_year, COALESCE(NULLIF(v.make, ''), j.vehicle_make) AS make, COALESCE(NULLIF(v.model, ''), j.vehicle_model) AS model
     FROM invoices i
     JOIN jobs j ON j.id = i.job_id
-    JOIN customers c ON c.id = j.customer_id
-    JOIN vehicles v ON v.id = j.vehicle_id
+    LEFT JOIN customers c ON c.id = j.customer_id
+    LEFT JOIN vehicles v ON v.id = j.vehicle_id
     WHERE i.status = 'unpaid'
     ORDER BY i.created_at DESC
   `;
@@ -320,10 +324,10 @@ export async function homeDashboard() {
     }[]
   >`
     SELECT j.id, j.status, j.scheduled_at, j.services,
-      c.name AS customer_name, v.year AS vehicle_year, v.make, v.model
+      COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name, COALESCE(v.year, j.vehicle_year) AS vehicle_year, COALESCE(NULLIF(v.make, ''), j.vehicle_make) AS make, COALESCE(NULLIF(v.model, ''), j.vehicle_model) AS model
     FROM jobs j
-    JOIN customers c ON c.id = j.customer_id
-    JOIN vehicles v ON v.id = j.vehicle_id
+    LEFT JOIN customers c ON c.id = j.customer_id
+    LEFT JOIN vehicles v ON v.id = j.vehicle_id
     WHERE j.status = 'scheduled'
       AND j.scheduled_at IS NOT NULL
       AND j.scheduled_at >= now()
@@ -432,11 +436,11 @@ export async function homeDashboard() {
       model: string;
     }[]
   >`
-    SELECT i.id, j.id AS job_id, c.name AS customer_name, v.year AS vehicle_year, v.make, v.model
+    SELECT i.id, j.id AS job_id, COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name, COALESCE(v.year, j.vehicle_year) AS vehicle_year, COALESCE(NULLIF(v.make, ''), j.vehicle_make) AS make, COALESCE(NULLIF(v.model, ''), j.vehicle_model) AS model
     FROM invoices i
     JOIN jobs j ON j.id = i.job_id
-    JOIN customers c ON c.id = j.customer_id
-    JOIN vehicles v ON v.id = j.vehicle_id
+    LEFT JOIN customers c ON c.id = j.customer_id
+    LEFT JOIN vehicles v ON v.id = j.vehicle_id
     WHERE i.status = 'unpaid'
     ORDER BY i.created_at DESC
     LIMIT 8
@@ -481,11 +485,11 @@ export async function homeDashboard() {
 export async function listJobs() {
   const sql = await db();
   return sql`
-    SELECT j.*, c.name AS customer_name, v.year AS vehicle_year, v.make, v.model, v.plate,
+    SELECT j.*, COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name, COALESCE(v.year, j.vehicle_year) AS vehicle_year, COALESCE(NULLIF(v.make, ''), j.vehicle_make) AS make, COALESCE(NULLIF(v.model, ''), j.vehicle_model) AS model, v.plate,
       i.status AS invoice_status, i.token AS invoice_token
     FROM jobs j
-    JOIN customers c ON c.id = j.customer_id
-    JOIN vehicles v ON v.id = j.vehicle_id
+    LEFT JOIN customers c ON c.id = j.customer_id
+    LEFT JOIN vehicles v ON v.id = j.vehicle_id
     LEFT JOIN invoices i ON i.job_id = j.id
     ORDER BY
       CASE j.status
@@ -518,12 +522,18 @@ export async function getCustomer(id: string) {
   if (!c) return null;
   const vehicles = await sql<Vehicle[]>`SELECT * FROM vehicles WHERE customer_id = ${id} ORDER BY year DESC`;
   const jobs = await sql`
-    SELECT j.*, v.year AS vehicle_year, v.make, v.model
-    FROM jobs j JOIN vehicles v ON v.id = j.vehicle_id
+    SELECT j.*, COALESCE(v.year, j.vehicle_year) AS vehicle_year, COALESCE(NULLIF(v.make, ''), j.vehicle_make) AS make, COALESCE(NULLIF(v.model, ''), j.vehicle_model) AS model
+    FROM jobs j LEFT JOIN vehicles v ON v.id = j.vehicle_id
     WHERE j.customer_id = ${id}
     ORDER BY j.scheduled_at DESC NULLS LAST
   `;
-  return { customer: c, vehicles, jobs };
+  const [unpaid] = await sql<{ n: number }[]>`
+    SELECT COUNT(*)::int AS n
+    FROM invoices i
+    JOIN jobs j ON j.id = i.job_id
+    WHERE j.customer_id = ${id} AND i.status = 'unpaid'
+  `;
+  return { customer: c, vehicles, jobs, unpaidInvoices: Number(unpaid?.n ?? 0) };
 }
 
 export async function getVehicle(id: string) {
@@ -539,8 +549,41 @@ export async function getJobBundle(jobId: string) {
   const sql = await db();
   const [job] = await sql<Job[]>`SELECT * FROM jobs WHERE id = ${jobId}`;
   if (!job) return null;
-  const [customer] = await sql<Customer[]>`SELECT * FROM customers WHERE id = ${job.customer_id}`;
-  const [vehicle] = await sql<Vehicle[]>`SELECT * FROM vehicles WHERE id = ${job.vehicle_id}`;
+  const [customer] = job.customer_id
+    ? await sql<Customer[]>`SELECT * FROM customers WHERE id = ${job.customer_id}`
+    : [];
+  const [vehicle] = job.vehicle_id
+    ? await sql<Vehicle[]>`SELECT * FROM vehicles WHERE id = ${job.vehicle_id}`
+    : [];
+  const displayCustomer: Customer = customer ?? {
+    id: "",
+    name: String(job.customer_name || "Deleted customer"),
+    phone: "",
+    email: "",
+    address: "",
+    notes: "",
+  };
+  const displayVehicle: Vehicle | null = vehicle
+    ? vehicle
+    : job.vehicle_make || job.vehicle_model || job.vehicle_year
+      ? {
+          id: "",
+          customer_id: "",
+          year: job.vehicle_year ?? null,
+          make: String(job.vehicle_make ?? ""),
+          model: String(job.vehicle_model ?? ""),
+          plate: "",
+          vin: "",
+          mileage: null,
+          engine: "",
+          history_notes: "",
+          oil_qt: null,
+          oil_viscosity: "",
+          oil_qt_without: null,
+          oil_viscosity_alt: "",
+          oil_saved: false,
+        }
+      : null;
   const laborRaw = await sql`SELECT * FROM labor_lines WHERE job_id = ${jobId}`;
   const partRaw = await sql`SELECT * FROM part_lines WHERE job_id = ${jobId}`;
   const labor = laborRaw.map(mapLabor);
@@ -555,7 +598,7 @@ export async function getJobBundle(jobId: string) {
     SELECT * FROM receipts WHERE job_id = ${jobId} ORDER BY date DESC
   `;
   const profit = profitFor({ labor, parts, receiptCents });
-  return { job, customer, vehicle, labor, parts, photos, invoice, receipts, receiptCents, profit };
+  return { job, customer: displayCustomer, vehicle: displayVehicle, labor, parts, photos, invoice, receipts, receiptCents, profit };
 }
 
 export async function ensureInvoice(jobId: string): Promise<Invoice> {
@@ -586,7 +629,7 @@ export async function getInvoiceByToken(token: string) {
 export async function listReceipts() {
   const sql = await db();
   return sql`
-    SELECT r.*, c.name AS customer_name
+    SELECT r.*, COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name
     FROM receipts r
     LEFT JOIN jobs j ON j.id = r.job_id
     LEFT JOIN customers c ON c.id = j.customer_id
@@ -597,7 +640,7 @@ export async function listReceipts() {
 export async function listMileage() {
   const sql = await db();
   const rows = await sql`
-    SELECT m.*, c.name AS customer_name
+    SELECT m.*, COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name
     FROM mileage_trips m
     LEFT JOIN jobs j ON j.id = m.job_id
     LEFT JOIN customers c ON c.id = j.customer_id
@@ -635,10 +678,14 @@ export async function listCalendarMonth(year: number, month: number) {
   >`
     SELECT j.id,
       to_char((j.scheduled_at AT TIME ZONE 'America/Denver')::date, 'YYYY-MM-DD') AS day,
-      c.name AS customer_name, v.year, v.make, v.model, v.engine, j.services, j.status
+      COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name,
+      COALESCE(v.year, j.vehicle_year) AS year,
+      COALESCE(NULLIF(v.make, ''), j.vehicle_make) AS make,
+      COALESCE(NULLIF(v.model, ''), j.vehicle_model) AS model,
+      v.engine, j.services, j.status
     FROM jobs j
-    JOIN customers c ON c.id = j.customer_id
-    JOIN vehicles v ON v.id = j.vehicle_id
+    LEFT JOIN customers c ON c.id = j.customer_id
+    LEFT JOIN vehicles v ON v.id = j.vehicle_id
     WHERE j.scheduled_at IS NOT NULL
       AND j.status <> 'cancelled'
       AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date >= ${start}::date
@@ -750,10 +797,12 @@ export async function listCustomerGarage(email: string) {
 export async function listJobsLite() {
   const sql = await db();
   return sql`
-    SELECT j.id, c.name AS customer_name, v.make, v.model, j.status
+    SELECT j.id, COALESCE(NULLIF(c.name, ''), NULLIF(j.customer_name, ''), 'Deleted customer') AS customer_name,
+      COALESCE(NULLIF(v.make, ''), j.vehicle_make) AS make,
+      COALESCE(NULLIF(v.model, ''), j.vehicle_model) AS model, j.status
     FROM jobs j
-    JOIN customers c ON c.id = j.customer_id
-    JOIN vehicles v ON v.id = j.vehicle_id
+    LEFT JOIN customers c ON c.id = j.customer_id
+    LEFT JOIN vehicles v ON v.id = j.vehicle_id
     ORDER BY j.created_at DESC
   `;
 }

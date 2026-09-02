@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { getCustomer } from "@/lib/db/queries";
 import { vehicleLabel } from "@/lib/format";
 import { VehiclePicker } from "@/app/book/VehiclePicker";
+import { CustomerDelete } from "../CustomerDelete";
 import { STATUS_LABEL, type JobStatus } from "@/lib/status";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export default async function CustomerDetail({
   const { id } = await params;
   const data = await getCustomer(id);
   if (!data) notFound();
-  const { customer, vehicles, jobs } = data;
+  const { customer, vehicles, jobs, unpaidInvoices } = data;
   return (
     <Shell title="Customer">
       <form action="/api/shop" method="post">
@@ -82,6 +83,13 @@ export default async function CustomerDetail({
           </li>
         ))}
       </ul>
+      <CustomerDelete
+        customerId={customer.id}
+        name={customer.name}
+        vehicleCount={vehicles.length}
+        jobCount={jobs.length}
+        unpaidInvoices={unpaidInvoices}
+      />
     </Shell>
   );
 }
