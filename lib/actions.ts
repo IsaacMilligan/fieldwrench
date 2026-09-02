@@ -244,32 +244,62 @@ export async function saveOilSpecAction(form: FormData) {
 }
 
 export async function applyVinAction(form: FormData) {
-  await requireSession();
+  const s = await requireSession();
   const sql = await db();
   const id = str(form, "vehicle_id");
   const year = parseNumber(str(form, "year")) || null;
+  const make = str(form, "make");
+  const model = str(form, "model");
+  let engine = str(form, "engine");
+  if (isElectricEngine(engine)) engine = ELECTRIC_ENGINE;
+  const vin = str(form, "vin").toUpperCase();
   const qt = parseNumber(str(form, "oil_qt"));
   const vis = str(form, "oil_viscosity");
-  const engine = str(form, "engine");
+
+  if (id === "__new__") {
+    const name = str(form, "name");
+    const phone = str(form, "phone");
+    if (!name || !phone) redirect("/tools");
+    const customerId = crypto.randomUUID();
+    const vehicleId = crypto.randomUUID();
+    const plate = str(form, "plate");
+    const mileage = parseNumber(str(form, "mileage")) || 0;
+    await sql`INSERT INTO customers (id, name, phone, shop_id) VALUES (
+      ${customerId}, ${name}, ${phone}, ${s.shopId}
+    )`;
+    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, plate, mileage, shop_id) VALUES (
+      ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}, ${plate}, ${mileage}, ${s.shopId}
+    )`;
+    revalidatePath("/customers");
+    revalidatePath("/tools");
+    revalidatePath(`/vehicles/${vehicleId}`);
+    redirect(`/vehicles/${vehicleId}`);
+  }
+
+  const [owned] = await sql<{ id: string; vin: string }[]>`
+    SELECT id, vin FROM vehicles WHERE id = ${id} AND shop_id = ${s.shopId}
+  `;
+  if (!owned) redirect("/tools");
+
   if (qt || vis) {
     await sql`UPDATE vehicles SET
       year = ${year},
-      make = ${str(form, "make")},
-      model = ${str(form, "model")},
-      vin = ${str(form, "vin").toUpperCase()},
+      make = ${make},
+      model = ${model},
+      vin = ${vin},
       engine = ${engine},
       oil_qt = ${qt || null},
       oil_viscosity = ${vis},
       oil_saved = 1
-      WHERE id = ${id}`;
+      WHERE id = ${id} AND shop_id = ${s.shopId}`;
   } else {
     await sql`UPDATE vehicles SET
       year = ${year},
-      make = ${str(form, "make")},
-      model = ${str(form, "model")},
-      vin = ${str(form, "vin").toUpperCase()},
+      make = ${make},
+      model = ${model},
+      vin = ${vin},
       engine = ${engine}
-      WHERE id = ${id}`;
+      WHERE id = ${id} AND shop_id = ${s.shopId}`;
   }
   revalidatePath(`/vehicles/${id}`);
   redirect(`/vehicles/${id}`);

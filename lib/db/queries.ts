@@ -522,6 +522,27 @@ export async function listJobs() {
   `;
 }
 
+export async function listShopVehicles() {
+  const sql = await db();
+  const sid = await shopId();
+  return sql<{
+    id: string;
+    customer_id: string;
+    year: number | null;
+    make: string;
+    model: string;
+    engine: string;
+    vin: string;
+    name: string;
+  }[]>`
+    SELECT v.id, v.customer_id, v.year, v.make, v.model, v.engine, v.vin, c.name
+    FROM vehicles v
+    JOIN customers c ON c.id = v.customer_id
+    WHERE v.shop_id = ${sid} AND c.shop_id = ${sid}
+    ORDER BY c.name, v.year DESC
+  `;
+}
+
 export async function listCustomers() {
   const sql = await db();
   const sid = await shopId();

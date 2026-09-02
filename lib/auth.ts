@@ -62,11 +62,9 @@ export async function readSession(): Promise<ShopSession | null> {
     const { payload } = await jwtVerify(token, secret());
     const email = String(payload.email ?? payload.sub ?? "");
     if (!email) return null;
-    const shopId = String(payload.shopId ?? "");
-    if (shopId) {
-      return { email, shopId, isDemo: Boolean(payload.isDemo) };
-    }
-    return sessionForEmail(email);
+    const isDemo = Boolean(payload.isDemo) || email.toLowerCase() === DEMO_EMAIL;
+    const shopId = isDemo ? DEMO_SHOP_ID : LIVE_SHOP_ID;
+    return { email, shopId, isDemo };
   } catch {
     return null;
   }
@@ -85,7 +83,7 @@ async function sessionForEmail(email: string): Promise<ShopSession> {
     SELECT shop_id, COALESCE(is_demo, 0)::int AS is_demo FROM users WHERE email = ${email.toLowerCase()}
   `;
   const isDemo = email.toLowerCase() === DEMO_EMAIL || Number(user?.is_demo) === 1;
-  return { email: email.toLowerCase(), shopId: user?.shop_id || (isDemo ? DEMO_SHOP_ID : LIVE_SHOP_ID), isDemo };
+  return { email: email.toLowerCase(), shopId: isDemo ? DEMO_SHOP_ID : LIVE_SHOP_ID, isDemo };
 }
 
 export async function verifyLogin(email: string, password: string): Promise<ShopSession | null> {
@@ -100,7 +98,7 @@ export async function verifyLogin(email: string, password: string): Promise<Shop
   if (!ok) return null;
   return {
     email: user.email,
-    shopId: user.shop_id || DEMO_SHOP_ID,
+    shopId: Number(user.is_demo) === 1 ? DEMO_SHOP_ID : LIVE_SHOP_ID,
     isDemo: Number(user.is_demo) === 1,
   };
 }

@@ -293,6 +293,23 @@ export function ensureReady(): Promise<void> {
           `CREATE UNIQUE INDEX IF NOT EXISTS oil_defaults_shop_ymme ON oil_defaults (shop_id, year, make_key, model_key, engine_key)`,
         );
         await sql.unsafe(`UPDATE users SET is_demo = 1, shop_id = 'demo' WHERE email = 'wrench@fieldwrench.local'`);
+        await sql.unsafe(`UPDATE users SET shop_id = 'live', is_demo = 0 WHERE email <> 'wrench@fieldwrench.local'`);
+        await sql.unsafe(`
+          UPDATE customers SET shop_id = 'live'
+          WHERE shop_id = 'demo'
+            AND name NOT IN ('Mara Ellison', 'Devon Ruiz', 'Priya Nandakumar')
+            AND EXISTS (SELECT 1 FROM users WHERE COALESCE(is_demo, 0) = 0)
+        `);
+        await sql.unsafe(`
+          UPDATE vehicles v SET shop_id = 'live'
+          FROM customers c
+          WHERE v.customer_id = c.id AND c.shop_id = 'live' AND v.shop_id IS DISTINCT FROM 'live'
+        `);
+        await sql.unsafe(`
+          UPDATE jobs j SET shop_id = 'live'
+          FROM customers c
+          WHERE j.customer_id = c.id AND c.shop_id = 'live' AND j.shop_id IS DISTINCT FROM 'live'
+        `);
         await sql.unsafe(`
           INSERT INTO settings (id, shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme, seeded, shop_id)
           SELECT 2, 'FieldWrench', 12500, 76, 24, 'light', 0, 'live'

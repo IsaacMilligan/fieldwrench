@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/Mark";
 import { requireSession } from "@/lib/auth";
-import { listJobs, listCustomers, db } from "@/lib/db/queries";
+import { listJobs, listCustomers, listShopVehicles } from "@/lib/db/queries";
 import { denverDateISO, formatDateTime, vehicleLabel } from "@/lib/format";
 import { formatServiceList, parseServiceIds } from "@/lib/services";
 import { STATUS_LABEL, STATUS_TONE, type JobStatus } from "@/lib/status";
@@ -18,11 +18,8 @@ export default async function JobsPage({
   await requireSession();
   const sp = await searchParams;
   if (sp.new) {
-    const sql = await db();
     const customers = await listCustomers();
-    const vehicles = await sql<
-      { id: string; customer_id: string; year: number | null; make: string; model: string; engine: string }[]
-    >`SELECT id, customer_id, year, make, model, engine FROM vehicles ORDER BY year DESC`;
+    const vehicles = await listShopVehicles();
     return (
       <Shell title="New job">
         <NewJobForm

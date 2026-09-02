@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { ScanVinButton, VIN_PAIR_BTN } from "@/components/ScanVinButton";
 
 type Decode = {
@@ -20,16 +20,19 @@ type Decode = {
   bev?: boolean;
 };
 
+const NEW_CUSTOMER = "__new__";
+
 export function VinTool({
   defaultVin,
   vehicles,
 }: {
   defaultVin?: string;
-  vehicles: { id: string; label: string }[];
+  vehicles: { id: string; vin?: string; label: string }[];
 }) {
   const [vin, setVin] = useState(defaultVin ?? "");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Decode | null>(null);
+  const [target, setTarget] = useState(NEW_CUSTOMER);
 
   async function decode() {
     setBusy(true);
@@ -44,6 +47,18 @@ export function VinTool({
       setResult(json);
     } finally {
       setBusy(false);
+    }
+  }
+
+  function onSave(e: FormEvent<HTMLFormElement>) {
+    if (target === NEW_CUSTOMER) return;
+    const picked = vehicles.find((v) => v.id === target);
+    const next = (result?.vin || "").toUpperCase();
+    const prev = (picked?.vin || "").toUpperCase();
+    if (prev && next && prev !== next) {
+      if (!confirm(`This vehicle already has VIN ${prev}. Replace it with ${next}?`)) {
+        e.preventDefault();
+      }
     }
   }
 
@@ -87,7 +102,7 @@ export function VinTool({
               <p className="mt-2 text-sm text-muted">No engine oil and no drain plug.</p>
             </div>
           ) : null}
-          <form action="/api/shop" method="post" className="mt-4">
+          <form action="/api/shop" method="post" className="mt-4" onSubmit={onSave}>
             <input type="hidden" name="_op" value="apply_vin" />
             <input type="hidden" name="vin" value={result.vin} />
             <input type="hidden" name="year" value={result.year ?? ""} />
@@ -95,13 +110,40 @@ export function VinTool({
             <input type="hidden" name="model" value={result.model ?? ""} />
             <input type="hidden" name="engine" value={result.engine ?? ""} />
             <label className="lbl">Save onto vehicle</label>
-            <select className="field" name="vehicle_id" required>
+            <select
+              className="field"
+              name="vehicle_id"
+              required
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+            >
+              <option value={NEW_CUSTOMER}>New customer</option>
               {vehicles.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.label}
                 </option>
               ))}
             </select>
+            {target === NEW_CUSTOMER ? (
+              <>
+                <label className="lbl" htmlFor="cust_name">
+                  Name
+                </label>
+                <input className="field" id="cust_name" name="name" required autoComplete="name" />
+                <label className="lbl" htmlFor="cust_phone">
+                  Phone
+                </label>
+                <input className="field" id="cust_phone" name="phone" required autoComplete="tel" />
+                <label className="lbl" htmlFor="plate">
+                  Plate (optional)
+                </label>
+                <input className="field" id="plate" name="plate" autoComplete="off" />
+                <label className="lbl" htmlFor="mileage">
+                  Mileage (optional)
+                </label>
+                <input className="field" id="mileage" name="mileage" inputMode="numeric" />
+              </>
+            ) : null}
             <button className="tap tap-green mt-3" type="submit">
               Save year/make/model
             </button>
@@ -111,4 +153,3 @@ export function VinTool({
     </section>
   );
 }
-
