@@ -213,9 +213,18 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS vehicle_year INTEGER`);
         await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS vehicle_make TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS vehicle_model TEXT NOT NULL DEFAULT ''`);
-        await sql.unsafe(`ALTER TABLE jobs ALTER COLUMN customer_id DROP NOT NULL`);
-        await sql.unsafe(`ALTER TABLE jobs ALTER COLUMN vehicle_id DROP NOT NULL`);
-        await sql.unsafe(`
+        const tryAlter = async (stmt: string) => {
+          try {
+            await sql.unsafe(stmt);
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (/identify your database|credentials are incorrect/i.test(msg)) throw e;
+            console.error("ensureReady alter skipped", msg.slice(0, 180));
+          }
+        };
+        await tryAlter(`ALTER TABLE jobs ALTER COLUMN customer_id DROP NOT NULL`);
+        await tryAlter(`ALTER TABLE jobs ALTER COLUMN vehicle_id DROP NOT NULL`);
+        await tryAlter(`
           DO $fk$
           DECLARE r record;
           BEGIN
