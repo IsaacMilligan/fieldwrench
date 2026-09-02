@@ -130,9 +130,9 @@ export function VinTool({
             !(result.oil && (result.oil.qtWithFilter || result.oil.viscosity)) ? (
               <>
                 <label className="lbl">Capacity (qt, with filter)</label>
-                <input className="field" name="oil_qt" inputMode="decimal" placeholder="5.0" />
+                <input className="field" name="oil_qt" inputMode="decimal" placeholder="qt" />
                 <label className="lbl">Viscosity</label>
-                <input className="field" name="oil_viscosity" placeholder="0W-20" />
+                <input className="field" name="oil_viscosity" placeholder="SAE" />
               </>
             ) : null}
             <button className="tap tap-green mt-3" type="submit">

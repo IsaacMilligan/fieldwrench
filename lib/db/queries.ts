@@ -6,6 +6,7 @@ import {
   partCustomerCents,
 } from "../profit";
 import { denverDateISO } from "../format";
+import { oilYmmeKey } from "../oil-specs";
 import type { JobStatus, PayMethod } from "../status";
 
 export async function db() {
@@ -543,6 +544,28 @@ export async function getVehicle(id: string) {
   const [c] = await sql<Customer[]>`SELECT * FROM customers WHERE id = ${v.customer_id}`;
   const jobs = await sql`SELECT * FROM jobs WHERE vehicle_id = ${id} ORDER BY scheduled_at DESC NULLS LAST`;
   return { vehicle: v, customer: c, jobs };
+}
+
+export async function getShopOilDefault(q: {
+  year?: number | null;
+  make?: string | null;
+  model?: string | null;
+  engine?: string | null;
+}): Promise<{ oil_qt: number | null; oil_viscosity: string } | null> {
+  const key = oilYmmeKey(q.year, q.make, q.model, q.engine);
+  if (!key) return null;
+  const sql = await db();
+  const [row] = await sql<{ oil_qt: number | null; oil_viscosity: string }[]>`
+    SELECT oil_qt, oil_viscosity FROM oil_defaults
+    WHERE year = ${key.year} AND make_key = ${key.make_key}
+      AND model_key = ${key.model_key} AND engine_key = ${key.engine_key}
+    LIMIT 1
+  `;
+  if (!row) return null;
+  const qt = row.oil_qt != null ? Number(row.oil_qt) : null;
+  const vis = String(row.oil_viscosity ?? "").trim();
+  if (!(qt && qt > 0) && !vis) return null;
+  return { oil_qt: qt && qt > 0 ? qt : null, oil_viscosity: vis };
 }
 
 export async function getJobBundle(jobId: string) {

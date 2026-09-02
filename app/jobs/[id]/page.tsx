@@ -4,7 +4,7 @@ import { Shell } from "@/components/Shell";
 import { ProfitPanel } from "@/components/ProfitPanel";
 import { StatusBadge } from "@/components/Mark";
 import { requireSession } from "@/lib/auth";
-import { getJobBundle } from "@/lib/db/queries";
+import { getJobBundle, getShopOilDefault } from "@/lib/db/queries";
 import { formatDateTime, money, vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
 import { lookupOilCatalog } from "@/lib/oil-specs";
@@ -37,6 +37,15 @@ export default async function JobDetailPage({
       }).catch(() => null)
     : null;
   const saved = vehicle ? Number(vehicle.oil_saved) === 1 : false;
+  const shop =
+    vehicle?.id && !saved
+      ? await getShopOilDefault({
+          year: vehicle.year,
+          make: vehicle.make,
+          model: vehicle.model,
+          engine: vehicle.engine,
+        }).catch(() => null)
+      : null;
 
   return (
     <Shell title="Job">
@@ -79,6 +88,8 @@ export default async function JobDetailPage({
           savedViscosity={saved ? String(vehicle.oil_viscosity ?? "") : ""}
           savedQtWithout={saved ? Number(vehicle.oil_qt_without) || null : null}
           savedViscosityAlt={saved ? String(vehicle.oil_viscosity_alt ?? "") : ""}
+          shopQt={shop?.oil_qt ?? null}
+          shopViscosity={shop?.oil_viscosity ?? ""}
           engine={vehicle.engine}
         />
       ) : null}

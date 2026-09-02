@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
-import { getVehicle } from "@/lib/db/queries";
+import { getShopOilDefault, getVehicle } from "@/lib/db/queries";
 import { vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
 import { VehiclePicker } from "@/app/book/VehiclePicker";
@@ -30,6 +30,14 @@ export default async function VehiclePage({
     vin: vehicle.vin,
   }).catch(() => null);
   const saved = Number(vehicle.oil_saved) === 1;
+  const shop = saved
+    ? null
+    : await getShopOilDefault({
+        year: vehicle.year,
+        make: vehicle.make,
+        model: vehicle.model,
+        engine: vehicle.engine,
+      }).catch(() => null);
   return (
     <Shell title="Vehicle">
       <p className="text-muted">
@@ -72,6 +80,8 @@ export default async function VehiclePage({
         savedViscosity={saved ? String(vehicle.oil_viscosity ?? "") : ""}
         savedQtWithout={saved ? Number(vehicle.oil_qt_without) || null : null}
         savedViscosityAlt={saved ? String(vehicle.oil_viscosity_alt ?? "") : ""}
+        shopQt={shop?.oil_qt ?? null}
+        shopViscosity={shop?.oil_viscosity ?? ""}
         engine={vehicle.engine}
       />
       <Link href={`/tools?vehicle=${vehicle.id}&vin=${vehicle.vin}`} className="tap tap-ghost mt-3 flex items-center justify-center">

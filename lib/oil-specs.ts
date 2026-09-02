@@ -137,3 +137,22 @@ export function formatQt(n: number): string {
   const t = Number.isInteger(n) ? n.toFixed(1) : String(n);
   return `${t} qt`;
 }
+
+export function oilYmmeKey(
+  year?: number | null,
+  make?: string | null,
+  model?: string | null,
+  engine?: string | null,
+): { year: number; make_key: string; model_key: string; engine_key: string } | null {
+  const y = Number(year);
+  if (!Number.isFinite(y) || y < 1980) return null;
+  const make_key = str(make).toLowerCase();
+  const model_key = str(model).toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!make_key || !model_key) return null;
+  return {
+    year: y,
+    make_key,
+    model_key,
+    engine_key: str(engine).toLowerCase().replace(/[^a-z0-9.]/g, ""),
+  };
+}

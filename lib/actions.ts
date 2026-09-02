@@ -13,6 +13,7 @@ import type { JobStatus, PayMethod } from "./status";
 import { JOB_STATUSES, PAY_METHODS } from "./status";
 import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "./services";
 import { ELECTRIC_ENGINE, isElectricEngine } from "./vpic";
+import { oilYmmeKey } from "./oil-specs";
 
 function str(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -204,11 +205,27 @@ export async function saveOilSpecAction(form: FormData) {
   const qt = parseNumber(str(form, "oil_qt"));
   const vis = str(form, "oil_viscosity");
   if (!id || (!qt && !vis)) redirect(`/vehicles/${id || ""}`);
+  const [veh] = await sql<{ year: number | null; make: string; model: string; engine: string }[]>`
+    SELECT year, make, model, engine FROM vehicles WHERE id = ${id}
+  `;
+  if (isElectricEngine(veh?.engine)) {
+    const next = str(form, "next") || `/vehicles/${id}`;
+    redirect(next);
+  }
   await sql`UPDATE vehicles SET
     oil_qt = ${qt || null},
     oil_viscosity = ${vis},
     oil_saved = 1
     WHERE id = ${id}`;
+  const key = oilYmmeKey(veh?.year, veh?.make, veh?.model, veh?.engine);
+  if (key) {
+    await sql`
+      INSERT INTO oil_defaults (id, year, make_key, model_key, engine_key, oil_qt, oil_viscosity, updated_at)
+      VALUES (${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${qt || null}, ${vis}, NOW())
+      ON CONFLICT (year, make_key, model_key, engine_key)
+      DO UPDATE SET oil_qt = EXCLUDED.oil_qt, oil_viscosity = EXCLUDED.oil_viscosity, updated_at = NOW()
+    `;
+  }
   revalidatePath(`/vehicles/${id}`);
   revalidatePath("/tools");
   revalidatePath("/jobs");

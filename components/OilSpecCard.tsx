@@ -8,6 +8,8 @@ export function OilSpecCard({
   savedViscosity,
   savedQtWithout,
   savedViscosityAlt,
+  shopQt,
+  shopViscosity,
   compact = false,
   next,
   engine,
@@ -18,6 +20,8 @@ export function OilSpecCard({
   savedViscosity?: string | null;
   savedQtWithout?: number | null;
   savedViscosityAlt?: string | null;
+  shopQt?: number | null;
+  shopViscosity?: string | null;
   compact?: boolean;
   next?: string;
   engine?: string | null;
@@ -33,15 +37,35 @@ export function OilSpecCard({
       </section>
     );
   }
-  const saved = Boolean((savedQt && savedQt > 0) || (savedViscosity && savedViscosity.trim()));
-  const primaryQt = saved ? savedQt ?? null : catalog?.qtWithFilter ?? null;
-  const primaryVis = saved ? String(savedViscosity ?? "").trim() : catalog?.viscosity ?? "";
-  const without = saved ? savedQtWithout ?? null : catalog?.qtWithoutFilter ?? null;
-  const alt = saved ? String(savedViscosityAlt ?? "").trim() : catalog?.viscosityAlt ?? "";
+  const vehicleSaved = Boolean((savedQt && savedQt > 0) || (savedViscosity && savedViscosity.trim()));
+  const shopSaved = Boolean((shopQt && shopQt > 0) || (shopViscosity && shopViscosity.trim()));
+  let source = "";
+  let primaryQt: number | null = null;
+  let primaryVis = "";
+  let without: number | null = null;
+  let alt = "";
+  if (vehicleSaved) {
+    source = "Saved";
+    primaryQt = savedQt ?? null;
+    primaryVis = String(savedViscosity ?? "").trim();
+    without = savedQtWithout ?? null;
+    alt = String(savedViscosityAlt ?? "").trim();
+  } else if (shopSaved) {
+    source = "Saved for this engine";
+    primaryQt = shopQt ?? null;
+    primaryVis = String(shopViscosity ?? "").trim();
+  } else if (catalog && (catalog.qtWithFilter || catalog.viscosity)) {
+    source = "Catalog";
+    primaryQt = catalog.qtWithFilter ?? null;
+    primaryVis = catalog.viscosity ?? "";
+    without = catalog.qtWithoutFilter ?? null;
+    alt = catalog.viscosityAlt ?? "";
+  }
   const hasPrimary = Boolean((primaryQt && primaryQt > 0) || primaryVis);
-  const source = saved ? "Saved" : catalog ? "Catalog" : "";
   const catalogType = String(catalog?.oilType ?? "");
-  const showSynthetic = hasPrimary && !/conventional/i.test(catalogType);
+  const showSynthetic = hasPrimary && source === "Catalog" && !/conventional/i.test(catalogType);
+  const fieldQt = hasPrimary && primaryQt && primaryQt > 0 ? String(primaryQt) : "";
+  const fieldVis = hasPrimary ? primaryVis : "";
 
   return (
     <section className={compact ? "mt-3 panel" : "mt-6 panel"}>
@@ -65,7 +89,7 @@ export function OilSpecCard({
               {alt ? `also approved: ${alt}` : null}
             </p>
           ) : null}
-          {saved && catalog && (catalog.qtWithFilter || catalog.viscosity) ? (
+          {vehicleSaved && catalog && (catalog.qtWithFilter || catalog.viscosity) ? (
             <p className="mt-2 text-xs text-muted">
               Catalog: {catalog.qtWithFilter ? `${formatQt(catalog.qtWithFilter)} with filter` : "—"}
               {catalog.viscosity ? ` · ${catalog.viscosity}` : ""}
@@ -85,15 +109,15 @@ export function OilSpecCard({
             className="field"
             name="oil_qt"
             inputMode="decimal"
-            defaultValue={savedQt && savedQt > 0 ? String(savedQt) : ""}
-            placeholder="5.0"
+            defaultValue={fieldQt}
+            placeholder="qt"
           />
           <label className="lbl">Viscosity</label>
           <input
             className="field"
             name="oil_viscosity"
-            defaultValue={savedViscosity ?? ""}
-            placeholder="0W-20"
+            defaultValue={fieldVis}
+            placeholder="SAE"
           />
           <button className="tap mt-3" type="submit">
             Save oil spec

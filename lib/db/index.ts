@@ -174,6 +174,17 @@ CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_scheduled ON jobs(scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_invoices_token ON invoices(token);
 CREATE INDEX IF NOT EXISTS idx_bookings_email ON bookings(customer_email);
+CREATE TABLE IF NOT EXISTS oil_defaults (
+  id TEXT PRIMARY KEY,
+  year INTEGER NOT NULL,
+  make_key TEXT NOT NULL,
+  model_key TEXT NOT NULL,
+  engine_key TEXT NOT NULL DEFAULT '',
+  oil_qt NUMERIC,
+  oil_viscosity TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (year, make_key, model_key, engine_key)
+);
 `;
 
 let ready: Promise<void> | null = null;
