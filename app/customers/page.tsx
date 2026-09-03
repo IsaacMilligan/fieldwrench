@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ new?: string }>;
+  searchParams: Promise<{ new?: string; deleted?: string; e?: string }>;
 }) {
   await requireSession();
   const sp = await searchParams;
@@ -43,6 +43,8 @@ export default async function CustomersPage({
       <Link href="/customers?new=1" className="tap flex items-center justify-center">
         New customer
       </Link>
+      {sp.deleted ? <p className="mt-3 text-sm font-bold">Customer deleted.</p> : null}
+      {sp.e ? <p className="mt-3 text-sm font-bold text-red">{sp.e}</p> : null}
       <ul className="mt-5 space-y-3">
         {rows.map((c) => (
           <li key={String(c.id)}>

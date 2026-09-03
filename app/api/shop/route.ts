@@ -81,6 +81,10 @@ export async function POST(req: NextRequest) {
     const digest = e && typeof e === "object" && "digest" in e ? String((e as { digest?: string }).digest) : "";
     if (digest.includes("NEXT_REDIRECT")) throw e;
     console.error("shop op", op, e);
+    if (op === "delete_customer") {
+      const msg = e instanceof Error ? e.message.slice(0, 160) : "Could not delete this customer.";
+      return NextResponse.redirect(new URL(`/customers?e=${encodeURIComponent(msg)}`, origin), 303);
+    }
   }
   const back = req.headers.get("referer") || `${origin}/`;
   return NextResponse.redirect(back, 303);

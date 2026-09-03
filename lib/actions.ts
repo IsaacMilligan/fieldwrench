@@ -130,38 +130,72 @@ export async function updateCustomerAction(form: FormData) {
 }
 
 export async function deleteCustomerAction(form: FormData) {
-  await requireSession();
+  const s = await requireSession();
   const sql = await db();
   const id = str(form, "id");
-  if (!id) return;
+  const fail = (msg: string) => redirect(`/customers?e=${encodeURIComponent(msg)}`);
+  if (!id) fail("Missing customer.");
+  const [c] = await sql<{ id: string; name: string }[]>`
+    SELECT id, name FROM customers WHERE id = ${id} AND shop_id = ${s.shopId}
+  `;
+  if (!c) fail("Customer not found in this shop.");
+  const frozen = c.name.trim() || "Deleted customer";
   await sql`
-    UPDATE jobs j SET
-      customer_name = CASE
-        WHEN COALESCE(j.customer_name, '') = '' THEN COALESCE(c.name, 'Deleted customer')
-        ELSE j.customer_name
-      END,
-      vehicle_year = COALESCE(j.vehicle_year, v.year),
+    UPDATE jobs SET
+      customer_name = CASE WHEN COALESCE(customer_name, '') = '' THEN ${frozen} ELSE customer_name END,
+      vehicle_year = COALESCE(vehicle_year, (SELECT year FROM vehicles WHERE vehicles.id = jobs.vehicle_id)),
       vehicle_make = CASE
-        WHEN COALESCE(j.vehicle_make, '') = '' THEN COALESCE(v.make, '')
-        ELSE j.vehicle_make
+        WHEN COALESCE(vehicle_make, '') = '' THEN COALESCE((SELECT make FROM vehicles WHERE vehicles.id = jobs.vehicle_id), '')
+        ELSE vehicle_make
       END,
       vehicle_model = CASE
-        WHEN COALESCE(j.vehicle_model, '') = '' THEN COALESCE(v.model, '')
-        ELSE j.vehicle_model
+        WHEN COALESCE(vehicle_model, '') = '' THEN COALESCE((SELECT model FROM vehicles WHERE vehicles.id = jobs.vehicle_id), '')
+        ELSE vehicle_model
       END,
       updated_at = NOW()
-    FROM customers c
-    LEFT JOIN vehicles v ON v.id = j.vehicle_id
-    WHERE j.customer_id = ${id} AND c.id = ${id}
+    WHERE customer_id = ${id}
+      OR vehicle_id IN (SELECT id FROM vehicles WHERE customer_id = ${id})
   `;
-  await sql`UPDATE jobs SET customer_id = NULL, vehicle_id = NULL WHERE customer_id = ${id}`;
-  await sql`DELETE FROM vehicles WHERE customer_id = ${id}`;
-  await sql`DELETE FROM customers WHERE id = ${id}`;
+  const unlink = async () => {
+    await sql`
+      UPDATE jobs SET customer_id = NULL
+      WHERE customer_id = ${id}
+    `;
+    await sql`
+      UPDATE jobs SET vehicle_id = NULL
+      WHERE vehicle_id IN (SELECT id FROM vehicles WHERE customer_id = ${id})
+    `;
+  };
+  try {
+    await unlink();
+  } catch {
+    const { getSql } = await import("./db/index");
+    const raw = getSql();
+    await raw.unsafe(`ALTER TABLE jobs ALTER COLUMN customer_id DROP NOT NULL`).catch(() => {});
+    await raw.unsafe(`ALTER TABLE jobs ALTER COLUMN vehicle_id DROP NOT NULL`).catch(() => {});
+    try {
+      await unlink();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      fail(msg.slice(0, 160) || "Could not unlink jobs.");
+    }
+  }
+  try {
+    await sql`DELETE FROM vehicles WHERE customer_id = ${id}`;
+    const gone = await sql<{ id: string }[]>`
+      DELETE FROM customers WHERE id = ${id} AND shop_id = ${s.shopId} RETURNING id
+    `;
+    if (!gone.length) fail("Could not delete this customer.");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    fail(msg.slice(0, 160) || "Could not delete this customer.");
+  }
   revalidatePath("/customers");
   revalidatePath("/jobs");
   revalidatePath("/");
   revalidatePath("/calendar");
-  redirect("/customers");
+  revalidatePath("/tools");
+  redirect("/customers?deleted=1");
 }
 
 export async function createVehicleAction(form: FormData) {
