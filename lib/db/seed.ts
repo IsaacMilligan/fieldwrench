@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import type { Sql } from "./index";
 import { denverDateISO } from "../format";
 import { DEMO_EMAIL, DEMO_SHOP_ID } from "../shop";
+import { DEFAULT_CATALOG } from "../catalog";
 
 const DEMO_PASSWORD = "driveway";
 
@@ -26,6 +27,7 @@ export async function wipeAll(sql: Sql) {
 async function wipeDemo(sql: Sql) {
   await sql`DELETE FROM job_discounts WHERE job_id IN (SELECT id FROM jobs WHERE shop_id = ${DEMO_SHOP_ID})`;
   await sql`DELETE FROM discount_presets WHERE shop_id = ${DEMO_SHOP_ID}`;
+  await sql`DELETE FROM catalog_items WHERE shop_id = ${DEMO_SHOP_ID}`;
   await sql`DELETE FROM photos WHERE job_id IN (SELECT id FROM jobs WHERE shop_id = ${DEMO_SHOP_ID})`;
   await sql`DELETE FROM labor_lines WHERE job_id IN (SELECT id FROM jobs WHERE shop_id = ${DEMO_SHOP_ID})`;
   await sql`DELETE FROM part_lines WHERE job_id IN (SELECT id FROM jobs WHERE shop_id = ${DEMO_SHOP_ID})`;
@@ -56,6 +58,10 @@ export async function seedDemo(sql: Sql) {
     INSERT INTO settings (id, shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme, seeded, shop_id)
     VALUES (1, 'FieldWrench', 12500, 76, 24, 'light', 1, ${DEMO_SHOP_ID})
   `;
+  for (const item of DEFAULT_CATALOG) {
+    await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents)
+      VALUES (${id()}, ${DEMO_SHOP_ID}, ${item.name}, ${item.category}, 0, 0, 5, 0)`;
+  }
 
   const mara = id();
   const devon = id();

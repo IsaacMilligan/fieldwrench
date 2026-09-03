@@ -321,6 +321,18 @@ export function ensureReady(): Promise<void> {
             amount_cents INTEGER NOT NULL DEFAULT 0
           )
         `);
+        await sql.unsafe(`
+          CREATE TABLE IF NOT EXISTS catalog_items (
+            id TEXT PRIMARY KEY,
+            shop_id TEXT NOT NULL DEFAULT 'live',
+            name TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'Part',
+            cost_cents INTEGER NOT NULL DEFAULT 0,
+            price_cents INTEGER NOT NULL DEFAULT 0,
+            jug_qt NUMERIC NOT NULL DEFAULT 5,
+            jug_cents INTEGER NOT NULL DEFAULT 0
+          )
+        `);
         await tryAlter(`ALTER TABLE oil_defaults DROP CONSTRAINT IF EXISTS oil_defaults_year_make_key_model_key_engine_key_key`);
         await sql.unsafe(
           `CREATE UNIQUE INDEX IF NOT EXISTS oil_defaults_shop_ymme ON oil_defaults (shop_id, year, make_key, model_key, engine_key)`,

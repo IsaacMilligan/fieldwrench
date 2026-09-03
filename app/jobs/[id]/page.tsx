@@ -4,13 +4,13 @@ import { Shell } from "@/components/Shell";
 import { ProfitPanel } from "@/components/ProfitPanel";
 import { StatusBadge } from "@/components/Mark";
 import { requireSession } from "@/lib/auth";
-import { getJobBundle, getSettings, getShopOilDefault, listDiscountPresets } from "@/lib/db/queries";
+import { getJobBundle, getSettings, getShopOilDefault, listCatalogItems, listDiscountPresets } from "@/lib/db/queries";
 import { formatDateTime, money, vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
 import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE } from "@/lib/status";
-import { laborLineCents, partCostCents, partCustomerCents } from "@/lib/profit";
+import { laborLineCents, partCustomerCents } from "@/lib/profit";
 import { JobDangerActions } from "../JobDangerActions";
-import { OilJugHelper } from "../OilJugHelper";
+import { AddItemCard } from "../AddItemCard";
 import { isElectricEngine } from "@/lib/vpic";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +26,7 @@ export default async function JobDetailPage({
   if (!bundle) notFound();
   const { job, customer, vehicle, labor, parts, photos, invoice, receipts, profit, discounts } = bundle;
   const presets = await listDiscountPresets();
+  const catalog = await listCatalogItems();
   const settings = await getSettings().catch(() => ({ oil_jug_qt: 5, oil_jug_cents: 0 }));
   const scheduled = job.scheduled_at
     ? new Date(job.scheduled_at).toISOString().slice(0, 16)
@@ -184,66 +185,77 @@ export default async function JobDetailPage({
 
       <details className="mt-8" open={parts.length > 0}>
         <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
-          + Add parts
+          + Add item
         </summary>
       <ul className="mt-3 space-y-2">
         {parts.map((p) => (
           <li key={p.id} className="panel">
-            <div className="flex justify-between gap-3">
-              <div className="font-bold">{p.description}</div>
-              <form action="/api/shop" method="post">
-            <input type="hidden" name="_op" value="delete_part" />
-                <input type="hidden" name="id" value={p.id} />
-                <input type="hidden" name="job_id" value={job.id} />
-                <button className="text-xs font-bold uppercase tracking-widest text-red" type="submit">
-                  Remove
-                </button>
-              </form>
-            </div>
-            <div className="mt-1 grid grid-cols-3 gap-2 text-sm text-muted">
-              <div>Qty {p.qty}</div>
-              <div>Cost {money(partCostCents({ qty: p.qty, costCents: p.cost_cents }))}</div>
-              <div>Price {money(partCustomerCents(p))}</div>
-            </div>
+            <form action="/api/shop" method="post" className="space-y-2">
+              <input type="hidden" name="_op" value="update_part" />
+              <input type="hidden" name="id" value={p.id} />
+              <input type="hidden" name="job_id" value={job.id} />
+              <label className="lbl">Name</label>
+              <input className="field" name="description" defaultValue={p.description} />
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="lbl">Qty</label>
+                  <input className="field" name="qty" inputMode="decimal" defaultValue={String(p.qty)} />
+                </div>
+                <div>
+                  <label className="lbl">Cost $</label>
+                  <input
+                    className="field"
+                    name="cost"
+                    inputMode="decimal"
+                    defaultValue={p.cost_cents ? (p.cost_cents / 100).toFixed(2) : ""}
+                  />
+                </div>
+                <div>
+                  <label className="lbl">Price $</label>
+                  <input
+                    className="field"
+                    name="price"
+                    inputMode="decimal"
+                    defaultValue={p.price_cents ? (p.price_cents / 100).toFixed(2) : ""}
+                    placeholder="cost"
+                  />
+                </div>
+              </div>
+              <div className="num text-xl text-amber">Extend {money(partCustomerCents(p))}</div>
+              <button className="tap" type="submit">
+                Save line
+              </button>
+            </form>
+            <form action="/api/shop" method="post" className="mt-2">
+              <input type="hidden" name="_op" value="delete_part" />
+              <input type="hidden" name="id" value={p.id} />
+              <input type="hidden" name="job_id" value={job.id} />
+              <button className="text-xs font-bold uppercase tracking-widest text-red" type="submit">
+                Remove
+              </button>
+            </form>
           </li>
         ))}
       </ul>
-      <form action="/api/shop" method="post" className="mt-3 panel">
-            <input type="hidden" name="_op" value="add_part" />
-        <input type="hidden" name="job_id" value={job.id} />
-        <label className="lbl">Part</label>
-        <input className="field" name="description" placeholder="Front pads" />
-        <label className="lbl">Qty</label>
-        <input className="field" name="qty" inputMode="decimal" defaultValue="1" />
-        <label className="lbl">Your cost $</label>
-        <input className="field" name="cost" inputMode="decimal" />
-        <label className="lbl">Customer price $</label>
-        <input className="field" name="price" inputMode="decimal" placeholder="same as cost if blank" />
-        <button className="tap mt-4" type="submit">
-          Add part
-        </button>
-      </form>
-      {vehicle?.id && !isElectricEngine(vehicle.engine) ? (
-        <OilJugHelper
-          jobId={job.id}
-          jugCostDollars={
-            Number(settings.oil_jug_cents) > 0 ? (Number(settings.oil_jug_cents) / 100).toFixed(2) : ""
-          }
-          jugQt={Number(settings.oil_jug_qt) || 5}
-          quarts={
-            saved
-              ? Number(vehicle.oil_qt) || null
-              : shop?.oil_qt && Number(shop.oil_qt) > 0
-                ? Number(shop.oil_qt)
-                : null
-          }
-          viscosity={
-            saved
-              ? String(vehicle.oil_viscosity ?? "")
-              : String(shop?.oil_viscosity ?? "")
-          }
-        />
-      ) : null}
+      <AddItemCard
+        jobId={job.id}
+        items={catalog}
+        hideOil={!vehicle?.id || isElectricEngine(vehicle.engine)}
+        quarts={
+          saved
+            ? Number(vehicle?.oil_qt) || null
+            : shop?.oil_qt && Number(shop.oil_qt) > 0
+              ? Number(shop.oil_qt)
+              : null
+        }
+        viscosity={
+          saved
+            ? String(vehicle?.oil_viscosity ?? "")
+            : String(shop?.oil_viscosity ?? "")
+        }
+        defaultJugQt={Number(settings.oil_jug_qt) || 5}
+        defaultJugCents={Number(settings.oil_jug_cents) || 0}
+      />
       </details>
 
       <details className="mt-8" open={(discounts?.length ?? 0) > 0}>

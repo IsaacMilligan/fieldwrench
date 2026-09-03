@@ -9,6 +9,7 @@ import { oilYmmeKey } from "../oil-specs";
 import { computeInvoice, type DiscountInput, type InvoiceMath } from "../invoice";
 import type { JobStatus, PayMethod } from "../status";
 import { bookingShopId, readSession } from "../auth";
+import { DEFAULT_CATALOG, mapCatalogRow, type CatalogItem } from "../catalog";
 
 export async function db() {
   await ensureReady();
@@ -268,6 +269,20 @@ export async function listDiscountPresets() {
   const sid = await shopId();
   const rows = await sql`SELECT * FROM discount_presets WHERE shop_id = ${sid} ORDER BY name`;
   return rows.map((r) => mapDiscount(r as Record<string, unknown>));
+}
+
+export async function listCatalogItems(): Promise<CatalogItem[]> {
+  const sql = await db();
+  const sid = await shopId();
+  const [n] = await sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM catalog_items WHERE shop_id = ${sid}`;
+  if (!n?.n) {
+    for (const item of DEFAULT_CATALOG) {
+      await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents)
+        VALUES (${crypto.randomUUID()}, ${sid}, ${item.name}, ${item.category}, 0, 0, 5, 0)`;
+    }
+  }
+  const rows = await sql`SELECT * FROM catalog_items WHERE shop_id = ${sid} ORDER BY name`;
+  return rows.map((r) => mapCatalogRow(r as Record<string, unknown>));
 }
 
 export async function listJobDiscounts(jobId: string) {
