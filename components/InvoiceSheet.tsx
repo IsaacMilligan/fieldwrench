@@ -82,6 +82,24 @@ export function InvoiceSheet({
               <td className="num py-2 text-right">{money(partCustomerCents(p))}</td>
             </tr>
           ))}
+          {(profit.discountLines ?? []).map((d, i) => (
+            <tr key={`d-${d.id ?? i}`} className="border-b border-line/60">
+              <td className="py-2">
+                {d.name}
+                <div className="text-xs text-muted">Discount</div>
+              </td>
+              <td className="num py-2 text-right">−{money(d.cents)}</td>
+            </tr>
+          ))}
+          {profit.partsTax ? (
+            <tr className="border-b border-line/60">
+              <td className="py-2">
+                Parts tax
+                <div className="text-xs text-muted">{profit.partsTaxRate}% on parts</div>
+              </td>
+              <td className="num py-2 text-right">{money(profit.partsTax)}</td>
+            </tr>
+          ) : null}
         </tbody>
       </table>
       <div className="mt-4 flex justify-between text-lg font-bold">

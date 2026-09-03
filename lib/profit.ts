@@ -12,6 +12,10 @@ export type ProfitResult = {
   profit: number;
   markup: number;
   markupPct: number | null;
+  subtotal?: number;
+  discountTotal?: number;
+  partsTax?: number;
+  partsTaxRate?: number;
 };
 
 /** profit = invoiced total - parts cost - linked receipt expenses. Labor is revenue. */

@@ -1,4 +1,5 @@
 import { computeProfit, partCustomerCents } from "../lib/profit";
+import { computeInvoice } from "../lib/invoice";
 
 const p = computeProfit({
   laborCents: 31250,
@@ -44,3 +45,33 @@ if (atCost.invoicedTotal !== 11394 || atCost.profit !== 7000 || atCost.markup !=
   process.exit(1);
 }
 console.log("bill at cost ok", atCost);
+
+const inv = computeInvoice({
+  laborCents: 7000,
+  partsCustomerCents: 4394,
+  partsCostCents: 4394,
+  receiptCents: 0,
+  discounts: [{ name: "Military", kind: "percent", value: 10 }],
+  partsTaxRate: 7.45,
+});
+if (inv.subtotal !== 11394) {
+  console.error("FAIL subtotal", inv.subtotal);
+  process.exit(1);
+}
+if (inv.discountTotal !== 1139) {
+  console.error("FAIL discount", inv.discountTotal);
+  process.exit(1);
+}
+if (inv.partsTax !== 327) {
+  console.error("FAIL tax", inv.partsTax);
+  process.exit(1);
+}
+if (inv.invoicedTotal !== 11394 - 1139 + 327) {
+  console.error("FAIL grand", inv.invoicedTotal);
+  process.exit(1);
+}
+if (inv.profit !== 11394 - 1139 - 4394) {
+  console.error("FAIL profit-ex-tax", inv.profit);
+  process.exit(1);
+}
+console.log("invoice discounts+tax ok", inv);

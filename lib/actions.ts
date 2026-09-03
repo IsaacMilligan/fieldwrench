@@ -71,10 +71,85 @@ export async function saveSettingsAction(form: FormData) {
   const miles = Math.round(parseNumber(str(form, "mileage_rate")) * 100) / 100;
   const mileageCents = Math.round(miles);
   const lead = Math.min(168, Math.max(0, Math.round(parseNumber(str(form, "lead_hours")))));
-  await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead} WHERE shop_id = ${s.shopId}`;
+  const tax = Math.max(0, parseNumber(str(form, "parts_tax_rate")));
+  await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead}, parts_tax_rate = ${tax} WHERE shop_id = ${s.shopId}`;
   revalidatePath("/");
   revalidatePath("/book");
   redirect("/more?tab=settings");
+}
+
+function discountFields(form: FormData) {
+  const name = str(form, "name") || "Discount";
+  const kind = str(form, "kind") === "amount" ? "amount" : "percent";
+  const raw = parseNumber(str(form, "value"));
+  const pct = kind === "percent" ? Math.max(0, raw) : 0;
+  const amount_cents = kind === "amount" ? parseMoney(str(form, "value")) : 0;
+  return { name, kind, pct, amount_cents };
+}
+
+export async function addDiscountPresetAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const d = discountFields(form);
+  await sql`INSERT INTO discount_presets (id, shop_id, name, kind, pct, amount_cents) VALUES (
+    ${crypto.randomUUID()}, ${s.shopId}, ${d.name}, ${d.kind}, ${d.pct}, ${d.amount_cents}
+  )`;
+  revalidatePath("/more");
+  redirect("/more?tab=settings");
+}
+
+export async function updateDiscountPresetAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const id = str(form, "id");
+  const d = discountFields(form);
+  await sql`UPDATE discount_presets SET name = ${d.name}, kind = ${d.kind}, pct = ${d.pct}, amount_cents = ${d.amount_cents}
+    WHERE id = ${id} AND shop_id = ${s.shopId}`;
+  revalidatePath("/more");
+  redirect("/more?tab=settings");
+}
+
+export async function deleteDiscountPresetAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  await sql`DELETE FROM discount_presets WHERE id = ${str(form, "id")} AND shop_id = ${s.shopId}`;
+  revalidatePath("/more");
+  redirect("/more?tab=settings");
+}
+
+export async function addJobDiscountAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const jobId = str(form, "job_id");
+  const presetId = str(form, "preset_id");
+  if (presetId) {
+    const [p] = await sql<{ name: string; kind: string; pct: number; amount_cents: number }[]>`
+      SELECT name, kind, pct, amount_cents FROM discount_presets WHERE id = ${presetId} AND shop_id = ${s.shopId}
+    `;
+    if (p) {
+      await sql`INSERT INTO job_discounts (id, job_id, name, kind, pct, amount_cents) VALUES (
+        ${crypto.randomUUID()}, ${jobId}, ${p.name}, ${p.kind}, ${p.pct}, ${p.amount_cents}
+      )`;
+    }
+  } else {
+    const d = discountFields(form);
+    await sql`INSERT INTO job_discounts (id, job_id, name, kind, pct, amount_cents) VALUES (
+      ${crypto.randomUUID()}, ${jobId}, ${d.name}, ${d.kind}, ${d.pct}, ${d.amount_cents}
+    )`;
+  }
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath(`/invoices/${jobId}`);
+  redirect(`/jobs/${jobId}`);
+}
+
+export async function deleteJobDiscountAction(form: FormData) {
+  await requireSession();
+  const sql = await db();
+  const jobId = str(form, "job_id");
+  await sql`DELETE FROM job_discounts WHERE id = ${str(form, "id")}`;
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath(`/invoices/${jobId}`);
+  redirect(`/jobs/${jobId}`);
 }
 
 export async function saveThemeAction(form: FormData) {

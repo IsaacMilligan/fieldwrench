@@ -1,12 +1,12 @@
 import { ensureReady, getSql, resetSql } from "./index";
 import {
-  computeProfit,
   laborLineCents,
   partCostCents,
   partCustomerCents,
 } from "../profit";
 import { denverDateISO } from "../format";
 import { oilYmmeKey } from "../oil-specs";
+import { computeInvoice, type DiscountInput, type InvoiceMath } from "../invoice";
 import type { JobStatus, PayMethod } from "../status";
 import { bookingShopId, readSession } from "../auth";
 
@@ -112,7 +112,18 @@ export type Settings = {
   mileage_rate_cents: number;
   lead_hours: number;
   theme: "light" | "dark";
+  parts_tax_rate: number;
 };
+
+export type DiscountPreset = {
+  id: string;
+  name: string;
+  kind: "percent" | "amount";
+  pct: number;
+  amount_cents: number;
+};
+
+export type JobDiscount = DiscountPreset & { job_id: string };
 
 function mapLabor(r: Record<string, unknown>): LaborLine {
   return {
@@ -141,7 +152,9 @@ export function profitFor(lines: {
   labor: LaborLine[];
   parts: PartLine[];
   receiptCents: number;
-}) {
+  discounts?: DiscountInput[];
+  partsTaxRate?: number;
+}): InvoiceMath {
   const laborCents = lines.labor.reduce((s, l) => s + laborLineCents({
     isFlat: l.is_flat,
     flatCents: l.flat_cents,
@@ -153,12 +166,68 @@ export function profitFor(lines: {
     qty: p.qty,
     costCents: p.cost_cents,
   }), 0);
-  return computeProfit({
+  return computeInvoice({
     laborCents,
     partsCustomerCents,
     partsCostCents,
     receiptCents: lines.receiptCents,
+    discounts: lines.discounts,
+    partsTaxRate: lines.partsTaxRate,
   });
+}
+
+function mapDiscount(r: Record<string, unknown>): DiscountPreset {
+  return {
+    id: String(r.id),
+    name: String(r.name),
+    kind: r.kind === "amount" ? "amount" : "percent",
+    pct: Number(r.pct) || 0,
+    amount_cents: Number(r.amount_cents) || 0,
+  };
+}
+
+export function discountToInput(d: { kind: string; pct: number; amount_cents: number; name: string; id?: string }): DiscountInput {
+  return {
+    id: d.id,
+    name: d.name,
+    kind: d.kind === "amount" ? "amount" : "percent",
+    value: d.kind === "amount" ? Number(d.amount_cents) || 0 : Number(d.pct) || 0,
+  };
+}
+
+async function invoiceTotalsByJob(): Promise<Record<string, number>> {
+  const sql = await db();
+  const rows = await sql<{ job_id: string; labor: number; parts: number }[]>`
+    SELECT j.id AS job_id,
+      COALESCE((
+        SELECT SUM(CASE WHEN l.is_flat = 1 THEN l.flat_cents ELSE ROUND(l.hours * l.rate_cents) END)
+        FROM labor_lines l WHERE l.job_id = j.id
+      ), 0) AS labor,
+      COALESCE((SELECT SUM(p.qty * GREATEST(COALESCE(p.price_cents, 0), COALESCE(p.cost_cents, 0))) FROM part_lines p WHERE p.job_id = j.id), 0) AS parts
+    FROM jobs j
+  `;
+  const discRows = await sql`SELECT * FROM job_discounts`;
+  const byJob = new Map<string, DiscountInput[]>();
+  for (const r of discRows) {
+    const d = mapDiscount(r as Record<string, unknown>);
+    const jid = String((r as { job_id?: string }).job_id ?? "");
+    const list = byJob.get(jid) ?? [];
+    list.push(discountToInput(d));
+    byJob.set(jid, list);
+  }
+  const tax = Number((await getSettings().catch(() => ({ parts_tax_rate: 0 }))).parts_tax_rate) || 0;
+  const out: Record<string, number> = {};
+  for (const r of rows) {
+    out[String(r.job_id)] = computeInvoice({
+      laborCents: Number(r.labor),
+      partsCustomerCents: Number(r.parts),
+      partsCostCents: 0,
+      receiptCents: 0,
+      discounts: byJob.get(String(r.job_id)) ?? [],
+      partsTaxRate: tax,
+    }).invoicedTotal;
+  }
+  return out;
 }
 
 async function shopId(): Promise<string> {
@@ -170,11 +239,28 @@ async function shopId(): Promise<string> {
 export async function getSettings(): Promise<Settings> {
   const sql = await db();
   const sid = await shopId().catch(() => bookingShopId());
-  const [s] = await sql<Settings[]>`SELECT shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme FROM settings WHERE shop_id = ${sid} LIMIT 1`;
+  const [s] = await sql<(Settings & { parts_tax_rate?: number })[]>`
+    SELECT shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme, parts_tax_rate
+    FROM settings WHERE shop_id = ${sid} LIMIT 1
+  `;
   const theme = s?.theme === "dark" ? "dark" : "light";
+  const tax = Number(s?.parts_tax_rate ?? 0) || 0;
   return s
-    ? { ...s, theme }
-    : { shop_name: "FieldWrench", labor_rate_cents: 12500, mileage_rate_cents: 76, lead_hours: 24, theme: "light" };
+    ? { ...s, theme, parts_tax_rate: tax }
+    : { shop_name: "FieldWrench", labor_rate_cents: 12500, mileage_rate_cents: 76, lead_hours: 24, theme: "light", parts_tax_rate: 0 };
+}
+
+export async function listDiscountPresets() {
+  const sql = await db();
+  const sid = await shopId();
+  const rows = await sql`SELECT * FROM discount_presets WHERE shop_id = ${sid} ORDER BY name`;
+  return rows.map((r) => mapDiscount(r as Record<string, unknown>));
+}
+
+export async function listJobDiscounts(jobId: string) {
+  const sql = await db();
+  const rows = await sql`SELECT * FROM job_discounts WHERE job_id = ${jobId} ORDER BY name`;
+  return rows.map((r) => ({ ...mapDiscount(r as Record<string, unknown>), job_id: jobId }));
 }
 
 export async function getShopTheme(): Promise<"light" | "dark"> {
@@ -247,17 +333,7 @@ export async function dashboardStats() {
   `;
   const weekProfit = Number(weekRow?.profit ?? 0);
 
-  const unpaidTotals = await sql<{ job_id: string; total: number }[]>`
-    SELECT j.id AS job_id,
-      COALESCE((
-        SELECT SUM(CASE WHEN l.is_flat = 1 THEN l.flat_cents ELSE ROUND(l.hours * l.rate_cents) END)
-        FROM labor_lines l WHERE l.job_id = j.id
-      ), 0)
-      + COALESCE((SELECT SUM(p.qty * GREATEST(COALESCE(p.price_cents, 0), COALESCE(p.cost_cents, 0))) FROM part_lines p WHERE p.job_id = j.id), 0)
-      AS total
-    FROM jobs j
-  `;
-  const totalByJob = Object.fromEntries(unpaidTotals.map((r) => [String(r.job_id), Number(r.total)]));
+  const totalByJob = await invoiceTotalsByJob();
 
   const unpaidWithTotals: Array<{
     id: string;
@@ -464,17 +540,7 @@ export async function homeDashboard() {
     ORDER BY i.created_at DESC
     LIMIT 8
   `;
-  const unpaidTotals = await sql<{ job_id: string; total: number }[]>`
-    SELECT j.id AS job_id,
-      COALESCE((
-        SELECT SUM(CASE WHEN l.is_flat = 1 THEN l.flat_cents ELSE ROUND(l.hours * l.rate_cents) END)
-        FROM labor_lines l WHERE l.job_id = j.id
-      ), 0)
-      + COALESCE((SELECT SUM(p.qty * GREATEST(COALESCE(p.price_cents, 0), COALESCE(p.cost_cents, 0))) FROM part_lines p WHERE p.job_id = j.id), 0)
-      AS total
-    FROM jobs j
-  `;
-  const totalByJob = Object.fromEntries(unpaidTotals.map((r) => [String(r.job_id), Number(r.total)]));
+  const totalByJob = await invoiceTotalsByJob();
   const unpaidRows = unpaid.map((row) => ({
     id: String(row.id),
     job_id: String(row.job_id),
@@ -742,8 +808,17 @@ export async function getJobBundle(jobId: string) {
   const receipts = await sql`
     SELECT * FROM receipts WHERE job_id = ${jobId} ORDER BY date DESC
   `;
-  const profit = profitFor({ labor, parts, receiptCents });
-  return { job, customer: displayCustomer, vehicle: displayVehicle, labor, parts, photos, invoice, receipts, receiptCents, profit };
+  const discountRows = await sql`SELECT * FROM job_discounts WHERE job_id = ${jobId} ORDER BY name`;
+  const discounts = discountRows.map((r) => mapDiscount(r as Record<string, unknown>));
+  const settings = await getSettings().catch(() => ({ parts_tax_rate: 0 }));
+  const profit = profitFor({
+    labor,
+    parts,
+    receiptCents,
+    discounts: discounts.map(discountToInput),
+    partsTaxRate: Number(settings.parts_tax_rate) || 0,
+  });
+  return { job, customer: displayCustomer, vehicle: displayVehicle, labor, parts, photos, invoice, receipts, receiptCents, profit, discounts };
 }
 
 export async function ensureInvoice(jobId: string): Promise<Invoice> {

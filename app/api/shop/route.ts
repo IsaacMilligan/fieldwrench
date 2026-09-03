@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { readSession } from "@/lib/auth";
 import {
   acceptBookingAction,
+  addDiscountPresetAction,
+  addJobDiscountAction,
   addLaborAction,
   addMileageAction,
   addPartAction,
@@ -10,6 +12,8 @@ import {
   createCustomerAction,
   createJobAction,
   createVehicleAction,
+  deleteDiscountPresetAction,
+  deleteJobDiscountAction,
   deleteLaborAction,
   deletePartAction,
   deleteJobAction,
@@ -25,6 +29,7 @@ import {
   saveSettingsAction,
   saveThemeAction,
   setJobStatusAction,
+  updateDiscountPresetAction,
   updateCustomerAction,
   deleteCustomerAction,
   updateJobAction,
@@ -38,6 +43,11 @@ export const dynamic = "force-dynamic";
 const OPS: Record<string, (form: FormData) => Promise<unknown>> = {
   logout: () => logoutAction(),
   save_settings: saveSettingsAction,
+  add_discount_preset: addDiscountPresetAction,
+  update_discount_preset: updateDiscountPresetAction,
+  delete_discount_preset: deleteDiscountPresetAction,
+  add_job_discount: addJobDiscountAction,
+  delete_job_discount: deleteJobDiscountAction,
   save_theme: saveThemeAction,
   reset_demo: resetDemoAction,
   create_customer: createCustomerAction,

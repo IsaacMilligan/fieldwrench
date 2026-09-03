@@ -4,7 +4,7 @@ import { Shell } from "@/components/Shell";
 import { ProfitPanel } from "@/components/ProfitPanel";
 import { StatusBadge } from "@/components/Mark";
 import { requireSession } from "@/lib/auth";
-import { getJobBundle, getShopOilDefault } from "@/lib/db/queries";
+import { getJobBundle, getShopOilDefault, listDiscountPresets } from "@/lib/db/queries";
 import { formatDateTime, money, vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
 import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE } from "@/lib/status";
@@ -22,7 +22,8 @@ export default async function JobDetailPage({
   const { id } = await params;
   const bundle = await getJobBundle(id);
   if (!bundle) notFound();
-  const { job, customer, vehicle, labor, parts, photos, invoice, receipts, profit } = bundle;
+  const { job, customer, vehicle, labor, parts, photos, invoice, receipts, profit, discounts } = bundle;
+  const presets = await listDiscountPresets();
   const scheduled = job.scheduled_at
     ? new Date(job.scheduled_at).toISOString().slice(0, 16)
     : "";
@@ -219,6 +220,63 @@ export default async function JobDetailPage({
           Add part
         </button>
       </form>
+      </details>
+
+      <details className="mt-8" open={(discounts?.length ?? 0) > 0}>
+        <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
+          + Discounts
+        </summary>
+        <ul className="mt-3 space-y-2">
+          {(discounts ?? []).map((d) => (
+            <li key={d.id} className="panel flex items-center justify-between gap-2">
+              <div>
+                <div className="font-bold">{d.name}</div>
+                <div className="text-sm text-muted">
+                  {d.kind === "amount" ? money(d.amount_cents) : `${d.pct}%`} off subtotal
+                </div>
+              </div>
+              <form action="/api/shop" method="post">
+                <input type="hidden" name="_op" value="delete_job_discount" />
+                <input type="hidden" name="id" value={d.id} />
+                <input type="hidden" name="job_id" value={job.id} />
+                <button className="text-xs font-bold uppercase tracking-widest text-red" type="submit">
+                  Remove
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+        {presets.length ? (
+          <div className="mt-3 grid gap-2">
+            {presets.map((p) => (
+              <form key={p.id} action="/api/shop" method="post">
+                <input type="hidden" name="_op" value="add_job_discount" />
+                <input type="hidden" name="job_id" value={job.id} />
+                <input type="hidden" name="preset_id" value={p.id} />
+                <button className="tap tap-ghost" type="submit">
+                  Add {p.name} {p.kind === "amount" ? money(p.amount_cents) : `${p.pct}%`}
+                </button>
+              </form>
+            ))}
+          </div>
+        ) : null}
+        <form action="/api/shop" method="post" className="mt-3 panel">
+          <input type="hidden" name="_op" value="add_job_discount" />
+          <input type="hidden" name="job_id" value={job.id} />
+          <p className="text-sm text-muted">One-off — this job only, not saved to presets.</p>
+          <label className="lbl">Name</label>
+          <input className="field" name="name" placeholder="Neighbor" />
+          <label className="lbl">Type</label>
+          <select className="field" name="kind" defaultValue="percent">
+            <option value="percent">Percent %</option>
+            <option value="amount">Amount $</option>
+          </select>
+          <label className="lbl">Value</label>
+          <input className="field" name="value" inputMode="decimal" placeholder="10 or 20" />
+          <button className="tap mt-3" type="submit">
+            Add this job only
+          </button>
+        </form>
       </details>
 
       <details className="mt-8" open={photos.length > 0}>

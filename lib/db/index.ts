@@ -298,6 +298,27 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS make_label TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS model_label TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS engine_label TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS parts_tax_rate NUMERIC NOT NULL DEFAULT 0`);
+        await sql.unsafe(`
+          CREATE TABLE IF NOT EXISTS discount_presets (
+            id TEXT PRIMARY KEY,
+            shop_id TEXT NOT NULL DEFAULT 'live',
+            name TEXT NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'percent',
+            pct NUMERIC NOT NULL DEFAULT 0,
+            amount_cents INTEGER NOT NULL DEFAULT 0
+          )
+        `);
+        await sql.unsafe(`
+          CREATE TABLE IF NOT EXISTS job_discounts (
+            id TEXT PRIMARY KEY,
+            job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'percent',
+            pct NUMERIC NOT NULL DEFAULT 0,
+            amount_cents INTEGER NOT NULL DEFAULT 0
+          )
+        `);
         await tryAlter(`ALTER TABLE oil_defaults DROP CONSTRAINT IF EXISTS oil_defaults_year_make_key_model_key_engine_key_key`);
         await sql.unsafe(
           `CREATE UNIQUE INDEX IF NOT EXISTS oil_defaults_shop_ymme ON oil_defaults (shop_id, year, make_key, model_key, engine_key)`,

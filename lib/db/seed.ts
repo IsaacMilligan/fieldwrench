@@ -24,6 +24,8 @@ export async function wipeAll(sql: Sql) {
 }
 
 async function wipeDemo(sql: Sql) {
+  await sql`DELETE FROM job_discounts WHERE job_id IN (SELECT id FROM jobs WHERE shop_id = ${DEMO_SHOP_ID})`;
+  await sql`DELETE FROM discount_presets WHERE shop_id = ${DEMO_SHOP_ID}`;
   await sql`DELETE FROM photos WHERE job_id IN (SELECT id FROM jobs WHERE shop_id = ${DEMO_SHOP_ID})`;
   await sql`DELETE FROM labor_lines WHERE job_id IN (SELECT id FROM jobs WHERE shop_id = ${DEMO_SHOP_ID})`;
   await sql`DELETE FROM part_lines WHERE job_id IN (SELECT id FROM jobs WHERE shop_id = ${DEMO_SHOP_ID})`;
