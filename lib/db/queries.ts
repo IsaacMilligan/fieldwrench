@@ -229,7 +229,7 @@ export async function dashboardStats() {
       WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date BETWEEN ${ws}::date AND ${today}::date
     ), 0)
     + COALESCE((
-      SELECT SUM(p.qty * p.price_cents) FROM part_lines p
+      SELECT SUM(p.qty * GREATEST(COALESCE(p.price_cents, 0), COALESCE(p.cost_cents, 0))) FROM part_lines p
       JOIN jobs j ON j.id = p.job_id
       WHERE (j.scheduled_at AT TIME ZONE 'America/Denver')::date BETWEEN ${ws}::date AND ${today}::date
     ), 0)
@@ -253,7 +253,7 @@ export async function dashboardStats() {
         SELECT SUM(CASE WHEN l.is_flat = 1 THEN l.flat_cents ELSE ROUND(l.hours * l.rate_cents) END)
         FROM labor_lines l WHERE l.job_id = j.id
       ), 0)
-      + COALESCE((SELECT SUM(p.qty * p.price_cents) FROM part_lines p WHERE p.job_id = j.id), 0)
+      + COALESCE((SELECT SUM(p.qty * GREATEST(COALESCE(p.price_cents, 0), COALESCE(p.cost_cents, 0))) FROM part_lines p WHERE p.job_id = j.id), 0)
       AS total
     FROM jobs j
   `;
@@ -417,7 +417,7 @@ export async function homeDashboard() {
         WHERE j.shop_id = ${sid} AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
       ), 0)
       + COALESCE((
-        SELECT SUM(p.qty * p.price_cents)
+        SELECT SUM(p.qty * GREATEST(COALESCE(p.price_cents, 0), COALESCE(p.cost_cents, 0)))
         FROM part_lines p JOIN jobs j ON j.id = p.job_id
         WHERE j.shop_id = ${sid} AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
       ), 0)
@@ -428,7 +428,7 @@ export async function homeDashboard() {
         WHERE j.shop_id = ${sid} AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
       ), 0)
       + COALESCE((
-        SELECT SUM(p.qty * p.price_cents)
+        SELECT SUM(p.qty * GREATEST(COALESCE(p.price_cents, 0), COALESCE(p.cost_cents, 0)))
         FROM part_lines p JOIN jobs j ON j.id = p.job_id
         WHERE j.shop_id = ${sid} AND (j.scheduled_at AT TIME ZONE 'America/Denver')::date = ${today}::date
       ), 0)
@@ -470,7 +470,7 @@ export async function homeDashboard() {
         SELECT SUM(CASE WHEN l.is_flat = 1 THEN l.flat_cents ELSE ROUND(l.hours * l.rate_cents) END)
         FROM labor_lines l WHERE l.job_id = j.id
       ), 0)
-      + COALESCE((SELECT SUM(p.qty * p.price_cents) FROM part_lines p WHERE p.job_id = j.id), 0)
+      + COALESCE((SELECT SUM(p.qty * GREATEST(COALESCE(p.price_cents, 0), COALESCE(p.cost_cents, 0))) FROM part_lines p WHERE p.job_id = j.id), 0)
       AS total
     FROM jobs j
   `;

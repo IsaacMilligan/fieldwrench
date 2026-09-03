@@ -214,7 +214,7 @@ export default async function JobDetailPage({
         <label className="lbl">Your cost $</label>
         <input className="field" name="cost" inputMode="decimal" />
         <label className="lbl">Customer price $</label>
-        <input className="field" name="price" inputMode="decimal" />
+        <input className="field" name="price" inputMode="decimal" placeholder="same as cost if blank" />
         <button className="tap mt-4" type="submit">
           Add part
         </button>

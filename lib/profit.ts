@@ -47,8 +47,13 @@ export function partCustomerCents(line: {
   qty: number;
   priceCents?: number;
   price_cents?: number;
+  costCents?: number;
+  cost_cents?: number;
 }): number {
-  return Math.round(line.qty * (line.priceCents ?? line.price_cents ?? 0));
+  const price = Number(line.priceCents ?? line.price_cents ?? 0);
+  const cost = Number(line.costCents ?? line.cost_cents ?? 0);
+  const charged = price > cost ? price : cost;
+  return Math.round(Number(line.qty) * charged);
 }
 
 export function partCostCents(line: {

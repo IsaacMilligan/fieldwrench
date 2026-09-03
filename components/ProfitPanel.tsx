@@ -10,7 +10,7 @@ export function ProfitPanel({ p }: { p: ProfitResult }) {
       </div>
       <div className={`num text-5xl leading-none ${tone}`}>{money(p.profit)}</div>
       <p className="mt-2 text-sm text-muted">
-        Invoiced − parts cost − linked receipts. Labor is revenue, not a cost.
+        Invoiced is labor + parts. Parts bill at cost unless you set a higher price.
       </p>
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
         <div>

@@ -555,9 +555,12 @@ export async function addPartAction(form: FormData) {
   await requireSession();
   const sql = await db();
   const jobId = str(form, "job_id");
+  const cost = parseMoney(str(form, "cost"));
+  const price = parseMoney(str(form, "price"));
+  const sell = price > cost ? price : cost;
   await sql`INSERT INTO part_lines (id, job_id, description, qty, cost_cents, price_cents) VALUES (
     ${crypto.randomUUID()}, ${jobId}, ${str(form, "description") || "Part"},
-    ${parseNumber(str(form, "qty")) || 1}, ${parseMoney(str(form, "cost"))}, ${parseMoney(str(form, "price"))}
+    ${parseNumber(str(form, "qty")) || 1}, ${cost}, ${sell}
   )`;
   revalidatePath(`/jobs/${jobId}`);
 }
