@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { money } from "@/lib/format";
-import { oilChargeCents, oilPerQtCents } from "@/lib/oil-cost";
+import { oilChargeCents, oilPerQtDollars } from "@/lib/oil-cost";
 
 export function OilJugHelper({
   jobId,
@@ -23,11 +23,12 @@ export function OilJugHelper({
   const jugCents = Math.round((Number(jug.replace(/[^0-9.-]/g, "")) || 0) * 100);
   const sizeN = Number(size) || 0;
   const qtN = Number(qt) || 0;
-  const per = oilPerQtCents(jugCents, sizeN);
+  const per = oilPerQtDollars(jugCents, sizeN);
   const total = oilChargeCents(jugCents, sizeN, qtN);
   const preview = useMemo(() => {
-    if (!(per > 0) || !(qtN > 0)) return "";
-    return `${money(per)} / qt × ${qtN} qt = ${money(total)}`;
+    if (!(per > 0) || !(qtN > 0) || !(total > 0)) return "";
+    const perLabel = per.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+    return `about $${perLabel}/qt × ${qtN} qt = ${money(total)}`;
   }, [per, qtN, total]);
 
   return (
@@ -69,7 +70,7 @@ export function OilJugHelper({
         required
       />
       {preview ? <p className="mt-3 num text-2xl text-amber">{preview}</p> : null}
-      <p className="mt-2 text-xs text-muted">$/qt is rounded to the cent, then × quarts.</p>
+      <p className="mt-2 text-xs text-muted">Charge is jug cost × quarts ÷ jug size, rounded once to the cent. Leftover stays shop oil.</p>
       <button className="tap mt-3" type="submit" disabled={!total}>
         Add oil to parts
       </button>

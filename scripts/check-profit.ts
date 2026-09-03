@@ -77,13 +77,14 @@ if (inv.profit !== 11394 - 1139 - 4394) {
 }
 console.log("invoice discounts+tax ok", inv);
 
-const oil = oilChargeCents(3003, 5, 6.9);
-if (oil !== 4147) {
-  console.error("FAIL oil 6.9 from 30.03/5", oil);
+const oilFull = oilChargeCents(2817, 5, 5);
+if (oilFull !== 2817) {
+  console.error("FAIL full jug 28.17", oilFull);
   process.exit(1);
 }
-if (oilChargeCents(3003, 5, 10) === 6006) {
-  console.error("FAIL charged whole extra jugs");
+const oil = oilChargeCents(2817, 5, 6.9);
+if (oil !== Math.round((2817 * 6.9) / 5)) {
+  console.error("FAIL oil 6.9 from 28.17/5", oil);
   process.exit(1);
 }
-console.log("oil jug math ok", oil);
+console.log("oil jug math ok", oilFull, oil);
