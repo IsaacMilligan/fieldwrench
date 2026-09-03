@@ -14,6 +14,7 @@ export function OilSpecCard({
   compact = false,
   next,
   engine,
+  specId,
 }: {
   vehicleId?: string;
   savedQt?: number | null;
@@ -27,6 +28,7 @@ export function OilSpecCard({
   compact?: boolean;
   next?: string;
   engine?: string | null;
+  specId?: string;
 }) {
   if (isElectricEngine(engine)) {
     return (
@@ -96,10 +98,11 @@ export function OilSpecCard({
       ) : (
         <p className="mt-3 text-lg font-bold text-amber">No spec on file</p>
       )}
-      {vehicleId ? (
+      {vehicleId || specId ? (
         <form action="/api/shop" method="post" className="mt-4">
           <input type="hidden" name="_op" value="save_oil_spec" />
-          <input type="hidden" name="id" value={vehicleId} />
+          {vehicleId ? <input type="hidden" name="id" value={vehicleId} /> : null}
+          {specId ? <input type="hidden" name="spec_id" value={specId} /> : null}
           {next ? <input type="hidden" name="next" value={next} /> : null}
           <label className="lbl">Capacity (qt, with filter)</label>
           <input

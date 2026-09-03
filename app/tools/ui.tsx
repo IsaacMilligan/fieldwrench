@@ -10,17 +10,30 @@ type Decode = {
   make?: string;
   model?: string;
   engine?: string;
+  trim?: string;
+  body?: string;
+  drive?: string;
   oil?: {
-    qtWithFilter: number | null;
-    viscosity: string;
-    qtWithoutFilter: number | null;
-    viscosityAlt: string;
-    oilType: string;
+    qtWithFilter?: number | null;
+    viscosity?: string;
+    drainTq?: number | null;
+    socket?: string;
   } | null;
   bev?: boolean;
 };
 
 const NEW_CUSTOMER = "__new__";
+
+function Fact({ label, value }: { label: string; value?: string | null }) {
+  const v = String(value ?? "").trim();
+  if (!v) return null;
+  return (
+    <p className="mt-1 text-sm">
+      <span className="text-muted">{label} </span>
+      {v}
+    </p>
+  );
+}
 
 export function VinTool({
   defaultVin,
@@ -62,6 +75,19 @@ export function VinTool({
     }
   }
 
+  const hiddenSpecs = result && !result.error ? (
+    <>
+      <input type="hidden" name="vin" value={result.vin} />
+      <input type="hidden" name="year" value={result.year ?? ""} />
+      <input type="hidden" name="make" value={result.make ?? ""} />
+      <input type="hidden" name="model" value={result.model ?? ""} />
+      <input type="hidden" name="engine" value={result.engine ?? ""} />
+      <input type="hidden" name="trim" value={result.trim ?? ""} />
+      <input type="hidden" name="body" value={result.body ?? ""} />
+      <input type="hidden" name="drive" value={result.drive ?? ""} />
+    </>
+  ) : null;
+
   return (
     <section className="panel">
       <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
@@ -91,8 +117,11 @@ export function VinTool({
         <div className="mt-4">
           <div className="num text-3xl">
             {result.year} {result.make} {result.model}
-            {result.engine ? ` ${result.engine}` : ""}
           </div>
+          {result.engine ? <p className="mt-1 text-lg">{result.engine}</p> : null}
+          <Fact label="Trim" value={result.trim} />
+          <Fact label="Body" value={result.body} />
+          <Fact label="Drive" value={result.drive} />
           {result.bev || result.engine === "Electric" ? (
             <div className="mt-4 panel">
               <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
@@ -101,14 +130,27 @@ export function VinTool({
               <div className="num mt-3 text-4xl text-amber">N/A</div>
               <p className="mt-2 text-sm text-muted">No engine oil and no drain plug.</p>
             </div>
-          ) : null}
-          <form action="/api/shop" method="post" className="mt-4" onSubmit={onSave}>
+          ) : result.oil && (result.oil.qtWithFilter || result.oil.viscosity || result.oil.drainTq) ? (
+            <p className="mt-3 text-sm text-muted">
+              Saved for this engine
+              {result.oil.qtWithFilter ? ` · ${result.oil.qtWithFilter} qt` : ""}
+              {result.oil.viscosity ? ` ${result.oil.viscosity}` : ""}
+              {result.oil.drainTq ? ` · ${result.oil.drainTq} ft-lb` : ""}
+            </p>
+          ) : (
+            <p className="mt-3 text-sm text-muted">No spec on file</p>
+          )}
+          <form action="/api/shop" method="post" className="mt-4">
+            <input type="hidden" name="_op" value="save_shop_spec" />
+            {hiddenSpecs}
+            <button className="tap" type="submit">
+              Save as shop spec
+            </button>
+            <p className="mt-2 text-sm text-muted">No customer. Oil and torque can be filled on the next screen.</p>
+          </form>
+          <form action="/api/shop" method="post" className="mt-6" onSubmit={onSave}>
             <input type="hidden" name="_op" value="apply_vin" />
-            <input type="hidden" name="vin" value={result.vin} />
-            <input type="hidden" name="year" value={result.year ?? ""} />
-            <input type="hidden" name="make" value={result.make ?? ""} />
-            <input type="hidden" name="model" value={result.model ?? ""} />
-            <input type="hidden" name="engine" value={result.engine ?? ""} />
+            {hiddenSpecs}
             <label className="lbl">Save onto vehicle</label>
             <select
               className="field"
@@ -145,7 +187,7 @@ export function VinTool({
               </>
             ) : null}
             <button className="tap tap-green mt-3" type="submit">
-              Save year/make/model
+              Save onto vehicle
             </button>
           </form>
         </div>

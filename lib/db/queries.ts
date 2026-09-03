@@ -56,6 +56,9 @@ export type Vehicle = {
   oil_saved: boolean;
   oil_drain_tq: number | null;
   oil_socket: string;
+  trim: string;
+  body: string;
+  drive: string;
 };
 
 export type Job = {
@@ -588,41 +591,97 @@ export async function getVehicle(id: string) {
   return { vehicle: v, customer: c, jobs };
 }
 
+export type ShopSpec = {
+  id: string;
+  year: number;
+  make_label: string;
+  model_label: string;
+  engine_label: string;
+  trim: string;
+  body: string;
+  drive: string;
+  vin: string;
+  oil_qt: number | null;
+  oil_viscosity: string;
+  oil_drain_tq: number | null;
+  oil_socket: string;
+};
+
+function asSpec(row: {
+  id: string;
+  year: number;
+  make_label?: string | null;
+  model_label?: string | null;
+  engine_label?: string | null;
+  trim?: string | null;
+  body?: string | null;
+  drive?: string | null;
+  vin?: string | null;
+  oil_qt: number | null;
+  oil_viscosity: string;
+  oil_drain_tq: number | null;
+  oil_socket: string;
+}): ShopSpec {
+  const qt = row.oil_qt != null ? Number(row.oil_qt) : null;
+  const tq = row.oil_drain_tq != null ? Number(row.oil_drain_tq) : null;
+  return {
+    id: String(row.id),
+    year: Number(row.year),
+    make_label: String(row.make_label ?? ""),
+    model_label: String(row.model_label ?? ""),
+    engine_label: String(row.engine_label ?? ""),
+    trim: String(row.trim ?? "").trim(),
+    body: String(row.body ?? "").trim(),
+    drive: String(row.drive ?? "").trim(),
+    vin: String(row.vin ?? "").trim(),
+    oil_qt: qt && qt > 0 ? qt : null,
+    oil_viscosity: String(row.oil_viscosity ?? "").trim(),
+    oil_drain_tq: tq && tq > 0 ? tq : null,
+    oil_socket: String(row.oil_socket ?? "").trim(),
+  };
+}
+
+export async function getShopSpec(q: {
+  year?: number | null;
+  make?: string | null;
+  model?: string | null;
+  engine?: string | null;
+}): Promise<ShopSpec | null> {
+  const key = oilYmmeKey(q.year, q.make, q.model, q.engine);
+  if (!key) return null;
+  const sql = await db();
+  const sid = await shopId();
+  const [row] = await sql<Parameters<typeof asSpec>[0][]>`
+    SELECT id, year, make_label, model_label, engine_label, trim, body, drive, vin,
+      oil_qt, oil_viscosity, oil_drain_tq, oil_socket
+    FROM oil_defaults
+    WHERE shop_id = ${sid} AND year = ${key.year} AND make_key = ${key.make_key}
+      AND model_key = ${key.model_key} AND engine_key = ${key.engine_key}
+    LIMIT 1
+  `;
+  return row ? asSpec(row) : null;
+}
+
+export async function getShopSpecById(id: string): Promise<ShopSpec | null> {
+  const sql = await db();
+  const sid = await shopId();
+  const [row] = await sql<Parameters<typeof asSpec>[0][]>`
+    SELECT id, year, make_label, model_label, engine_label, trim, body, drive, vin,
+      oil_qt, oil_viscosity, oil_drain_tq, oil_socket
+    FROM oil_defaults
+    WHERE id = ${id} AND shop_id = ${sid}
+    LIMIT 1
+  `;
+  return row ? asSpec(row) : null;
+}
+
 export async function getShopOilDefault(q: {
   year?: number | null;
   make?: string | null;
   model?: string | null;
   engine?: string | null;
-}): Promise<{
-  oil_qt: number | null;
-  oil_viscosity: string;
-  oil_drain_tq: number | null;
-  oil_socket: string;
-} | null> {
-  const key = oilYmmeKey(q.year, q.make, q.model, q.engine);
-  if (!key) return null;
-  const sql = await db();
-  const sid = await shopId();
-  const [row] = await sql<
-    { oil_qt: number | null; oil_viscosity: string; oil_drain_tq: number | null; oil_socket: string }[]
-  >`
-    SELECT oil_qt, oil_viscosity, oil_drain_tq, oil_socket FROM oil_defaults
-    WHERE shop_id = ${sid} AND year = ${key.year} AND make_key = ${key.make_key}
-      AND model_key = ${key.model_key} AND engine_key = ${key.engine_key}
-    LIMIT 1
-  `;
-  if (!row) return null;
-  const qt = row.oil_qt != null ? Number(row.oil_qt) : null;
-  const vis = String(row.oil_viscosity ?? "").trim();
-  const tq = row.oil_drain_tq != null ? Number(row.oil_drain_tq) : null;
-  const socket = String(row.oil_socket ?? "").trim();
-  if (!(qt && qt > 0) && !vis && !(tq && tq > 0) && !socket) return null;
-  return {
-    oil_qt: qt && qt > 0 ? qt : null,
-    oil_viscosity: vis,
-    oil_drain_tq: tq && tq > 0 ? tq : null,
-    oil_socket: socket,
-  };
+}): Promise<ShopSpec | null> {
+  return getShopSpec(q);
 }
 
 export async function getJobBundle(jobId: string) {
@@ -665,6 +724,9 @@ export async function getJobBundle(jobId: string) {
           oil_saved: false,
           oil_drain_tq: null,
           oil_socket: "",
+          trim: "",
+          body: "",
+          drive: "",
         }
       : null;
   const laborRaw = await sql`SELECT * FROM labor_lines WHERE job_id = ${jobId}`;

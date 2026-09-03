@@ -236,11 +236,29 @@ export async function updateVehicleAction(form: FormData) {
 export async function saveOilSpecAction(form: FormData) {
   const s = await requireSession();
   const sql = await db();
+  const specId = str(form, "spec_id");
   const id = str(form, "id");
   const qt = parseNumber(str(form, "oil_qt"));
   const vis = str(form, "oil_viscosity");
   const tq = parseNumber(str(form, "oil_drain_tq"));
   const socket = str(form, "oil_socket");
+  if (specId) {
+    const [row] = await sql<{ id: string; engine_label: string }[]>`
+      SELECT id, engine_label FROM oil_defaults WHERE id = ${specId} AND shop_id = ${s.shopId}
+    `;
+    if (!row) redirect("/tools");
+    if (isElectricEngine(row.engine_label)) redirect(`/specs/${specId}`);
+    await sql`UPDATE oil_defaults SET
+      oil_qt = ${qt || null},
+      oil_viscosity = ${vis},
+      oil_drain_tq = ${tq || null},
+      oil_socket = ${socket},
+      updated_at = NOW()
+      WHERE id = ${specId} AND shop_id = ${s.shopId}`;
+    revalidatePath(`/specs/${specId}`);
+    revalidatePath("/tools");
+    redirect(`/specs/${specId}`);
+  }
   if (!id || (!qt && !vis && !tq && !socket)) redirect(`/vehicles/${id || ""}`);
   const [veh] = await sql<{ year: number | null; make: string; model: string; engine: string }[]>`
     SELECT year, make, model, engine FROM vehicles WHERE id = ${id}
@@ -259,14 +277,17 @@ export async function saveOilSpecAction(form: FormData) {
   const key = oilYmmeKey(veh?.year, veh?.make, veh?.model, veh?.engine);
   if (key) {
     await sql`
-      INSERT INTO oil_defaults (id, year, make_key, model_key, engine_key, oil_qt, oil_viscosity, oil_drain_tq, oil_socket, shop_id, updated_at)
-      VALUES (${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${qt || null}, ${vis}, ${tq || null}, ${socket}, ${s.shopId}, NOW())
+      INSERT INTO oil_defaults (id, year, make_key, model_key, engine_key, oil_qt, oil_viscosity, oil_drain_tq, oil_socket, shop_id, make_label, model_label, engine_label, updated_at)
+      VALUES (${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${qt || null}, ${vis}, ${tq || null}, ${socket}, ${s.shopId}, ${veh?.make || ""}, ${veh?.model || ""}, ${veh?.engine || ""}, NOW())
       ON CONFLICT (shop_id, year, make_key, model_key, engine_key)
       DO UPDATE SET
         oil_qt = EXCLUDED.oil_qt,
         oil_viscosity = EXCLUDED.oil_viscosity,
         oil_drain_tq = EXCLUDED.oil_drain_tq,
         oil_socket = EXCLUDED.oil_socket,
+        make_label = EXCLUDED.make_label,
+        model_label = EXCLUDED.model_label,
+        engine_label = EXCLUDED.engine_label,
         updated_at = NOW()
     `;
   }
@@ -275,6 +296,55 @@ export async function saveOilSpecAction(form: FormData) {
   revalidatePath("/jobs");
   const next = str(form, "next") || `/vehicles/${id}`;
   redirect(next);
+}
+
+export async function saveShopSpecAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const year = parseNumber(str(form, "year")) || null;
+  const make = str(form, "make");
+  const model = str(form, "model");
+  let engine = str(form, "engine");
+  if (isElectricEngine(engine)) engine = ELECTRIC_ENGINE;
+  const vin = str(form, "vin").toUpperCase();
+  const trim = str(form, "trim");
+  const body = str(form, "body");
+  const drive = str(form, "drive");
+  const qt = parseNumber(str(form, "oil_qt"));
+  const vis = str(form, "oil_viscosity");
+  const tq = parseNumber(str(form, "oil_drain_tq"));
+  const socket = str(form, "oil_socket");
+  const key = oilYmmeKey(year, make, model, engine);
+  if (!key) redirect("/tools");
+  const [row] = await sql<{ id: string }[]>`
+    INSERT INTO oil_defaults (
+      id, year, make_key, model_key, engine_key, shop_id,
+      make_label, model_label, engine_label, trim, body, drive, vin,
+      oil_qt, oil_viscosity, oil_drain_tq, oil_socket, updated_at
+    ) VALUES (
+      ${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${s.shopId},
+      ${make}, ${model}, ${engine}, ${trim}, ${body}, ${drive}, ${vin},
+      ${qt || null}, ${vis}, ${tq || null}, ${socket}, NOW()
+    )
+    ON CONFLICT (shop_id, year, make_key, model_key, engine_key)
+    DO UPDATE SET
+      make_label = EXCLUDED.make_label,
+      model_label = EXCLUDED.model_label,
+      engine_label = EXCLUDED.engine_label,
+      trim = CASE WHEN EXCLUDED.trim = '' THEN oil_defaults.trim ELSE EXCLUDED.trim END,
+      body = CASE WHEN EXCLUDED.body = '' THEN oil_defaults.body ELSE EXCLUDED.body END,
+      drive = CASE WHEN EXCLUDED.drive = '' THEN oil_defaults.drive ELSE EXCLUDED.drive END,
+      vin = CASE WHEN EXCLUDED.vin = '' THEN oil_defaults.vin ELSE EXCLUDED.vin END,
+      oil_qt = COALESCE(EXCLUDED.oil_qt, oil_defaults.oil_qt),
+      oil_viscosity = CASE WHEN EXCLUDED.oil_viscosity = '' THEN oil_defaults.oil_viscosity ELSE EXCLUDED.oil_viscosity END,
+      oil_drain_tq = COALESCE(EXCLUDED.oil_drain_tq, oil_defaults.oil_drain_tq),
+      oil_socket = CASE WHEN EXCLUDED.oil_socket = '' THEN oil_defaults.oil_socket ELSE EXCLUDED.oil_socket END,
+      updated_at = NOW()
+    RETURNING id
+  `;
+  if (!row?.id) redirect("/tools");
+  revalidatePath("/tools");
+  redirect(`/specs/${row.id}`);
 }
 
 export async function applyVinAction(form: FormData) {
@@ -287,6 +357,9 @@ export async function applyVinAction(form: FormData) {
   let engine = str(form, "engine");
   if (isElectricEngine(engine)) engine = ELECTRIC_ENGINE;
   const vin = str(form, "vin").toUpperCase();
+  const trim = str(form, "trim");
+  const body = str(form, "body");
+  const drive = str(form, "drive");
   const qt = parseNumber(str(form, "oil_qt"));
   const vis = str(form, "oil_viscosity");
 
@@ -301,8 +374,8 @@ export async function applyVinAction(form: FormData) {
     await sql`INSERT INTO customers (id, name, phone, shop_id) VALUES (
       ${customerId}, ${name}, ${phone}, ${s.shopId}
     )`;
-    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, plate, mileage, shop_id) VALUES (
-      ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}, ${plate}, ${mileage}, ${s.shopId}
+    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, plate, mileage, trim, body, drive, shop_id) VALUES (
+      ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}, ${plate}, ${mileage}, ${trim}, ${body}, ${drive}, ${s.shopId}
     )`;
     revalidatePath("/customers");
     revalidatePath("/tools");
@@ -322,6 +395,9 @@ export async function applyVinAction(form: FormData) {
       model = ${model},
       vin = ${vin},
       engine = ${engine},
+      trim = ${trim},
+      body = ${body},
+      drive = ${drive},
       oil_qt = ${qt || null},
       oil_viscosity = ${vis},
       oil_saved = 1
@@ -332,7 +408,10 @@ export async function applyVinAction(form: FormData) {
       make = ${make},
       model = ${model},
       vin = ${vin},
-      engine = ${engine}
+      engine = ${engine},
+      trim = ${trim},
+      body = ${body},
+      drive = ${drive}
       WHERE id = ${id} AND shop_id = ${s.shopId}`;
   }
   revalidatePath(`/vehicles/${id}`);

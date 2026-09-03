@@ -221,6 +221,9 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_saved INTEGER NOT NULL DEFAULT 0`);
         await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_drain_tq NUMERIC`);
         await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS oil_socket TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS trim TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS body TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS drive TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS oil_drain_tq NUMERIC`);
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS oil_socket TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT ''`);
@@ -288,6 +291,13 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE receipts ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'demo'`);
         await sql.unsafe(`ALTER TABLE mileage_trips ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'demo'`);
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'demo'`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS trim TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS body TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS drive TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS vin TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS make_label TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS model_label TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS engine_label TEXT NOT NULL DEFAULT ''`);
         await tryAlter(`ALTER TABLE oil_defaults DROP CONSTRAINT IF EXISTS oil_defaults_year_make_key_model_key_engine_key_key`);
         await sql.unsafe(
           `CREATE UNIQUE INDEX IF NOT EXISTS oil_defaults_shop_ymme ON oil_defaults (shop_id, year, make_key, model_key, engine_key)`,

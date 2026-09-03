@@ -22,14 +22,12 @@ export default async function VehiclePage({
   if (!data) notFound();
   const { vehicle, customer, jobs } = data;
   const saved = Number(vehicle.oil_saved) === 1;
-  const shop = saved
-    ? null
-    : await getShopOilDefault({
-        year: vehicle.year,
-        make: vehicle.make,
-        model: vehicle.model,
-        engine: vehicle.engine,
-      }).catch(() => null);
+  const shop = await getShopOilDefault({
+    year: vehicle.year,
+    make: vehicle.make,
+    model: vehicle.model,
+    engine: vehicle.engine,
+  }).catch(() => null);
   return (
     <Shell title="Vehicle">
       <p className="text-muted">
@@ -41,6 +39,25 @@ export default async function VehiclePage({
       <h1 className="mt-1 font-[family-name:var(--font-display)] text-3xl font-bold uppercase">
         {vehicleLabel(vehicle)}
       </h1>
+      {vehicle.engine ? <p className="mt-1 text-lg">{vehicle.engine}</p> : null}
+      {String(vehicle.trim || shop?.trim || "").trim() ? (
+        <p className="mt-1 text-sm">
+          <span className="text-muted">Trim </span>
+          {String(vehicle.trim || shop?.trim)}
+        </p>
+      ) : null}
+      {String(vehicle.body || shop?.body || "").trim() ? (
+        <p className="mt-1 text-sm">
+          <span className="text-muted">Body </span>
+          {String(vehicle.body || shop?.body)}
+        </p>
+      ) : null}
+      {String(vehicle.drive || shop?.drive || "").trim() ? (
+        <p className="mt-1 text-sm">
+          <span className="text-muted">Drive </span>
+          {String(vehicle.drive || shop?.drive)}
+        </p>
+      ) : null}
       <form action="/api/shop" method="post" className="mt-4">
             <input type="hidden" name="_op" value="update_vehicle" />
         <input type="hidden" name="id" value={vehicle.id} />

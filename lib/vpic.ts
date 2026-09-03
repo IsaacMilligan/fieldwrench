@@ -261,3 +261,57 @@ export async function ymmEngines(year: number, make: string, model: string): Pro
   if (list.includes(ELECTRIC_ENGINE)) return [ELECTRIC_ENGINE];
   return [];
 }
+
+const VPIC_JUNK = /^(not applicable|n\/a|na|none|unknown|null|-|0)$/i;
+
+export function cleanVpic(raw: unknown): string {
+  const s = String(raw ?? "").replace(/\s+/g, " ").trim();
+  if (!s || VPIC_JUNK.test(s)) return "";
+  return s;
+}
+
+export function formatVpicEngine(row: Record<string, string | undefined>, bev: boolean): string {
+  if (bev) return ELECTRIC_ENGINE;
+  const rawL = cleanVpic(row.DisplacementL);
+  const disp = rawL ? (/l$/i.test(rawL) ? rawL : `${rawL}L`) : "";
+  const cyl = cleanVpic(row.EngineCylinders);
+  const cfg = cleanVpic(row.EngineConfiguration);
+  let layout = "";
+  if (cyl) {
+    if (/v[- ]?shaped|^v$/i.test(cfg)) layout = `V${cyl}`;
+    else if (/in[- ]?line|straight/i.test(cfg)) layout = `I${cyl}`;
+    else if (/flat|horiz|boxer/i.test(cfg)) layout = `H${cyl}`;
+    else layout = `${cyl}-cyl`;
+  }
+  const fuelRaw = cleanVpic(row.FuelTypePrimary);
+  let fuel = "";
+  if (fuelRaw) {
+    if (/diesel/i.test(fuelRaw)) fuel = "diesel";
+    else if (/gasoline|petrol/i.test(fuelRaw)) fuel = "gasoline";
+    else if (/flex/i.test(fuelRaw)) fuel = "flex-fuel";
+    else if (!/^electric/i.test(fuelRaw)) fuel = fuelRaw.toLowerCase();
+  }
+  return [disp, layout, fuel].filter(Boolean).join(" ");
+}
+
+export function formatVpicTrim(row: Record<string, string | undefined>): string {
+  return cleanVpic(row.Trim) || cleanVpic(row.Series) || cleanVpic(row.Trim2);
+}
+
+export function formatVpicBody(row: Record<string, string | undefined>): string {
+  const body = cleanVpic(row.BodyClass);
+  const cab = cleanVpic(row.CabType);
+  if (body && cab) return `${body}, ${cab}`;
+  return body || cab;
+}
+
+export function formatVpicDrive(row: Record<string, string | undefined>): string {
+  const s = cleanVpic(row.DriveType);
+  if (!s) return "";
+  if (/awd|all[- ]wheel/i.test(s)) return "AWD";
+  if (/4x4|4wd|4-wheel/i.test(s)) return "4WD";
+  if (/rwd|rear[- ]wheel/i.test(s)) return "RWD";
+  if (/fwd|front[- ]wheel/i.test(s)) return "FWD";
+  if (/4x2/i.test(s)) return "4x2";
+  return s;
+}

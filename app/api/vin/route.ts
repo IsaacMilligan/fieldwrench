@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { readSession } from "@/lib/auth";
+import { getShopSpec } from "@/lib/db/queries";
 import { vinOk } from "@/lib/format";
-import { ELECTRIC_ENGINE, isVpicBev } from "@/lib/vpic";
+import {
+  formatVpicBody,
+  formatVpicDrive,
+  formatVpicEngine,
+  formatVpicTrim,
+  isVpicBev,
+} from "@/lib/vpic";
 
 export async function POST(req: Request) {
   const session = await readSession();
@@ -32,13 +39,30 @@ export async function POST(req: Request) {
     });
   }
   const bev = isVpicBev(row);
-  const displacement = String(row.DisplacementL ?? "").trim();
-  const engine = bev
-    ? ELECTRIC_ENGINE
-    : displacement
-      ? displacement.toUpperCase().endsWith("L")
-        ? displacement
-        : `${displacement}L`
-      : "";
-  return NextResponse.json({ vin, year, make, model, engine, oil: null, bev });
+  const engine = formatVpicEngine(row, bev);
+  const trim = formatVpicTrim(row);
+  const bodyClass = formatVpicBody(row);
+  const drive = formatVpicDrive(row);
+  const spec = await getShopSpec({ year, make, model, engine }).catch(() => null);
+  const oil =
+    spec && (spec.oil_qt || spec.oil_viscosity || spec.oil_drain_tq || spec.oil_socket)
+      ? {
+          qtWithFilter: spec.oil_qt,
+          viscosity: spec.oil_viscosity,
+          drainTq: spec.oil_drain_tq,
+          socket: spec.oil_socket,
+        }
+      : null;
+  return NextResponse.json({
+    vin,
+    year,
+    make,
+    model,
+    engine,
+    trim: trim || spec?.trim || "",
+    body: bodyClass || spec?.body || "",
+    drive: drive || spec?.drive || "",
+    oil,
+    bev,
+  });
 }
