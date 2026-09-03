@@ -1,5 +1,6 @@
 import { computeProfit, partCustomerCents } from "../lib/profit";
 import { computeInvoice } from "../lib/invoice";
+import { oilChargeCents } from "../lib/oil-cost";
 
 const p = computeProfit({
   laborCents: 31250,
@@ -75,3 +76,14 @@ if (inv.profit !== 11394 - 1139 - 4394) {
   process.exit(1);
 }
 console.log("invoice discounts+tax ok", inv);
+
+const oil = oilChargeCents(3003, 5, 6.9);
+if (oil !== 4147) {
+  console.error("FAIL oil 6.9 from 30.03/5", oil);
+  process.exit(1);
+}
+if (oilChargeCents(3003, 5, 10) === 6006) {
+  console.error("FAIL charged whole extra jugs");
+  process.exit(1);
+}
+console.log("oil jug math ok", oil);

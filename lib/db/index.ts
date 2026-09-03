@@ -299,6 +299,8 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS model_label TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS engine_label TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS parts_tax_rate NUMERIC NOT NULL DEFAULT 0`);
+        await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS oil_jug_qt NUMERIC NOT NULL DEFAULT 5`);
+        await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS oil_jug_cents INTEGER NOT NULL DEFAULT 0`);
         await sql.unsafe(`
           CREATE TABLE IF NOT EXISTS discount_presets (
             id TEXT PRIMARY KEY,

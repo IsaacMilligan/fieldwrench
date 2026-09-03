@@ -113,6 +113,8 @@ export type Settings = {
   lead_hours: number;
   theme: "light" | "dark";
   parts_tax_rate: number;
+  oil_jug_qt: number;
+  oil_jug_cents: number;
 };
 
 export type DiscountPreset = {
@@ -240,14 +242,25 @@ export async function getSettings(): Promise<Settings> {
   const sql = await db();
   const sid = await shopId().catch(() => bookingShopId());
   const [s] = await sql<(Settings & { parts_tax_rate?: number })[]>`
-    SELECT shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme, parts_tax_rate
+    SELECT shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme, parts_tax_rate, oil_jug_qt, oil_jug_cents
     FROM settings WHERE shop_id = ${sid} LIMIT 1
   `;
   const theme = s?.theme === "dark" ? "dark" : "light";
   const tax = Number(s?.parts_tax_rate ?? 0) || 0;
+  const oilJugQt = Number(s?.oil_jug_qt ?? 5) || 5;
+  const oilJugCents = Math.round(Number(s?.oil_jug_cents ?? 0) || 0);
   return s
-    ? { ...s, theme, parts_tax_rate: tax }
-    : { shop_name: "FieldWrench", labor_rate_cents: 12500, mileage_rate_cents: 76, lead_hours: 24, theme: "light", parts_tax_rate: 0 };
+    ? { ...s, theme, parts_tax_rate: tax, oil_jug_qt: oilJugQt, oil_jug_cents: oilJugCents }
+    : {
+        shop_name: "FieldWrench",
+        labor_rate_cents: 12500,
+        mileage_rate_cents: 76,
+        lead_hours: 24,
+        theme: "light",
+        parts_tax_rate: 0,
+        oil_jug_qt: 5,
+        oil_jug_cents: 0,
+      };
 }
 
 export async function listDiscountPresets() {

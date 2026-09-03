@@ -14,6 +14,7 @@ import { JOB_STATUSES, PAY_METHODS } from "./status";
 import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "./services";
 import { ELECTRIC_ENGINE, isElectricEngine } from "./vpic";
 import { oilYmmeKey } from "./oil-specs";
+import { oilChargeCents } from "./oil-cost";
 
 function str(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -72,7 +73,9 @@ export async function saveSettingsAction(form: FormData) {
   const mileageCents = Math.round(miles);
   const lead = Math.min(168, Math.max(0, Math.round(parseNumber(str(form, "lead_hours")))));
   const tax = Math.max(0, parseNumber(str(form, "parts_tax_rate")));
-  await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead}, parts_tax_rate = ${tax} WHERE shop_id = ${s.shopId}`;
+  const oilJugQt = parseNumber(str(form, "oil_jug_qt")) || 5;
+  const oilJugCents = parseMoney(str(form, "oil_jug_cost"));
+  await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead}, parts_tax_rate = ${tax}, oil_jug_qt = ${oilJugQt}, oil_jug_cents = ${oilJugCents} WHERE shop_id = ${s.shopId}`;
   revalidatePath("/");
   revalidatePath("/book");
   redirect("/more?tab=settings");
@@ -638,6 +641,27 @@ export async function addPartAction(form: FormData) {
     ${parseNumber(str(form, "qty")) || 1}, ${cost}, ${sell}
   )`;
   revalidatePath(`/jobs/${jobId}`);
+}
+
+export async function addOilPartAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const jobId = str(form, "job_id");
+  const jugQt = parseNumber(str(form, "jug_qt")) || 5;
+  const jugCents = parseMoney(str(form, "jug_cost"));
+  const quarts = parseNumber(str(form, "quarts"));
+  const vis = str(form, "viscosity");
+  const cents = oilChargeCents(jugCents, jugQt, quarts);
+  if (!jobId || !cents || !(quarts > 0)) redirect(jobId ? `/jobs/${jobId}` : "/jobs");
+  const qtLabel = String(quarts);
+  const desc = vis ? `Engine oil ${qtLabel} qt ${vis}` : `Engine oil ${qtLabel} qt`;
+  await sql`INSERT INTO part_lines (id, job_id, description, qty, cost_cents, price_cents) VALUES (
+    ${crypto.randomUUID()}, ${jobId}, ${desc}, 1, ${cents}, ${cents}
+  )`;
+  await sql`UPDATE settings SET oil_jug_qt = ${jugQt}, oil_jug_cents = ${jugCents} WHERE shop_id = ${s.shopId}`;
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath("/more");
+  redirect(`/jobs/${jobId}`);
 }
 
 export async function deletePartAction(form: FormData) {

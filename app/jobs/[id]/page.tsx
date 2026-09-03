@@ -4,12 +4,14 @@ import { Shell } from "@/components/Shell";
 import { ProfitPanel } from "@/components/ProfitPanel";
 import { StatusBadge } from "@/components/Mark";
 import { requireSession } from "@/lib/auth";
-import { getJobBundle, getShopOilDefault, listDiscountPresets } from "@/lib/db/queries";
+import { getJobBundle, getSettings, getShopOilDefault, listDiscountPresets } from "@/lib/db/queries";
 import { formatDateTime, money, vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
 import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { laborLineCents, partCostCents, partCustomerCents } from "@/lib/profit";
 import { JobDangerActions } from "../JobDangerActions";
+import { OilJugHelper } from "../OilJugHelper";
+import { isElectricEngine } from "@/lib/vpic";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,7 @@ export default async function JobDetailPage({
   if (!bundle) notFound();
   const { job, customer, vehicle, labor, parts, photos, invoice, receipts, profit, discounts } = bundle;
   const presets = await listDiscountPresets();
+  const settings = await getSettings().catch(() => ({ oil_jug_qt: 5, oil_jug_cents: 0 }));
   const scheduled = job.scheduled_at
     ? new Date(job.scheduled_at).toISOString().slice(0, 16)
     : "";
@@ -220,6 +223,27 @@ export default async function JobDetailPage({
           Add part
         </button>
       </form>
+      {vehicle?.id && !isElectricEngine(vehicle.engine) ? (
+        <OilJugHelper
+          jobId={job.id}
+          jugCostDollars={
+            Number(settings.oil_jug_cents) > 0 ? (Number(settings.oil_jug_cents) / 100).toFixed(2) : ""
+          }
+          jugQt={Number(settings.oil_jug_qt) || 5}
+          quarts={
+            saved
+              ? Number(vehicle.oil_qt) || null
+              : shop?.oil_qt && Number(shop.oil_qt) > 0
+                ? Number(shop.oil_qt)
+                : null
+          }
+          viscosity={
+            saved
+              ? String(vehicle.oil_viscosity ?? "")
+              : String(shop?.oil_viscosity ?? "")
+          }
+        />
+      ) : null}
       </details>
 
       <details className="mt-8" open={(discounts?.length ?? 0) > 0}>
