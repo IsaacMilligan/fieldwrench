@@ -1,3 +1,5 @@
+import { money } from "./format";
+
 export const CATALOG_CATEGORIES = ["Part", "Oil", "Shop"] as const;
 export type CatalogCategory = (typeof CATALOG_CATEGORIES)[number];
 
@@ -37,4 +39,19 @@ export function mapCatalogRow(row: Record<string, unknown>): CatalogItem {
     jug_qt: Number(row.jug_qt) || 5,
     jug_cents: Math.round(Number(row.jug_cents) || 0),
   };
+}
+
+export function catalogInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
+export function catalogListPriceLabel(item: CatalogItem): string {
+  if (isOilCategory(item.category)) {
+    return item.jug_cents > 0 ? `${money(item.jug_cents)}/jug` : "—";
+  }
+  const charged = item.price_cents > item.cost_cents ? item.price_cents : item.cost_cents;
+  return charged > 0 ? money(charged) : "—";
 }

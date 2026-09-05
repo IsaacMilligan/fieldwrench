@@ -6,6 +6,7 @@ import { denverDateISO, formatDate, money } from "@/lib/format";
 import { LeadHoursField } from "./LeadHoursField";
 import { ThemeToggle } from "./ThemeToggle";
 import { ReceiptScanForm } from "./ReceiptScanForm";
+import { CatalogList } from "./CatalogList";
 
 export const dynamic = "force-dynamic";
 
@@ -154,75 +155,9 @@ export default async function MorePage({
           <p className="mt-2 text-sm text-muted">
             Search these on the job. Blank customer price bills at cost. Oil items use jug size and jug cost — leftover oil stays shop inventory.
           </p>
-          <ul className="mt-3 space-y-3">
-            {catalog.map((item) => (
-              <li key={item.id} className="border-t border-line pt-3">
-                <form action="/api/shop" method="post" className="space-y-2">
-                  <input type="hidden" name="_op" value="update_catalog_item" />
-                  <input type="hidden" name="id" value={item.id} />
-                  <label className="lbl">Name</label>
-                  <input className="field" name="name" defaultValue={item.name} />
-                  <label className="lbl">Category</label>
-                  <select className="field" name="category" defaultValue={item.category}>
-                    <option value="Part">Part</option>
-                    <option value="Oil">Oil</option>
-                    <option value="Shop">Shop</option>
-                  </select>
-                  <label className="lbl">Your cost $</label>
-                  <input
-                    className="field"
-                    name="cost"
-                    inputMode="decimal"
-                    defaultValue={item.cost_cents > 0 ? (item.cost_cents / 100).toFixed(2) : ""}
-                  />
-                  <label className="lbl">Customer price $</label>
-                  <input
-                    className="field"
-                    name="price"
-                    inputMode="decimal"
-                    defaultValue={item.price_cents > 0 && item.price_cents > item.cost_cents ? (item.price_cents / 100).toFixed(2) : ""}
-                    placeholder="same as cost if blank"
-                  />
-                  <label className="lbl">Jug size (qt)</label>
-                  <input className="field" name="jug_qt" inputMode="decimal" defaultValue={String(item.jug_qt || 5)} />
-                  <label className="lbl">Jug cost $</label>
-                  <input
-                    className="field"
-                    name="jug_cost"
-                    inputMode="decimal"
-                    defaultValue={item.jug_cents > 0 ? (item.jug_cents / 100).toFixed(2) : ""}
-                    placeholder="Oil items"
-                  />
-                  <button className="tap" type="submit">Save item</button>
-                </form>
-                <form action="/api/shop" method="post" className="mt-2">
-                  <input type="hidden" name="_op" value="delete_catalog_item" />
-                  <input type="hidden" name="id" value={item.id} />
-                  <button className="tap tap-red" type="submit">Delete item</button>
-                </form>
-              </li>
-            ))}
-          </ul>
-          <form action="/api/shop" method="post" className="mt-4">
-            <input type="hidden" name="_op" value="add_catalog_item" />
-            <label className="lbl">New item name</label>
-            <input className="field" name="name" placeholder="Cabin filter" required />
-            <label className="lbl">Category</label>
-            <select className="field" name="category" defaultValue="Part">
-              <option value="Part">Part</option>
-              <option value="Oil">Oil</option>
-              <option value="Shop">Shop</option>
-            </select>
-            <label className="lbl">Your cost $</label>
-            <input className="field" name="cost" inputMode="decimal" />
-            <label className="lbl">Customer price $</label>
-            <input className="field" name="price" inputMode="decimal" placeholder="same as cost if blank" />
-            <label className="lbl">Jug size (qt)</label>
-            <input className="field" name="jug_qt" inputMode="decimal" defaultValue="5" />
-            <label className="lbl">Jug cost $</label>
-            <input className="field" name="jug_cost" inputMode="decimal" placeholder="Oil items" />
-            <button className="tap mt-3" type="submit">Add item</button>
-          </form>
+          <div className="mt-3">
+            <CatalogList items={catalog} />
+          </div>
         </section>
         <section className="panel mt-6">
           <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">

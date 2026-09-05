@@ -285,6 +285,13 @@ export async function listCatalogItems(): Promise<CatalogItem[]> {
   return rows.map((r) => mapCatalogRow(r as Record<string, unknown>));
 }
 
+export async function getCatalogItem(id: string): Promise<CatalogItem | null> {
+  const sql = await db();
+  const sid = await shopId();
+  const [row] = await sql`SELECT * FROM catalog_items WHERE id = ${id} AND shop_id = ${sid}`;
+  return row ? mapCatalogRow(row as Record<string, unknown>) : null;
+}
+
 export async function listJobDiscounts(jobId: string) {
   const sql = await db();
   const rows = await sql`SELECT * FROM job_discounts WHERE job_id = ${jobId} ORDER BY name`;
