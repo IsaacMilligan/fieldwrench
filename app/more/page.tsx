@@ -3,6 +3,7 @@ import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
 import { getSettings, listCatalogItems, listDiscountPresets, listReceipts, listMileage, listJobsLite } from "@/lib/db/queries";
 import { denverDateISO, formatDate, money } from "@/lib/format";
+import { WEEKDAY_NAMES } from "@/lib/schedule";
 import { LeadHoursField } from "./LeadHoursField";
 import { ThemeToggle } from "./ThemeToggle";
 import { ReceiptScanForm } from "./ReceiptScanForm";
@@ -120,6 +121,49 @@ export default async function MorePage({
             Default is the current IRS business rate (76¢ from July 1, 2026). You can edit it.
           </p>
           <LeadHoursField value={Number(s.lead_hours ?? 24)} />
+          <label className="lbl">Home base</label>
+          <input className="field" name="home_base" defaultValue={s.home_base} />
+          <label className="lbl">Service area (miles)</label>
+          <input
+            className="field"
+            name="service_radius_mi"
+            inputMode="decimal"
+            defaultValue={String(s.service_radius_mi || 12)}
+          />
+          <label className="lbl">Minutes between jobs</label>
+          <input
+            className="field"
+            name="job_buffer_min"
+            inputMode="numeric"
+            defaultValue={String(s.job_buffer_min || 45)}
+          />
+          <p className="mt-2 text-xs text-muted">
+            Driveway buffer so a day doesn’t overfill. Exact clock time is still confirmed when you reply.
+          </p>
+          <p className="lbl mt-4">Shop hours</p>
+          <ul className="mt-2 space-y-2">
+            {WEEKDAY_NAMES.map((day, i) => {
+              const h = s.hours[i] ?? { open: i !== 0, start: "08:00", end: "17:00" };
+              return (
+                <li key={day} className="border-b border-line py-2">
+                  <label className="flex min-h-11 items-center gap-3 font-bold">
+                    <input
+                      type="checkbox"
+                      name={`hours_${i}_open`}
+                      value="1"
+                      defaultChecked={h.open}
+                      className="h-6 w-6"
+                    />
+                    {day}
+                  </label>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <input className="field" type="time" name={`hours_${i}_start`} defaultValue={h.start} />
+                    <input className="field" type="time" name={`hours_${i}_end`} defaultValue={h.end} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
           <label className="lbl">Parts tax rate %</label>
           <input
             className="field"

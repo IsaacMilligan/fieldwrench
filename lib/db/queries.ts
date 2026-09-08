@@ -10,6 +10,14 @@ import { computeInvoice, type DiscountInput, type InvoiceMath } from "../invoice
 import type { JobStatus, PayMethod } from "../status";
 import { bookingShopId, readSession } from "../auth";
 import { DEFAULT_CATALOG, mapCatalogRow, type CatalogItem } from "../catalog";
+import {
+  DEFAULT_BUFFER_MIN,
+  DEFAULT_HOME_BASE,
+  DEFAULT_HOURS,
+  DEFAULT_RADIUS_MI,
+  parseHours,
+  type DayHours,
+} from "../schedule";
 
 export async function db() {
   await ensureReady();
@@ -116,6 +124,12 @@ export type Settings = {
   parts_tax_rate: number;
   oil_jug_qt: number;
   oil_jug_cents: number;
+  home_base: string;
+  home_lat: number | null;
+  home_lng: number | null;
+  service_radius_mi: number;
+  job_buffer_min: number;
+  hours: DayHours[];
 };
 
 export type DiscountPreset = {
@@ -242,26 +256,78 @@ async function shopId(): Promise<string> {
 export async function getSettings(): Promise<Settings> {
   const sql = await db();
   const sid = await shopId().catch(() => bookingShopId());
-  const [s] = await sql<(Settings & { parts_tax_rate?: number })[]>`
-    SELECT shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme, parts_tax_rate, oil_jug_qt, oil_jug_cents
+  const [s] = await sql<
+    (Settings & {
+      parts_tax_rate?: number;
+      hours_json?: string;
+    })[]
+  >`
+    SELECT shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme, parts_tax_rate, oil_jug_qt, oil_jug_cents,
+      home_base, home_lat, home_lng, service_radius_mi, job_buffer_min, hours_json
     FROM settings WHERE shop_id = ${sid} LIMIT 1
   `;
   const theme = s?.theme === "dark" ? "dark" : "light";
   const tax = Number(s?.parts_tax_rate ?? 0) || 0;
   const oilJugQt = Number(s?.oil_jug_qt ?? 5) || 5;
   const oilJugCents = Math.round(Number(s?.oil_jug_cents ?? 0) || 0);
-  return s
-    ? { ...s, theme, parts_tax_rate: tax, oil_jug_qt: oilJugQt, oil_jug_cents: oilJugCents }
-    : {
-        shop_name: "FieldWrench",
-        labor_rate_cents: 12500,
-        mileage_rate_cents: 76,
-        lead_hours: 24,
-        theme: "light",
-        parts_tax_rate: 0,
-        oil_jug_qt: 5,
-        oil_jug_cents: 0,
-      };
+  const fallback: Settings = {
+    shop_name: "FieldWrench",
+    labor_rate_cents: 12500,
+    mileage_rate_cents: 76,
+    lead_hours: 24,
+    theme: "light",
+    parts_tax_rate: 0,
+    oil_jug_qt: 5,
+    oil_jug_cents: 0,
+    home_base: DEFAULT_HOME_BASE,
+    home_lat: null,
+    home_lng: null,
+    service_radius_mi: DEFAULT_RADIUS_MI,
+    job_buffer_min: DEFAULT_BUFFER_MIN,
+    hours: DEFAULT_HOURS,
+  };
+  if (!s) return fallback;
+  const lat = s.home_lat == null ? null : Number(s.home_lat);
+  const lng = s.home_lng == null ? null : Number(s.home_lng);
+  return {
+    ...s,
+    theme,
+    parts_tax_rate: tax,
+    oil_jug_qt: oilJugQt,
+    oil_jug_cents: oilJugCents,
+    home_base: String(s.home_base || DEFAULT_HOME_BASE),
+    home_lat: lat != null && Number.isFinite(lat) ? lat : null,
+    home_lng: lng != null && Number.isFinite(lng) ? lng : null,
+    service_radius_mi: Number(s.service_radius_mi) > 0 ? Number(s.service_radius_mi) : DEFAULT_RADIUS_MI,
+    job_buffer_min: Math.max(0, Math.round(Number(s.job_buffer_min ?? DEFAULT_BUFFER_MIN) || DEFAULT_BUFFER_MIN)),
+    hours: parseHours(s.hours_json),
+  };
+}
+
+export async function listDayLoads(fromISO: string): Promise<Map<string, number>> {
+  const sql = await db();
+  const sid = await shopId().catch(() => bookingShopId());
+  const rows = await sql<{ day: string; n: number }[]>`
+    SELECT day, SUM(n)::int AS n FROM (
+      SELECT to_char(j.scheduled_at AT TIME ZONE 'America/Denver', 'YYYY-MM-DD') AS day, 1 AS n
+      FROM jobs j
+      WHERE j.shop_id = ${sid}
+        AND j.status <> 'cancelled'
+        AND j.scheduled_at IS NOT NULL
+        AND to_char(j.scheduled_at AT TIME ZONE 'America/Denver', 'YYYY-MM-DD') >= ${fromISO}
+      UNION ALL
+      SELECT to_char(b.preferred_date, 'YYYY-MM-DD') AS day, 1 AS n
+      FROM bookings b
+      WHERE b.shop_id = ${sid}
+        AND b.status = 'pending'
+        AND b.preferred_date IS NOT NULL
+        AND b.preferred_date >= ${fromISO}::date
+    ) x
+    GROUP BY day
+  `;
+  const m = new Map<string, number>();
+  for (const r of rows) m.set(String(r.day), Number(r.n) || 0);
+  return m;
 }
 
 export async function listDiscountPresets() {

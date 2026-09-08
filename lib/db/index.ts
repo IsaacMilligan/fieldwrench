@@ -301,6 +301,12 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS parts_tax_rate NUMERIC NOT NULL DEFAULT 0`);
         await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS oil_jug_qt NUMERIC NOT NULL DEFAULT 5`);
         await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS oil_jug_cents INTEGER NOT NULL DEFAULT 0`);
+        await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS home_base TEXT NOT NULL DEFAULT '9399 Spring Run Pkwy, Eagle Mountain, UT 84005'`);
+        await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS home_lat NUMERIC`);
+        await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS home_lng NUMERIC`);
+        await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS service_radius_mi NUMERIC NOT NULL DEFAULT 12`);
+        await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS job_buffer_min INTEGER NOT NULL DEFAULT 45`);
+        await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS hours_json TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`
           CREATE TABLE IF NOT EXISTS discount_presets (
             id TEXT PRIMARY KEY,

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Mark } from "@/components/Mark";
 import { getCustomerUser } from "@/lib/supabase/server";
 import { listBookingsByEmail, listCustomerGarage } from "@/lib/db/queries";
-import { denverDateISO, formatDate, preferredDateLabel, vehicleLabel } from "@/lib/format";
+import { denverDateISO, formatDate, preferredDateLabel, preferredWindowLabel, vehicleLabel } from "@/lib/format";
 import { CustomerSignOut } from "./signout";
 import {
   formatServiceList,
@@ -64,6 +64,7 @@ export default async function CustomerHome() {
                 {notes ? <p className="mt-1 text-sm">{notes}</p> : null}
                 <div className="mt-1 text-sm text-muted">
                   Preferred date: {preferredDateLabel(b.preferred_date ?? b.preferred_time)}
+                  {preferredWindowLabel(b.preferred_time) ? ` · ${preferredWindowLabel(b.preferred_time)}` : ""}
                 </div>
               </li>
             );

@@ -40,6 +40,14 @@ export function earliestBookDateISO(leadHours: number, now = new Date()): string
   return denverDateISO(new Date(now.getTime() + hours * 60 * 60 * 1000));
 }
 
+export function preferredWindowLabel(raw: unknown): string {
+  const s = String(raw ?? "").toLowerCase();
+  if (s === "morning") return "Morning";
+  if (s === "afternoon") return "Afternoon";
+  if (s === "either") return "Either";
+  return "";
+}
+
 export function preferredDateLabel(raw: unknown): string {
   if (raw == null || raw === "") return "not set";
   let y: number | null = null;

@@ -1,15 +1,20 @@
 import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
-import { listBookings } from "@/lib/db/queries";
-import { formatDateTime, formatPhone, preferredDateLabel } from "@/lib/format";
+import { getSettings, listBookings, listDayLoads } from "@/lib/db/queries";
+import { formatDateTime, formatPhone, preferredDateLabel, preferredWindowLabel } from "@/lib/format";
 import { formatServiceList, parseServiceIds } from "@/lib/services";
+import { isShopOpenOn, maxJobsOnDay, parseHours } from "@/lib/schedule";
 
 export const dynamic = "force-dynamic";
 
 export default async function BookingsPage() {
   await requireSession();
   const rows = await listBookings();
+  const settings = await getSettings().catch(() => null);
+  const hours = parseHours(settings?.hours);
+  const buffer = Number(settings?.job_buffer_min) || 45;
+  const loads = await listDayLoads("2000-01-01").catch(() => new Map<string, number>());
   const pending = rows.filter((b) => String(b.status) === "pending");
   const dismissed = rows.filter((b) => String(b.status) === "dismissed");
   const rest = rows.filter((b) => String(b.status) !== "pending" && String(b.status) !== "dismissed");
@@ -18,6 +23,16 @@ export default async function BookingsPage() {
     const ids = parseServiceIds(b.services);
     const services = ids.length ? formatServiceList(ids) : String(b.issue ?? "");
     const notes = String(b.notes ?? "");
+    const dateIso = b.preferred_date ? String(b.preferred_date).slice(0, 10) : "";
+    const window = preferredWindowLabel(b.preferred_time);
+    let conflict = "";
+    if (b.status === "pending" && dateIso) {
+      if (!isShopOpenOn(hours, dateIso)) conflict = "Shop is closed that day.";
+      else {
+        const cap = maxJobsOnDay(hours, dateIso, buffer);
+        if ((loads.get(dateIso) ?? 0) >= cap) conflict = "That day is already full.";
+      }
+    }
     return (
       <li key={String(b.id)} className="panel">
         <div className="flex justify-between gap-3">
@@ -43,8 +58,10 @@ export default async function BookingsPage() {
         <p className="mt-2 text-base font-bold text-amber">{services || "—"}</p>
         {notes ? <p className="mt-1 text-sm">{notes}</p> : null}
         <div className="mt-2 text-sm text-steel">
-          Preferred date: {preferredDateLabel(b.preferred_date ?? b.preferred_time)} · {formatDateTime(b.created_at as string)}
+          Preferred date: {preferredDateLabel(b.preferred_date ?? b.preferred_time)}
+          {window ? ` · ${window}` : ""} · {formatDateTime(b.created_at as string)}
         </div>
+        {conflict ? <p className="mt-2 text-sm font-bold text-amber">{conflict} Accept anyway if you want.</p> : null}
         {b.status === "pending" ? (
           <div className="mt-4 grid grid-cols-2 gap-2">
             <form action="/api/shop" method="post">

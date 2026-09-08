@@ -16,6 +16,15 @@ import { ELECTRIC_ENGINE, isElectricEngine } from "./vpic";
 import { oilYmmeKey } from "./oil-specs";
 import { oilChargeCents } from "./oil-cost";
 import { catalogCategory } from "./catalog";
+import { geocodeAddress } from "./geocode";
+import {
+  DEFAULT_BUFFER_MIN,
+  DEFAULT_HOME_BASE,
+  DEFAULT_HOURS,
+  DEFAULT_RADIUS_MI,
+  parseHours,
+  windowHour,
+} from "./schedule";
 
 function str(form: FormData, key: string) {
   return String(form.get(key) ?? "").trim();
@@ -76,9 +85,22 @@ export async function saveSettingsAction(form: FormData) {
   const tax = Math.max(0, parseNumber(str(form, "parts_tax_rate")));
   const oilJugQt = parseNumber(str(form, "oil_jug_qt")) || 5;
   const oilJugCents = parseMoney(str(form, "oil_jug_cost"));
-  await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead}, parts_tax_rate = ${tax}, oil_jug_qt = ${oilJugQt}, oil_jug_cents = ${oilJugCents} WHERE shop_id = ${s.shopId}`;
+  const homeBase = str(form, "home_base") || DEFAULT_HOME_BASE;
+  const radius = Math.max(1, parseNumber(str(form, "service_radius_mi")) || DEFAULT_RADIUS_MI);
+  const buffer = Math.max(0, Math.round(parseNumber(str(form, "job_buffer_min")) || DEFAULT_BUFFER_MIN));
+  const hours = DEFAULT_HOURS.map((d, i) => ({
+    open: str(form, `hours_${i}_open`) === "1",
+    start: str(form, `hours_${i}_start`) || d.start,
+    end: str(form, `hours_${i}_end`) || d.end,
+  }));
+  const hoursJson = JSON.stringify(parseHours(hours));
+  const geo = await geocodeAddress(homeBase);
+  await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead}, parts_tax_rate = ${tax}, oil_jug_qt = ${oilJugQt}, oil_jug_cents = ${oilJugCents},
+    home_base = ${homeBase}, home_lat = ${geo?.lat ?? null}, home_lng = ${geo?.lng ?? null}, service_radius_mi = ${radius}, job_buffer_min = ${buffer}, hours_json = ${hoursJson}
+    WHERE shop_id = ${s.shopId}`;
   revalidatePath("/");
   revalidatePath("/book");
+  revalidatePath("/calendar");
   redirect("/more?tab=settings");
 }
 
@@ -912,13 +934,25 @@ export async function acceptBookingAction(form: FormData) {
   )`;
   const jobId = crypto.randomUUID();
   const notesBit = b.notes ? ` Notes: ${b.notes}` : "";
-  const dateBit = b.preferred_date ? ` Preferred date: ${String(b.preferred_date).slice(0, 10)}` : "";
+  const dateIso = b.preferred_date ? String(b.preferred_date).slice(0, 10) : "";
+  const dateBit = dateIso ? ` Preferred date: ${dateIso}` : "";
   const complaint = `${b.issue}${notesBit}${dateBit}`;
-  await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, address, complaint, services, shop_id) VALUES (
-    ${jobId}, ${customerId}, ${vehicleId}, 'scheduled', ${b.address}, ${complaint}, ${b.services || "[]"}, ${s.shopId}
-  )`;
+  const hour = windowHour(b.preferred_time);
+  const local = dateIso ? `${dateIso} ${String(hour).padStart(2, "0")}:00:00` : null;
+  if (local) {
+    await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, address, complaint, services, shop_id, scheduled_at) VALUES (
+      ${jobId}, ${customerId}, ${vehicleId}, 'scheduled', ${b.address}, ${complaint}, ${b.services || "[]"}, ${s.shopId},
+      ${local}::timestamp AT TIME ZONE 'America/Denver'
+    )`;
+  } else {
+    await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, address, complaint, services, shop_id) VALUES (
+      ${jobId}, ${customerId}, ${vehicleId}, 'scheduled', ${b.address}, ${complaint}, ${b.services || "[]"}, ${s.shopId}
+    )`;
+  }
   await sql`UPDATE bookings SET status = 'accepted' WHERE id = ${bid}`;
   revalidatePath("/bookings");
+  revalidatePath("/calendar");
+  revalidatePath("/");
   redirect(`/jobs/${jobId}`);
 }
 
