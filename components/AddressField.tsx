@@ -51,6 +51,7 @@ export function AddressField({
           setHits([]);
           return;
         }
+        setDisabled(false);
         setHits(json.suggestions ?? []);
         setOpen(true);
       } catch {

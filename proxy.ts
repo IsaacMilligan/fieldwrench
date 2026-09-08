@@ -7,6 +7,7 @@ const PUBLIC = [
   /^\/book$/,
   /^\/i\//,
   /^\/api\/book/,
+  /^\/api\/places/,
   /^\/api\/vpic/,
   /^\/api\/session/,
   /^\/api\/media\//,
