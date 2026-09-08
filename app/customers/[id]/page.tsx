@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { getCustomer } from "@/lib/db/queries";
 import { vehicleLabel } from "@/lib/format";
 import { VehiclePicker } from "@/app/book/VehiclePicker";
+import { AddressField } from "@/components/AddressField";
 import { CustomerDelete } from "../CustomerDelete";
 import { STATUS_LABEL, type JobStatus } from "@/lib/status";
 
@@ -32,7 +33,7 @@ export default async function CustomerDetail({
         <label className="lbl">Email</label>
         <input className="field" name="email" defaultValue={customer.email} />
         <label className="lbl">Address</label>
-        <input className="field" name="address" defaultValue={customer.address} />
+        <AddressField defaultValue={customer.address} />
         <label className="lbl">Notes</label>
         <textarea className="field min-h-24" name="notes" defaultValue={customer.notes} />
         <button className="tap mt-4" type="submit">

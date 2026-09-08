@@ -8,6 +8,7 @@ import { LeadHoursField } from "./LeadHoursField";
 import { ThemeToggle } from "./ThemeToggle";
 import { ReceiptScanForm } from "./ReceiptScanForm";
 import { CatalogList } from "./CatalogList";
+import { AddressField } from "@/components/AddressField";
 
 export const dynamic = "force-dynamic";
 
@@ -122,7 +123,7 @@ export default async function MorePage({
           </p>
           <LeadHoursField value={Number(s.lead_hours ?? 24)} />
           <label className="lbl">Home base</label>
-          <input className="field" name="home_base" defaultValue={s.home_base} />
+          <AddressField name="home_base" defaultValue={s.home_base} latName="home_lat" lngName="home_lng" />
           <label className="lbl">Service area (miles)</label>
           <input
             className="field"

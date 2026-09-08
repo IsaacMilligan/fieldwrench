@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { listCustomers } from "@/lib/db/queries";
 import { formatDate, formatPhone, vehicleNoun } from "@/lib/format";
 import { VehiclePicker } from "@/app/book/VehiclePicker";
+import { AddressField } from "@/components/AddressField";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export default async function CustomersPage({
           <label className="lbl">Email</label>
           <input className="field" name="email" type="email" />
           <label className="lbl">Address</label>
-          <input className="field" name="address" />
+          <AddressField />
           <label className="lbl">Notes</label>
           <textarea className="field min-h-24" name="notes" />
           <VehiclePicker withVin />

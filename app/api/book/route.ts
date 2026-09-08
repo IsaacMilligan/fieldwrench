@@ -78,11 +78,13 @@ export async function POST(req: NextRequest) {
       if (g) home = g;
       else home = DEFAULT_HOME_COORDS;
     }
-    const dest = await geocodeAddress(address);
-    if (!dest) {
-      return NextResponse.redirect(new URL("/book?e=address", origin), 303);
-    }
-    if (home.lat != null && home.lng != null) {
+    const pickedLat = Number(String(form.get("address_lat") ?? ""));
+    const pickedLng = Number(String(form.get("address_lng") ?? ""));
+    let dest =
+      Number.isFinite(pickedLat) && Number.isFinite(pickedLng) && pickedLat !== 0
+        ? { lat: pickedLat, lng: pickedLng }
+        : await geocodeAddress(address);
+    if (home.lat != null && home.lng != null && dest) {
       const miles = haversineMiles({ lat: Number(home.lat), lng: Number(home.lng) }, dest);
       if (miles > radius + 0.05) {
         return NextResponse.redirect(new URL("/book?e=area", origin), 303);

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Mark } from "@/components/Mark";
 import { ServiceChips } from "@/components/ServiceChips";
+import { AddressField } from "@/components/AddressField";
 import { VehiclePicker } from "./VehiclePicker";
 import { ELECTRIC_ENGINE, isKnownBev } from "@/lib/vpic";
 import { weekdayFromISO, WEEKDAY_NAMES } from "@/lib/schedule";
@@ -150,7 +151,7 @@ export function BookForm({
         <label className="lbl">Phone</label>
         <input className="field" name="phone" type="tel" required defaultValue={phone ?? ""} />
         <label className="lbl">Address</label>
-        <input className="field" name="address" required placeholder="Street, city, ZIP" />
+        <AddressField required placeholder="Street, city, ZIP" />
         <p className="mt-2 text-xs text-muted">Must be inside the {radiusMi}-mile service area.</p>
         <VehiclePicker
           saved={savedVehicles}

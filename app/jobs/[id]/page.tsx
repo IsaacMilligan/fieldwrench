@@ -11,6 +11,7 @@ import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { laborLineCents, partCustomerCents } from "@/lib/profit";
 import { JobDangerActions } from "../JobDangerActions";
 import { AddItemCard } from "../AddItemCard";
+import { AddressField } from "@/components/AddressField";
 import { isElectricEngine } from "@/lib/vpic";
 
 export const dynamic = "force-dynamic";
@@ -104,7 +105,7 @@ export default async function JobDetailPage({
         <label className="lbl">When</label>
         <input className="field" type="datetime-local" name="scheduled_at" defaultValue={scheduled} />
         <label className="lbl">Address</label>
-        <input className="field" name="address" defaultValue={job.address} />
+        <AddressField defaultValue={job.address} />
         <label className="lbl">Complaint</label>
         <textarea className="field min-h-24" name="complaint" defaultValue={job.complaint} />
         <label className="lbl">Diagnosis</label>

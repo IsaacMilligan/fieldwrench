@@ -5,6 +5,7 @@ import { VehiclePicker } from "@/app/book/VehiclePicker";
 import { ServiceChips } from "@/components/ServiceChips";
 import { OPEN_JOB_STATUSES, STATUS_LABEL, type JobStatus } from "@/lib/status";
 import { vehicleLabel } from "@/lib/format";
+import { AddressField } from "@/components/AddressField";
 
 export type JobCustomer = { id: string; name: string; phone: string; email: string };
 export type JobVehicle = {
@@ -141,7 +142,7 @@ export function NewJobForm({
       <label className="lbl">When</label>
       <input className="field" type="datetime-local" name="scheduled_at" />
       <label className="lbl">Driveway address</label>
-      <input className="field" name="address" />
+      <AddressField />
 
       <p className="lbl">Services</p>
       <p className="mb-2 text-sm text-muted">Tap every job. You can pick more than one.</p>

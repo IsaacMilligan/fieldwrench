@@ -94,7 +94,12 @@ export async function saveSettingsAction(form: FormData) {
     end: str(form, `hours_${i}_end`) || d.end,
   }));
   const hoursJson = JSON.stringify(parseHours(hours));
-  const geo = await geocodeAddress(homeBase);
+  const pickedLat = Number(str(form, "home_lat"));
+  const pickedLng = Number(str(form, "home_lng"));
+  const geo =
+    Number.isFinite(pickedLat) && Number.isFinite(pickedLng) && str(form, "home_lat")
+      ? { lat: pickedLat, lng: pickedLng }
+      : await geocodeAddress(homeBase);
   await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead}, parts_tax_rate = ${tax}, oil_jug_qt = ${oilJugQt}, oil_jug_cents = ${oilJugCents},
     home_base = ${homeBase}, home_lat = ${geo?.lat ?? null}, home_lng = ${geo?.lng ?? null}, service_radius_mi = ${radius}, job_buffer_min = ${buffer}, hours_json = ${hoursJson}
     WHERE shop_id = ${s.shopId}`;
