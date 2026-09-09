@@ -17,6 +17,8 @@ import { oilYmmeKey } from "./oil-specs";
 import { oilChargeCents } from "./oil-cost";
 import { catalogCategory } from "./catalog";
 import { geocodeAddress } from "./geocode";
+import { applyJobTemplateToJob } from "./apply-job-template";
+import { templateKind } from "./job-templates";
 import {
   DEFAULT_BUFFER_MIN,
   DEFAULT_HOME_BASE,
@@ -625,9 +627,98 @@ export async function createJobAction(form: FormData) {
   await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, scheduled_at, address, complaint, services, notes, shop_id)
     VALUES (${id}, ${customerId}, ${vehicleId}, ${status}, ${scheduled}, ${address},
       ${complaint}, ${servicesToJson(services)}, ${notes}, ${s.shopId})`;
+  const templateId = str(form, "template_id");
+  if (templateId) {
+    const applied = await applyJobTemplateToJob({
+      shopId: s.shopId,
+      jobId: id,
+      templateId,
+      mode: "replace",
+    });
+    revalidatePath("/jobs");
+    revalidatePath(`/customers/${customerId}`);
+    if (applied.bevBlocked) redirect(`/jobs/${id}?e=bev`);
+    if (applied.oilNeed) redirect(`/jobs/${id}?oil=need`);
+    redirect(`/jobs/${id}`);
+  }
   revalidatePath("/jobs");
   revalidatePath(`/customers/${customerId}`);
   redirect(`/jobs/${id}`);
+}
+
+export async function applyJobTemplateAction(form: FormData) {
+  const s = await requireSession();
+  const jobId = str(form, "job_id");
+  const templateId = str(form, "template_id");
+  const mode = str(form, "mode") === "merge" ? "merge" : "replace";
+  if (!jobId || !templateId) redirect(jobId ? `/jobs/${jobId}` : "/jobs");
+  const applied = await applyJobTemplateToJob({
+    shopId: s.shopId,
+    jobId,
+    templateId,
+    mode,
+  });
+  revalidatePath(`/jobs/${jobId}`);
+  if (applied.bevBlocked) redirect(`/jobs/${jobId}?e=bev`);
+  if (applied.oilNeed) redirect(`/jobs/${jobId}?oil=need`);
+  redirect(`/jobs/${jobId}`);
+}
+
+export async function updateJobTemplateAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const id = str(form, "id");
+  const name = str(form, "name") || "Template";
+  const labor = parseMoney(str(form, "labor"));
+  const range = str(form, "price_range_label");
+  const notes = str(form, "notes");
+  const active = str(form, "active") === "1" ? 1 : 0;
+  await sql`UPDATE job_templates SET name = ${name}, default_labor_cents = ${labor}, price_range_label = ${range}, notes = ${notes}, active = ${active}
+    WHERE id = ${id} AND shop_id = ${s.shopId}`;
+  revalidatePath("/more");
+  redirect(`/more/templates/${id}`);
+}
+
+export async function archiveJobTemplateAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const id = str(form, "id");
+  await sql`UPDATE job_templates SET active = 0 WHERE id = ${id} AND shop_id = ${s.shopId}`;
+  revalidatePath("/more");
+  redirect("/more?tab=settings");
+}
+
+export async function reorderJobTemplateAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const id = str(form, "id");
+  const dir = str(form, "dir") === "up" ? -15 : 15;
+  await sql`UPDATE job_templates SET sort_order = sort_order + ${dir} WHERE id = ${id} AND shop_id = ${s.shopId}`;
+  revalidatePath("/more");
+  redirect("/more?tab=settings");
+}
+
+export async function addJobTemplateLineAction(form: FormData) {
+  await requireSession();
+  const sql = await db();
+  const templateId = str(form, "template_id");
+  const kind = templateKind(str(form, "kind"));
+  const label = str(form, "label") || "Line";
+  const match = str(form, "catalog_match");
+  const optional = str(form, "optional") === "1" ? 1 : 0;
+  await sql`INSERT INTO job_template_lines (id, template_id, kind, catalog_item_id, catalog_match, label, qty, unit_price_cents, sort_order, optional)
+    VALUES (${crypto.randomUUID()}, ${templateId}, ${kind}, ${null}, ${match}, ${label}, 1, ${null}, 99, ${optional})`;
+  revalidatePath("/more");
+  redirect(`/more/templates/${templateId}`);
+}
+
+export async function deleteJobTemplateLineAction(form: FormData) {
+  await requireSession();
+  const sql = await db();
+  const templateId = str(form, "template_id");
+  await sql`DELETE FROM job_template_lines WHERE id = ${str(form, "id")}`;
+  revalidatePath("/more");
+  redirect(`/more/templates/${templateId}`);
 }
 
 export async function updateJobAction(form: FormData) {

@@ -11,6 +11,14 @@ import type { JobStatus, PayMethod } from "../status";
 import { bookingShopId, readSession } from "../auth";
 import { DEFAULT_CATALOG, mapCatalogRow, type CatalogItem } from "../catalog";
 import {
+  DEFAULT_JOB_TEMPLATES,
+  TEMPLATE_CATALOG_EXTRAS,
+  templateKind,
+  templateServiceType,
+  type JobTemplate,
+  type JobTemplateLine,
+} from "../job-templates";
+import {
   DEFAULT_BUFFER_MIN,
   DEFAULT_HOME_BASE,
   DEFAULT_HOURS,
@@ -356,6 +364,92 @@ export async function getCatalogItem(id: string): Promise<CatalogItem | null> {
   const sid = await shopId();
   const [row] = await sql`SELECT * FROM catalog_items WHERE id = ${id} AND shop_id = ${sid}`;
   return row ? mapCatalogRow(row as Record<string, unknown>) : null;
+}
+
+function mapTemplateLine(r: Record<string, unknown>): JobTemplateLine {
+  const price = r.unit_price_cents;
+  return {
+    id: String(r.id),
+    template_id: String(r.template_id),
+    kind: templateKind(r.kind),
+    catalog_item_id: r.catalog_item_id ? String(r.catalog_item_id) : null,
+    catalog_match: String(r.catalog_match ?? ""),
+    label: String(r.label ?? ""),
+    qty: Number(r.qty) || 1,
+    unit_price_cents: price == null || price === "" ? null : Math.round(Number(price) || 0),
+    sort_order: Number(r.sort_order) || 0,
+    optional: Number(r.optional) === 1,
+  };
+}
+
+export async function listJobTemplates(opts?: { includeArchived?: boolean }): Promise<JobTemplate[]> {
+  const sql = await db();
+  const sid = await shopId();
+  await ensureJobTemplates(sid);
+  const rows = opts?.includeArchived
+    ? await sql`SELECT * FROM job_templates WHERE shop_id = ${sid} ORDER BY sort_order, name`
+    : await sql`SELECT * FROM job_templates WHERE shop_id = ${sid} AND active = 1 ORDER BY sort_order, name`;
+  const ids = rows.map((r) => String((r as { id: string }).id));
+  const lineRows = ids.length
+    ? await sql`SELECT * FROM job_template_lines WHERE template_id = ANY(${ids}) ORDER BY sort_order`
+    : [];
+  const byT = new Map<string, JobTemplateLine[]>();
+  for (const ln of lineRows) {
+    const line = mapTemplateLine(ln as Record<string, unknown>);
+    const arr = byT.get(line.template_id) ?? [];
+    arr.push(line);
+    byT.set(line.template_id, arr);
+  }
+  return rows.map((r) => {
+    const row = r as Record<string, unknown>;
+    const id = String(row.id);
+    return {
+      id,
+      name: String(row.name ?? ""),
+      slug: String(row.slug ?? ""),
+      service_type: templateServiceType(row.service_type),
+      default_labor_cents: Math.round(Number(row.default_labor_cents) || 0),
+      price_range_label: String(row.price_range_label ?? ""),
+      notes: String(row.notes ?? ""),
+      sort_order: Number(row.sort_order) || 0,
+      active: Number(row.active) === 1,
+      lines: byT.get(id) ?? [],
+    };
+  });
+}
+
+export async function getJobTemplate(id: string): Promise<JobTemplate | null> {
+  const all = await listJobTemplates({ includeArchived: true });
+  return all.find((t) => t.id === id) ?? null;
+}
+
+async function ensureJobTemplates(sid: string) {
+  const sql = await db();
+  const [n] = await sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM job_templates WHERE shop_id = ${sid}`;
+  if (n?.n) return;
+  const catalog = await sql<{ id: string; name: string }[]>`SELECT id, name FROM catalog_items WHERE shop_id = ${sid}`;
+  const have = new Set(catalog.map((c) => c.name.toLowerCase()));
+  for (const extra of TEMPLATE_CATALOG_EXTRAS) {
+    if (have.has(extra.name.toLowerCase())) continue;
+    await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents)
+      VALUES (${crypto.randomUUID()}, ${sid}, ${extra.name}, ${extra.category}, 0, 0, 5, 0)`;
+    have.add(extra.name.toLowerCase());
+  }
+  const fresh = await sql<{ id: string; name: string }[]>`SELECT id, name FROM catalog_items WHERE shop_id = ${sid}`;
+  const byName = new Map(fresh.map((c) => [c.name.toLowerCase(), c.id]));
+  for (const t of DEFAULT_JOB_TEMPLATES) {
+    const tid = crypto.randomUUID();
+    await sql`INSERT INTO job_templates (id, shop_id, name, slug, service_type, default_labor_cents, price_range_label, notes, sort_order, active)
+      VALUES (${tid}, ${sid}, ${t.name}, ${t.slug}, ${t.service_type}, ${t.default_labor_cents}, ${t.price_range_label}, ${t.notes}, ${t.sort_order}, 1)`;
+    let i = 0;
+    for (const ln of t.lines) {
+      const match = (ln.catalog_match || "").toLowerCase();
+      const catId = match ? byName.get(match) ?? null : null;
+      await sql`INSERT INTO job_template_lines (id, template_id, kind, catalog_item_id, catalog_match, label, qty, unit_price_cents, sort_order, optional)
+        VALUES (${crypto.randomUUID()}, ${tid}, ${ln.kind}, ${catId}, ${ln.catalog_match || ""}, ${ln.label}, ${ln.qty ?? 1}, ${null}, ${i * 10}, ${ln.optional ? 1 : 0})`;
+      i += 1;
+    }
+  }
 }
 
 export async function listJobDiscounts(jobId: string) {

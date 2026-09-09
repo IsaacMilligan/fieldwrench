@@ -4,13 +4,14 @@ import { Shell } from "@/components/Shell";
 import { ProfitPanel } from "@/components/ProfitPanel";
 import { StatusBadge } from "@/components/Mark";
 import { requireSession } from "@/lib/auth";
-import { getJobBundle, getSettings, getShopOilDefault, listCatalogItems, listDiscountPresets } from "@/lib/db/queries";
+import { getJobBundle, getSettings, getShopOilDefault, listCatalogItems, listDiscountPresets, listJobTemplates } from "@/lib/db/queries";
 import { formatDateTime, money, vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
 import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE } from "@/lib/status";
 import { laborLineCents, partCustomerCents } from "@/lib/profit";
 import { JobDangerActions } from "../JobDangerActions";
 import { AddItemCard } from "../AddItemCard";
+import { JobTemplatePicker } from "../JobTemplatePicker";
 import { AddressField } from "@/components/AddressField";
 import { isElectricEngine } from "@/lib/vpic";
 
@@ -18,16 +19,20 @@ export const dynamic = "force-dynamic";
 
 export default async function JobDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ oil?: string; e?: string }>;
 }) {
   await requireSession();
   const { id } = await params;
+  const q = await searchParams;
   const bundle = await getJobBundle(id);
   if (!bundle) notFound();
   const { job, customer, vehicle, labor, parts, photos, invoice, receipts, profit, discounts } = bundle;
   const presets = await listDiscountPresets();
   const catalog = await listCatalogItems();
+  const templates = await listJobTemplates();
   const settings = await getSettings().catch(() => ({ oil_jug_qt: 5, oil_jug_cents: 0 }));
   const scheduled = job.scheduled_at
     ? new Date(job.scheduled_at).toISOString().slice(0, 16)
@@ -68,11 +73,23 @@ export default async function JobDetailPage({
         </div>
         <StatusBadge tone={STATUS_TONE[job.status]}>{STATUS_LABEL[job.status]}</StatusBadge>
       </div>
+      {q.oil === "need" ? (
+        <p className="mt-3 text-sm font-bold text-amber">Set oil specs on the vehicle to bill quarts from the jug.</p>
+      ) : null}
+      {q.e === "bev" ? (
+        <p className="mt-3 text-sm font-bold text-amber">Oil change is N/A on a BEV.</p>
+      ) : null}
       <JobDangerActions
         jobId={job.id}
         cancelled={job.status === "cancelled"}
         hasInvoice={Boolean(invoice)}
         hasReceipts={receipts.length > 0}
+      />
+      <JobTemplatePicker
+        templates={templates}
+        jobId={job.id}
+        hideOil={!vehicle?.id || isElectricEngine(vehicle.engine)}
+        hasLines={labor.length + parts.length > 0}
       />
       {vehicle?.id ? (
         <OilSpecCard

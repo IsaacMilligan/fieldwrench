@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { StatusBadge } from "@/components/Mark";
 import { requireSession } from "@/lib/auth";
-import { listJobs, listCustomers, listShopVehicles } from "@/lib/db/queries";
+import { listJobs, listCustomers, listShopVehicles, listJobTemplates } from "@/lib/db/queries";
 import { denverDateISO, formatDateTime, vehicleLabel } from "@/lib/format";
 import { formatServiceList, parseServiceIds } from "@/lib/services";
 import { STATUS_LABEL, STATUS_TONE, type JobStatus } from "@/lib/status";
@@ -20,6 +20,7 @@ export default async function JobsPage({
   if (sp.new) {
     const customers = await listCustomers();
     const vehicles = await listShopVehicles();
+    const templates = await listJobTemplates();
     return (
       <Shell title="New job">
         <NewJobForm
@@ -37,6 +38,7 @@ export default async function JobsPage({
             model: String(v.model ?? ""),
             engine: String(v.engine ?? ""),
           }))}
+          templates={templates}
         />
       </Shell>
     );

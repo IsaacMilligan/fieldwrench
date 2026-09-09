@@ -6,6 +6,9 @@ import { ServiceChips } from "@/components/ServiceChips";
 import { OPEN_JOB_STATUSES, STATUS_LABEL, type JobStatus } from "@/lib/status";
 import { vehicleLabel } from "@/lib/format";
 import { AddressField } from "@/components/AddressField";
+import { JobTemplatePicker } from "./JobTemplatePicker";
+import type { JobTemplate } from "@/lib/job-templates";
+import { isElectricEngine } from "@/lib/vpic";
 
 export type JobCustomer = { id: string; name: string; phone: string; email: string };
 export type JobVehicle = {
@@ -20,9 +23,11 @@ export type JobVehicle = {
 export function NewJobForm({
   customers,
   vehicles = [],
+  templates = [],
 }: {
   customers: JobCustomer[];
   vehicles?: JobVehicle[];
+  templates?: JobTemplate[];
 }) {
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [customerId, setCustomerId] = useState("");
@@ -48,6 +53,8 @@ export function NewJobForm({
   }, [customerId, mode, theirs]);
 
   const showYmme = mode === "new" || (Boolean(customerId) && (theirs.length === 0 || vehicleId === "__new__"));
+  const pickedVeh = theirs.find((v) => v.id === vehicleId);
+  const hideOil = Boolean(pickedVeh && isElectricEngine(pickedVeh.engine));
 
   return (
     <form
@@ -143,6 +150,8 @@ export function NewJobForm({
       <input className="field" type="datetime-local" name="scheduled_at" />
       <label className="lbl">Driveway address</label>
       <AddressField />
+
+      <JobTemplatePicker templates={templates} hideOil={hideOil} />
 
       <p className="lbl">Services</p>
       <p className="mb-2 text-sm text-muted">Tap every job. You can pick more than one.</p>

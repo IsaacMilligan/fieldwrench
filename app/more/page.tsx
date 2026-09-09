@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
-import { getSettings, listCatalogItems, listDiscountPresets, listReceipts, listMileage, listJobsLite } from "@/lib/db/queries";
+import { getSettings, listCatalogItems, listDiscountPresets, listJobTemplates, listReceipts, listMileage, listJobsLite } from "@/lib/db/queries";
 import { denverDateISO, formatDate, money } from "@/lib/format";
 import { WEEKDAY_NAMES } from "@/lib/schedule";
 import { LeadHoursField } from "./LeadHoursField";
 import { ThemeToggle } from "./ThemeToggle";
 import { ReceiptScanForm } from "./ReceiptScanForm";
 import { CatalogList } from "./CatalogList";
+import { JobTemplateList } from "./JobTemplateList";
 import { AddressField } from "@/components/AddressField";
 
 export const dynamic = "force-dynamic";
@@ -104,6 +105,7 @@ export default async function MorePage({
     const s = await getSettings();
     const presets = await listDiscountPresets();
     const catalog = await listCatalogItems();
+    const jobTemplates = await listJobTemplates({ includeArchived: true });
     return (
       <Shell title="Settings">
         <form action="/api/shop" method="post" className="mb-6">
@@ -193,6 +195,17 @@ export default async function MorePage({
           </p>
           <button className="tap mt-4" type="submit">Save settings</button>
         </form>
+        <section className="panel mt-6">
+          <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
+            Job templates
+          </h2>
+          <p className="mt-2 text-sm text-muted">
+            Tap a template on New job to prefill labor and a parts checklist. Anchors match the public site; edit any job after.
+          </p>
+          <div className="mt-3">
+            <JobTemplateList templates={jobTemplates} />
+          </div>
+        </section>
         <section className="panel mt-6">
           <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
             Item catalog

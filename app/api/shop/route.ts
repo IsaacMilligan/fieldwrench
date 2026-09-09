@@ -9,6 +9,7 @@ import {
   addMileageAction,
   addOilPartAction,
   addPartAction,
+  applyJobTemplateAction,
   updatePartAction,
   addReceiptAction,
   applyVinAction,
@@ -40,6 +41,11 @@ import {
   updateJobAction,
   updateVehicleAction,
   uploadPhotoAction,
+  updateJobTemplateAction,
+  archiveJobTemplateAction,
+  reorderJobTemplateAction,
+  addJobTemplateLineAction,
+  deleteJobTemplateLineAction,
 } from "@/lib/actions";
 
 export const runtime = "nodejs";
@@ -67,6 +73,12 @@ const OPS: Record<string, (form: FormData) => Promise<unknown>> = {
   save_oil_spec: saveOilSpecAction,
   save_shop_spec: saveShopSpecAction,
   create_job: createJobAction,
+  apply_job_template: applyJobTemplateAction,
+  update_job_template: updateJobTemplateAction,
+  archive_job_template: archiveJobTemplateAction,
+  reorder_job_template: reorderJobTemplateAction,
+  add_job_template_line: addJobTemplateLineAction,
+  delete_job_template_line: deleteJobTemplateLineAction,
   update_job: updateJobAction,
   set_status: setJobStatusAction,
   delete_job: deleteJobAction,

@@ -339,6 +339,38 @@ export function ensureReady(): Promise<void> {
             jug_cents INTEGER NOT NULL DEFAULT 0
           )
         `);
+        await sql.unsafe(`
+          CREATE TABLE IF NOT EXISTS job_templates (
+            id TEXT PRIMARY KEY,
+            shop_id TEXT NOT NULL DEFAULT 'live',
+            name TEXT NOT NULL,
+            slug TEXT NOT NULL,
+            service_type TEXT NOT NULL DEFAULT 'custom',
+            default_labor_cents INTEGER NOT NULL DEFAULT 0,
+            price_range_label TEXT NOT NULL DEFAULT '',
+            notes TEXT NOT NULL DEFAULT '',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+        await sql.unsafe(
+          `CREATE UNIQUE INDEX IF NOT EXISTS job_templates_shop_slug ON job_templates (shop_id, slug)`,
+        );
+        await sql.unsafe(`
+          CREATE TABLE IF NOT EXISTS job_template_lines (
+            id TEXT PRIMARY KEY,
+            template_id TEXT NOT NULL REFERENCES job_templates(id) ON DELETE CASCADE,
+            kind TEXT NOT NULL DEFAULT 'part',
+            catalog_item_id TEXT,
+            catalog_match TEXT NOT NULL DEFAULT '',
+            label TEXT NOT NULL,
+            qty NUMERIC NOT NULL DEFAULT 1,
+            unit_price_cents INTEGER,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            optional INTEGER NOT NULL DEFAULT 0
+          )
+        `);
         await tryAlter(`ALTER TABLE oil_defaults DROP CONSTRAINT IF EXISTS oil_defaults_year_make_key_model_key_engine_key_key`);
         await sql.unsafe(
           `CREATE UNIQUE INDEX IF NOT EXISTS oil_defaults_shop_ymme ON oil_defaults (shop_id, year, make_key, model_key, engine_key)`,
