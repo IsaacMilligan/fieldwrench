@@ -85,8 +85,6 @@ export async function saveSettingsAction(form: FormData) {
   const mileageCents = Math.round(miles);
   const lead = Math.min(168, Math.max(0, Math.round(parseNumber(str(form, "lead_hours")))));
   const tax = Math.max(0, parseNumber(str(form, "parts_tax_rate")));
-  const oilJugQt = parseNumber(str(form, "oil_jug_qt")) || 5;
-  const oilJugCents = parseMoney(str(form, "oil_jug_cost"));
   const homeBase = str(form, "home_base") || DEFAULT_HOME_BASE;
   const radius = Math.max(1, parseNumber(str(form, "service_radius_mi")) || DEFAULT_RADIUS_MI);
   const buffer = Math.max(0, Math.round(parseNumber(str(form, "job_buffer_min")) || DEFAULT_BUFFER_MIN));
@@ -102,7 +100,7 @@ export async function saveSettingsAction(form: FormData) {
     Number.isFinite(pickedLat) && Number.isFinite(pickedLng) && str(form, "home_lat")
       ? { lat: pickedLat, lng: pickedLng }
       : await geocodeAddress(homeBase);
-  await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead}, parts_tax_rate = ${tax}, oil_jug_qt = ${oilJugQt}, oil_jug_cents = ${oilJugCents},
+  await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead}, parts_tax_rate = ${tax},
     home_base = ${homeBase}, home_lat = ${geo?.lat ?? null}, home_lng = ${geo?.lng ?? null}, service_radius_mi = ${radius}, job_buffer_min = ${buffer}, hours_json = ${hoursJson}
     WHERE shop_id = ${s.shopId}`;
   revalidatePath("/");
@@ -192,7 +190,13 @@ function catalogFields(form: FormData) {
   const price = parseMoney(str(form, "price"));
   const sell = price > cost ? price : cost;
   const jugQt = parseNumber(str(form, "jug_qt")) || 5;
-  const jugCents = parseMoney(str(form, "jug_cost"));
+  let jugCents = parseMoney(str(form, "jug_cost"));
+  if (category === "Oil") {
+    if (!jugCents && cost) jugCents = cost;
+    if (!cost && jugCents) {
+      return { name, category, cost: jugCents, sell: price > jugCents ? price : jugCents, jugQt, jugCents };
+    }
+  }
   return { name, category, cost, sell, jugQt, jugCents };
 }
 
@@ -843,7 +847,6 @@ export async function addOilPartAction(form: FormData) {
   await sql`INSERT INTO part_lines (id, job_id, description, qty, cost_cents, price_cents) VALUES (
     ${crypto.randomUUID()}, ${jobId}, ${desc}, 1, ${cents}, ${cents}
   )`;
-  await sql`UPDATE settings SET oil_jug_qt = ${jugQt}, oil_jug_cents = ${jugCents} WHERE shop_id = ${s.shopId}`;
   if (catalogId) {
     await sql`UPDATE catalog_items SET jug_qt = ${jugQt}, jug_cents = ${jugCents} WHERE id = ${catalogId} AND shop_id = ${s.shopId}`;
   }

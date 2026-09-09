@@ -16,22 +16,18 @@ export function AddItemCard({
   hideOil,
   quarts,
   viscosity,
-  defaultJugQt,
-  defaultJugCents,
 }: {
   jobId: string;
   items: CatalogItem[];
   hideOil: boolean;
   quarts: number | null;
   viscosity?: string;
-  defaultJugQt: number;
-  defaultJugCents: number;
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [oil, setOil] = useState<CatalogItem | null>(null);
   const [jug, setJug] = useState("");
-  const [size, setSize] = useState(String(defaultJugQt || 5));
+  const [size, setSize] = useState("5");
   const [qt, setQt] = useState(quarts && quarts > 0 ? String(quarts) : "");
 
   const catalog = hideOil ? items.filter((i) => !isOilCategory(i.category)) : items;
@@ -43,10 +39,10 @@ export function AddItemCard({
   const showOneOff = needle.length > 0 && matches.length === 0;
 
   function pickOil(item: CatalogItem) {
-    const jugCents = item.jug_cents > 0 ? item.jug_cents : defaultJugCents;
+    const jugCents = item.jug_cents > 0 ? item.jug_cents : item.cost_cents;
     setOil(item);
     setJug(dollars(jugCents));
-    setSize(String(item.jug_qt || defaultJugQt || 5));
+    setSize(String(item.jug_qt || 5));
     setQt(quarts && quarts > 0 ? String(quarts) : "");
     setOpen(false);
     setQ(item.name);

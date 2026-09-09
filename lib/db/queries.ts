@@ -355,8 +355,31 @@ export async function listCatalogItems(): Promise<CatalogItem[]> {
         VALUES (${crypto.randomUUID()}, ${sid}, ${item.name}, ${item.category}, 0, 0, 5, 0)`;
     }
   }
+  await migrateShopJugIntoCatalog(sid);
   const rows = await sql`SELECT * FROM catalog_items WHERE shop_id = ${sid} ORDER BY name`;
   return rows.map((r) => mapCatalogRow(r as Record<string, unknown>));
+}
+
+async function migrateShopJugIntoCatalog(sid: string) {
+  const sql = await db();
+  const oils = await sql<{ id: string; jug_cents: number }[]>`
+    SELECT id, jug_cents FROM catalog_items WHERE shop_id = ${sid} AND category = 'Oil'
+  `;
+  if (oils.some((o) => Number(o.jug_cents) > 0)) return;
+  const [s] = await sql<{ oil_jug_qt: number; oil_jug_cents: number }[]>`
+    SELECT oil_jug_qt, oil_jug_cents FROM settings WHERE shop_id = ${sid} LIMIT 1
+  `;
+  const jugCents = Math.round(Number(s?.oil_jug_cents) || 0);
+  if (!jugCents) return;
+  const jugQt = Number(s?.oil_jug_qt) || 5;
+  if (oils[0]) {
+    await sql`UPDATE catalog_items SET jug_cents = ${jugCents}, jug_qt = ${jugQt},
+      cost_cents = CASE WHEN cost_cents = 0 THEN ${jugCents} ELSE cost_cents END
+      WHERE id = ${oils[0].id} AND shop_id = ${sid} AND jug_cents = 0`;
+    return;
+  }
+  await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents)
+    VALUES (${crypto.randomUUID()}, ${sid}, ${"Oil (5 qt jug)"}, ${"Oil"}, ${jugCents}, ${jugCents}, ${jugQt}, ${jugCents})`;
 }
 
 export async function getCatalogItem(id: string): Promise<CatalogItem | null> {

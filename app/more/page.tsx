@@ -175,24 +175,6 @@ export default async function MorePage({
             defaultValue={Number(s.parts_tax_rate) ? String(s.parts_tax_rate) : "0"}
           />
           <p className="mt-2 text-xs text-muted">Utah parts tax. Applies to parts charged, not labor. 0 until you set it.</p>
-          <label className="lbl">Oil jug size (qt)</label>
-          <input
-            className="field"
-            name="oil_jug_qt"
-            inputMode="decimal"
-            defaultValue={String(Number(s.oil_jug_qt) || 5)}
-          />
-          <label className="lbl">Oil jug cost $</label>
-          <input
-            className="field"
-            name="oil_jug_cost"
-            inputMode="decimal"
-            defaultValue={Number(s.oil_jug_cents) > 0 ? (Number(s.oil_jug_cents) / 100).toFixed(2) : ""}
-            placeholder="30.03"
-          />
-          <p className="mt-2 text-xs text-muted">
-            Default jug size and last jug price for Oil catalog items. Jobs charge vehicle quarts × jug ÷ size, rounded once. Leftover stays shop oil.
-          </p>
           <button className="tap mt-4" type="submit">Save settings</button>
         </form>
         <section className="panel mt-6">

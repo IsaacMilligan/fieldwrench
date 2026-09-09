@@ -1,4 +1,4 @@
-import { db, getJobTemplate, getSettings, getShopOilDefault, listCatalogItems } from "./db/queries";
+import { db, getJobTemplate, getShopOilDefault, listCatalogItems } from "./db/queries";
 import { oilChargeCents } from "./oil-cost";
 import { isOilCategory } from "./catalog";
 import { isElectricEngine } from "./vpic";
@@ -44,7 +44,6 @@ export async function applyJobTemplateToJob(opts: {
 
   const catalog = await listCatalogItems();
   const byId = new Map(catalog.map((c) => [c.id, c]));
-  const settings = await getSettings().catch(() => ({ oil_jug_qt: 5, oil_jug_cents: 0 }));
   let quarts: number | null = null;
   if (vehicle && Number(vehicle.oil_saved) === 1 && Number(vehicle.oil_qt) > 0) {
     quarts = Number(vehicle.oil_qt);
@@ -69,9 +68,8 @@ export async function applyJobTemplateToJob(opts: {
         oilNeed = true;
         continue;
       }
-      const jugQt = cat && cat.jug_qt > 0 ? cat.jug_qt : Number(settings.oil_jug_qt) || 5;
-      const jugCents =
-        cat && cat.jug_cents > 0 ? cat.jug_cents : Math.round(Number(settings.oil_jug_cents) || 0);
+      const jugQt = cat && cat.jug_qt > 0 ? cat.jug_qt : 5;
+      const jugCents = cat ? (cat.jug_cents > 0 ? cat.jug_cents : cat.cost_cents) : 0;
       const cents = oilChargeCents(jugCents, jugQt, quarts);
       if (!cents) {
         oilNeed = true;

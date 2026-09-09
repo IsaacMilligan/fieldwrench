@@ -4,7 +4,7 @@ import { Shell } from "@/components/Shell";
 import { ProfitPanel } from "@/components/ProfitPanel";
 import { StatusBadge } from "@/components/Mark";
 import { requireSession } from "@/lib/auth";
-import { getJobBundle, getSettings, getShopOilDefault, listCatalogItems, listDiscountPresets, listJobTemplates } from "@/lib/db/queries";
+import { getJobBundle, getShopOilDefault, listCatalogItems, listDiscountPresets, listJobTemplates } from "@/lib/db/queries";
 import { formatDateTime, money, vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
 import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE } from "@/lib/status";
@@ -34,7 +34,6 @@ export default async function JobDetailPage({
   const presets = await listDiscountPresets();
   const catalog = await listCatalogItems();
   const templates = await listJobTemplates();
-  const settings = await getSettings().catch(() => ({ oil_jug_qt: 5, oil_jug_cents: 0 }));
   const scheduled = job.scheduled_at
     ? new Date(job.scheduled_at).toISOString().slice(0, 16)
     : "";
@@ -273,8 +272,6 @@ export default async function JobDetailPage({
             ? String(vehicle?.oil_viscosity ?? "")
             : String(shop?.oil_viscosity ?? "")
         }
-        defaultJugQt={Number(settings.oil_jug_qt) || 5}
-        defaultJugCents={Number(settings.oil_jug_cents) || 0}
       />
       </details>
 
