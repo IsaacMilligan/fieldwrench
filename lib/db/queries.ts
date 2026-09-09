@@ -376,46 +376,51 @@ function mapTemplateLine(r: Record<string, unknown>): JobTemplateLine {
     catalog_match: String(r.catalog_match ?? ""),
     label: String(r.label ?? ""),
     qty: Number(r.qty) || 1,
-    unit_price_cents: price == null || price === "" ? null : Math.round(Number(price) || 0),
+    unit_price_cents: price == null ? null : Math.round(Number(price) || 0),
     sort_order: Number(r.sort_order) || 0,
     optional: Number(r.optional) === 1,
   };
 }
 
 export async function listJobTemplates(opts?: { includeArchived?: boolean }): Promise<JobTemplate[]> {
-  const sql = await db();
-  const sid = await shopId();
-  await ensureJobTemplates(sid);
-  const rows = opts?.includeArchived
-    ? await sql`SELECT * FROM job_templates WHERE shop_id = ${sid} ORDER BY sort_order, name`
-    : await sql`SELECT * FROM job_templates WHERE shop_id = ${sid} AND active = 1 ORDER BY sort_order, name`;
-  const ids = rows.map((r) => String((r as { id: string }).id));
-  const lineRows = ids.length
-    ? await sql`SELECT * FROM job_template_lines WHERE template_id = ANY(${ids}) ORDER BY sort_order`
-    : [];
-  const byT = new Map<string, JobTemplateLine[]>();
-  for (const ln of lineRows) {
-    const line = mapTemplateLine(ln as Record<string, unknown>);
-    const arr = byT.get(line.template_id) ?? [];
-    arr.push(line);
-    byT.set(line.template_id, arr);
+  try {
+    const sql = await db();
+    const sid = await shopId();
+    await ensureJobTemplates(sid);
+    const rows = opts?.includeArchived
+      ? await sql`SELECT * FROM job_templates WHERE shop_id = ${sid} ORDER BY sort_order, name`
+      : await sql`SELECT * FROM job_templates WHERE shop_id = ${sid} AND active = 1 ORDER BY sort_order, name`;
+    const ids = rows.map((r) => String((r as { id: string }).id));
+    const lineRows = ids.length
+      ? await sql`SELECT * FROM job_template_lines WHERE template_id IN ${sql(ids)} ORDER BY sort_order`
+      : [];
+    const byT = new Map<string, JobTemplateLine[]>();
+    for (const ln of lineRows) {
+      const line = mapTemplateLine(ln as Record<string, unknown>);
+      const arr = byT.get(line.template_id) ?? [];
+      arr.push(line);
+      byT.set(line.template_id, arr);
+    }
+    return rows.map((r) => {
+      const row = r as Record<string, unknown>;
+      const id = String(row.id);
+      return {
+        id,
+        name: String(row.name ?? ""),
+        slug: String(row.slug ?? ""),
+        service_type: templateServiceType(row.service_type),
+        default_labor_cents: Math.round(Number(row.default_labor_cents) || 0),
+        price_range_label: String(row.price_range_label ?? ""),
+        notes: String(row.notes ?? ""),
+        sort_order: Number(row.sort_order) || 0,
+        active: Number(row.active) === 1,
+        lines: byT.get(id) ?? [],
+      };
+    });
+  } catch (e) {
+    console.error("listJobTemplates", e instanceof Error ? e.message : e);
+    return [];
   }
-  return rows.map((r) => {
-    const row = r as Record<string, unknown>;
-    const id = String(row.id);
-    return {
-      id,
-      name: String(row.name ?? ""),
-      slug: String(row.slug ?? ""),
-      service_type: templateServiceType(row.service_type),
-      default_labor_cents: Math.round(Number(row.default_labor_cents) || 0),
-      price_range_label: String(row.price_range_label ?? ""),
-      notes: String(row.notes ?? ""),
-      sort_order: Number(row.sort_order) || 0,
-      active: Number(row.active) === 1,
-      lines: byT.get(id) ?? [],
-    };
-  });
 }
 
 export async function getJobTemplate(id: string): Promise<JobTemplate | null> {
