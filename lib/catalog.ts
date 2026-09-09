@@ -7,6 +7,8 @@ export type CatalogTag = (typeof CATALOG_TAGS)[number];
 export const CATALOG_CATEGORIES = ["Part", "Oil", "Shop"] as const;
 export type CatalogCategory = (typeof CATALOG_CATEGORIES)[number];
 
+export type CatalogLaborMode = "hours" | "fixed";
+
 export type CatalogItem = {
   id: string;
   name: string;
@@ -16,6 +18,8 @@ export type CatalogItem = {
   price_cents: number;
   jug_qt: number;
   jug_cents: number;
+  labor_mode: CatalogLaborMode;
+  labor_hours: number;
 };
 
 export const DEFAULT_CATALOG: { name: string; tag: CatalogTag; category: CatalogCategory }[] = [
@@ -66,6 +70,10 @@ export function isOilItem(item: { tag?: unknown; category?: unknown }): boolean 
   return catalogTag(item.tag) === "oil" || catalogCategory(item.category) === "Oil";
 }
 
+export function catalogLaborMode(raw: unknown): CatalogLaborMode {
+  return String(raw ?? "").trim().toLowerCase() === "hours" ? "hours" : "fixed";
+}
+
 export function isLaborItem(item: { tag?: unknown }): boolean {
   return catalogTag(item.tag) === "labor";
 }
@@ -86,6 +94,8 @@ export function mapCatalogRow(row: Record<string, unknown>): CatalogItem {
     price_cents: Math.round(Number(row.price_cents) || 0),
     jug_qt: Number(row.jug_qt) || 5,
     jug_cents: Math.round(Number(row.jug_cents) || 0),
+    labor_mode: catalogLaborMode(row.labor_mode),
+    labor_hours: Number(row.labor_hours) > 0 ? Number(row.labor_hours) : 1,
   };
 }
 
@@ -101,9 +111,16 @@ export function catalogListPriceLabel(item: CatalogItem): string {
     const jug = item.jug_cents > 0 ? item.jug_cents : item.cost_cents;
     return jug > 0 ? `${money(jug)}/jug` : "—";
   }
+  if (item.tag === "labor") {
+    if (item.labor_mode === "hours") {
+      const h = item.labor_hours || 1;
+      return `${h} h`;
+    }
+    const flat = item.price_cents > item.cost_cents ? item.price_cents : item.cost_cents;
+    return flat > 0 ? money(flat) : "—";
+  }
   const charged = item.price_cents > item.cost_cents ? item.price_cents : item.cost_cents;
-  if (!(charged > 0)) return "—";
-  return item.tag === "labor" ? money(charged) : money(charged);
+  return charged > 0 ? money(charged) : "—";
 }
 
 export function catalogUnitCents(item: CatalogItem): number {

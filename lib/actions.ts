@@ -15,7 +15,7 @@ import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "
 import { ELECTRIC_ENGINE, isElectricEngine } from "./vpic";
 import { oilYmmeKey } from "./oil-specs";
 import { oilChargeCents } from "./oil-cost";
-import { catalogTag, categoryForTag } from "./catalog";
+import { catalogTag, categoryForTag, catalogLaborMode } from "./catalog";
 import { geocodeAddress } from "./geocode";
 import { applyJobTemplateToJob } from "./apply-job-template";
 import { templateKind } from "./job-templates";
@@ -195,18 +195,27 @@ function catalogFields(form: FormData) {
   if (tag === "oil") {
     if (!jugCents && cost) jugCents = cost;
     if (!cost && jugCents) {
-      return { name, tag, category, cost: jugCents, sell: price > jugCents ? price : jugCents, jugQt, jugCents };
+      return { name, tag, category, cost: jugCents, sell: price > jugCents ? price : jugCents, jugQt, jugCents, laborMode: "fixed" as const, laborHours: 1 };
     }
   }
-  return { name, tag, category, cost, sell, jugQt, jugCents };
+  const laborMode = tag === "labor" ? catalogLaborMode(str(form, "labor_mode")) : "fixed";
+  const laborHours = tag === "labor" && laborMode === "hours" ? Math.max(0.01, parseNumber(str(form, "labor_hours")) || 1) : 1;
+  if (tag === "labor" && laborMode === "hours") {
+    return { name, tag, category, cost: 0, sell: 0, jugQt, jugCents, laborMode, laborHours };
+  }
+  if (tag === "labor") {
+    const flat = cost || sell;
+    return { name, tag, category, cost: flat, sell: flat, jugQt, jugCents, laborMode, laborHours: 1 };
+  }
+  return { name, tag, category, cost, sell, jugQt, jugCents, laborMode, laborHours };
 }
 
 export async function addCatalogItemAction(form: FormData) {
   const s = await requireSession();
   const sql = await db();
   const c = catalogFields(form);
-  await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents, tag) VALUES (
-    ${crypto.randomUUID()}, ${s.shopId}, ${c.name}, ${c.category}, ${c.cost}, ${c.sell}, ${c.jugQt}, ${c.jugCents}, ${c.tag}
+  await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents, tag, labor_mode, labor_hours) VALUES (
+    ${crypto.randomUUID()}, ${s.shopId}, ${c.name}, ${c.category}, ${c.cost}, ${c.sell}, ${c.jugQt}, ${c.jugCents}, ${c.tag}, ${c.laborMode}, ${c.laborHours}
   )`;
   revalidatePath("/more");
   redirect("/more?tab=settings");
@@ -217,7 +226,7 @@ export async function updateCatalogItemAction(form: FormData) {
   const sql = await db();
   const id = str(form, "id");
   const c = catalogFields(form);
-  await sql`UPDATE catalog_items SET name = ${c.name}, category = ${c.category}, tag = ${c.tag}, cost_cents = ${c.cost}, price_cents = ${c.sell}, jug_qt = ${c.jugQt}, jug_cents = ${c.jugCents}
+  await sql`UPDATE catalog_items SET name = ${c.name}, category = ${c.category}, tag = ${c.tag}, cost_cents = ${c.cost}, price_cents = ${c.sell}, jug_qt = ${c.jugQt}, jug_cents = ${c.jugCents}, labor_mode = ${c.laborMode}, labor_hours = ${c.laborHours}
     WHERE id = ${id} AND shop_id = ${s.shopId}`;
   revalidatePath("/more");
   redirect("/more?tab=settings");
@@ -777,20 +786,39 @@ export async function addLaborAction(form: FormData) {
   const jobId = str(form, "job_id");
   const isFlat = str(form, "mode") === "flat";
   const settings = (await sql<{ labor_rate_cents: number }[]>`SELECT labor_rate_cents FROM settings WHERE shop_id = ${s.shopId} LIMIT 1`)[0];
-  const rate = parseMoney(str(form, "rate")) || settings?.labor_rate_cents || 12500;
+  const shopRate = Math.round(Number(settings?.labor_rate_cents) || 0);
+  const rate = parseMoney(str(form, "rate")) || shopRate;
   const description = str(form, "description") || "Labor";
+  const hours = parseNumber(str(form, "hours")) || (isFlat ? 0 : 1);
+  const flat = parseMoney(str(form, "flat"));
+  if (!isFlat && !rate) redirect(jobId ? `/jobs/${jobId}?e=rate` : "/more?tab=settings");
   if (str(form, "save_catalog") === "1") {
     const tag = catalogTag(str(form, "tag") || "labor", description);
     const category = categoryForTag(tag);
-    await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents, tag) VALUES (
-      ${crypto.randomUUID()}, ${s.shopId}, ${description}, ${category}, ${rate}, ${rate}, 5, 0, ${tag}
+    const laborMode = isFlat ? "fixed" : catalogLaborMode(str(form, "labor_mode") || "hours");
+    const laborHours = laborMode === "hours" ? Math.max(0.01, hours || 1) : 1;
+    const stored = laborMode === "fixed" ? flat || rate : 0;
+    await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents, tag, labor_mode, labor_hours) VALUES (
+      ${crypto.randomUUID()}, ${s.shopId}, ${description}, ${category}, ${stored}, ${stored}, 5, 0, ${tag}, ${laborMode}, ${laborHours}
     )`;
     revalidatePath("/more");
   }
   await sql`INSERT INTO labor_lines (id, job_id, description, hours, rate_cents, is_flat, flat_cents) VALUES (
     ${crypto.randomUUID()}, ${jobId}, ${description},
-    ${parseNumber(str(form, "hours"))}, ${rate}, ${isFlat ? 1 : 0}, ${parseMoney(str(form, "flat"))}
+    ${hours}, ${rate}, ${isFlat ? 1 : 0}, ${flat}
   )`;
+  revalidatePath(`/jobs/${jobId}`);
+}
+
+export async function updateLaborAction(form: FormData) {
+  await requireSession();
+  const sql = await db();
+  const jobId = str(form, "job_id");
+  const id = str(form, "id");
+  const isFlat = str(form, "mode") === "flat";
+  await sql`UPDATE labor_lines SET description = ${str(form, "description") || "Labor"}, hours = ${parseNumber(str(form, "hours"))},
+    rate_cents = ${parseMoney(str(form, "rate"))}, is_flat = ${isFlat ? 1 : 0}, flat_cents = ${parseMoney(str(form, "flat"))}
+    WHERE id = ${id}`;
   revalidatePath(`/jobs/${jobId}`);
 }
 

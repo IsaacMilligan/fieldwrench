@@ -17,12 +17,14 @@ export function AddItemCard({
   hideOil,
   quarts,
   viscosity,
+  laborRateCents,
 }: {
   jobId: string;
   items: CatalogItem[];
   hideOil: boolean;
   quarts: number | null;
   viscosity?: string;
+  laborRateCents: number;
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -33,7 +35,9 @@ export function AddItemCard({
   const [qt, setQt] = useState(quarts && quarts > 0 ? String(quarts) : "");
   const [hours, setHours] = useState("1");
   const [rate, setRate] = useState("");
+  const [flat, setFlat] = useState("");
   const [oneOffTag, setOneOffTag] = useState<CatalogTag>("part");
+  const [oneOffLaborMode, setOneOffLaborMode] = useState<"hours" | "fixed">("hours");
 
   const catalog = hideOil ? items.filter((i) => !isOilItem(i)) : items;
   const needle = q.trim().toLowerCase();
@@ -57,8 +61,9 @@ export function AddItemCard({
   function pickLabor(item: CatalogItem) {
     setLabor(item);
     setOil(null);
-    setHours("1");
-    setRate(dollars(catalogUnitCents(item)));
+    setHours(String(item.labor_hours || 1));
+    setRate(dollars(laborRateCents));
+    setFlat(dollars(catalogUnitCents(item)));
     setOpen(false);
     setQ(item.name);
   }
@@ -203,32 +208,58 @@ export function AddItemCard({
       ) : null}
 
       {labor ? (
+        labor.labor_mode === "hours" && !(laborRateCents > 0) ? (
+          <p className="mt-3 text-sm font-bold text-amber">
+            Set labor rate $/hr in{" "}
+            <a className="underline" href="/more?tab=settings">
+              Settings
+            </a>{" "}
+            first.
+          </p>
+        ) : (
         <form action="/api/shop" method="post" className="mt-3">
           <input type="hidden" name="_op" value="add_labor" />
           <input type="hidden" name="job_id" value={jobId} />
           <input type="hidden" name="description" value={labor.name} />
-          <input type="hidden" name="mode" value="hours" />
-          <label className="lbl">Hours</label>
-          <input
-            className="field"
-            name="hours"
-            inputMode="decimal"
-            value={hours}
-            onChange={(e) => setHours(e.target.value)}
-          />
-          <label className="lbl">Rate $</label>
-          <input
-            className="field"
-            name="rate"
-            inputMode="decimal"
-            value={rate}
-            onChange={(e) => setRate(e.target.value)}
-          />
-          <p className="mt-2 text-xs text-muted">Labor — not taxed as parts.</p>
+          <input type="hidden" name="mode" value={labor.labor_mode === "fixed" ? "flat" : "hours"} />
+          {labor.labor_mode === "hours" ? (
+            <>
+              <label className="lbl">Hours</label>
+              <input
+                className="field"
+                name="hours"
+                inputMode="decimal"
+                value={hours}
+                onChange={(e) => setHours(e.target.value)}
+              />
+              <label className="lbl">Rate $ / hr</label>
+              <input
+                className="field"
+                name="rate"
+                inputMode="decimal"
+                value={rate}
+                onChange={(e) => setRate(e.target.value)}
+              />
+              <p className="mt-2 text-xs text-muted">Shop labor rate. Change hours here if needed.</p>
+            </>
+          ) : (
+            <>
+              <label className="lbl">Amount $</label>
+              <input
+                className="field"
+                name="flat"
+                inputMode="decimal"
+                value={flat}
+                onChange={(e) => setFlat(e.target.value)}
+              />
+              <p className="mt-2 text-xs text-muted">Fixed labor — not taxed as parts.</p>
+            </>
+          )}
           <button className="tap mt-3" type="submit">
             Add labor
           </button>
         </form>
+        )
       ) : null}
 
       {showOneOff ? (
@@ -240,7 +271,8 @@ export function AddItemCard({
           />
           <input type="hidden" name="job_id" value={jobId} />
           <input type="hidden" name="description" value={q.trim()} />
-          {oneOffTag === "labor" ? <input type="hidden" name="mode" value="hours" /> : null}
+          {oneOffTag === "labor" ? <input type="hidden" name="mode" value={oneOffLaborMode === "fixed" ? "flat" : "hours"} /> : null}
+          {oneOffTag === "labor" ? <input type="hidden" name="labor_mode" value={oneOffLaborMode} /> : null}
           <p className="text-sm text-muted">
             Add “{q.trim()}” as a new line. Not saved to the catalog unless you check below.
           </p>
@@ -263,10 +295,39 @@ export function AddItemCard({
             </>
           ) : oneOffTag === "labor" ? (
             <>
-              <label className="lbl">Hours</label>
-              <input className="field" name="hours" inputMode="decimal" defaultValue="1" />
-              <label className="lbl">Rate $</label>
-              <input className="field" name="rate" inputMode="decimal" />
+              <p className="lbl">Pricing</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className={`tap ${oneOffLaborMode === "hours" ? "" : "tap-steel"}`}
+                  onClick={() => setOneOffLaborMode("hours")}
+                >
+                  Hours × rate
+                </button>
+                <button
+                  type="button"
+                  className={`tap ${oneOffLaborMode === "fixed" ? "" : "tap-steel"}`}
+                  onClick={() => setOneOffLaborMode("fixed")}
+                >
+                  Fixed $
+                </button>
+              </div>
+              {oneOffLaborMode === "hours" ? (
+                <>
+                  <label className="lbl">Hours</label>
+                  <input className="field" name="hours" inputMode="decimal" defaultValue="1" />
+                  {laborRateCents > 0 ? (
+                    <input type="hidden" name="rate" value={dollars(laborRateCents)} />
+                  ) : (
+                    <p className="mt-2 text-sm font-bold text-amber">Set labor rate $/hr in Settings first.</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <label className="lbl">Amount $</label>
+                  <input className="field" name="flat" inputMode="decimal" />
+                </>
+              )}
             </>
           ) : (
             <>

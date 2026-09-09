@@ -6,6 +6,7 @@ import { CatalogTagPicker } from "./CatalogTagPicker";
 
 export function CatalogEditForm({ item }: { item?: CatalogItem }) {
   const [tag, setTag] = useState<CatalogTag>(item?.tag ?? "part");
+  const [laborMode, setLaborMode] = useState<"hours" | "fixed">(item?.labor_mode ?? "fixed");
   const isNew = !item;
 
   return (
@@ -43,21 +44,54 @@ export function CatalogEditForm({ item }: { item?: CatalogItem }) {
           </>
         ) : tag === "labor" ? (
           <>
-            <label className="lbl">Rate $</label>
-            <input
-              className="field"
-              name="cost"
-              inputMode="decimal"
-              defaultValue={
-                item && (item.price_cents > 0 || item.cost_cents > 0)
-                  ? ((item.price_cents > item.cost_cents ? item.price_cents : item.cost_cents) / 100).toFixed(2)
-                  : ""
-              }
-              placeholder="70"
-            />
-            <p className="mt-2 text-xs text-muted">
-              On a job this is hours × rate (default 1 hour). Counts as labor — not parts-taxed.
-            </p>
+            <p className="lbl">Pricing</p>
+            <input type="hidden" name="labor_mode" value={laborMode} />
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className={`tap ${laborMode === "hours" ? "" : "tap-steel"}`}
+                onClick={() => setLaborMode("hours")}
+              >
+                Hours × rate
+              </button>
+              <button
+                type="button"
+                className={`tap ${laborMode === "fixed" ? "" : "tap-steel"}`}
+                onClick={() => setLaborMode("fixed")}
+              >
+                Fixed $
+              </button>
+            </div>
+            {laborMode === "hours" ? (
+              <>
+                <label className="lbl">Hours</label>
+                <input
+                  className="field"
+                  name="labor_hours"
+                  inputMode="decimal"
+                  defaultValue={String(item?.labor_hours || 1)}
+                />
+                <p className="mt-2 text-xs text-muted">
+                  Amount = hours × Settings labor rate $/hr. On the job you can change hours.
+                </p>
+              </>
+            ) : (
+              <>
+                <label className="lbl">Amount $</label>
+                <input
+                  className="field"
+                  name="cost"
+                  inputMode="decimal"
+                  defaultValue={
+                    item && (item.price_cents > 0 || item.cost_cents > 0)
+                      ? ((item.price_cents > item.cost_cents ? item.price_cents : item.cost_cents) / 100).toFixed(2)
+                      : ""
+                  }
+                  placeholder="175"
+                />
+                <p className="mt-2 text-xs text-muted">Flat labor. You can still edit the $ on the job. Not parts-taxed.</p>
+              </>
+            )}
           </>
         ) : (
           <>

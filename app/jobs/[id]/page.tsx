@@ -4,7 +4,7 @@ import { Shell } from "@/components/Shell";
 import { ProfitPanel } from "@/components/ProfitPanel";
 import { StatusBadge } from "@/components/Mark";
 import { requireSession } from "@/lib/auth";
-import { getJobBundle, getShopOilDefault, listCatalogItems, listDiscountPresets, listJobTemplates } from "@/lib/db/queries";
+import { getJobBundle, getSettings, getShopOilDefault, listCatalogItems, listDiscountPresets, listJobTemplates } from "@/lib/db/queries";
 import { formatDateTime, money, vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
 import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE } from "@/lib/status";
@@ -34,6 +34,7 @@ export default async function JobDetailPage({
   const presets = await listDiscountPresets();
   const catalog = await listCatalogItems();
   const templates = await listJobTemplates();
+  const settings = await getSettings().catch(() => ({ labor_rate_cents: 0 }));
   const scheduled = job.scheduled_at
     ? new Date(job.scheduled_at).toISOString().slice(0, 16)
     : "";
@@ -78,6 +79,14 @@ export default async function JobDetailPage({
       ) : null}
       {q.e === "bev" ? (
         <p className="mt-3 text-sm font-bold text-amber">Oil change is N/A on a BEV.</p>
+      ) : null}
+      {q.e === "rate" ? (
+        <p className="mt-3 text-sm font-bold text-amber">
+          Set labor rate $/hr in Settings first.{" "}
+          <Link href="/more?tab=settings" className="underline">
+            Settings
+          </Link>
+        </p>
       ) : null}
       <JobDangerActions
         jobId={job.id}
@@ -152,31 +161,60 @@ export default async function JobDetailPage({
         </summary>
       <ul className="mt-3 space-y-2">
         {labor.map((l) => (
-          <li key={l.id} className="panel flex items-start justify-between gap-3">
-            <div>
-              <div className="font-bold">{l.description}</div>
-              <div className="text-sm text-muted">
-                {l.is_flat
-                  ? `Flat ${money(l.flat_cents)}`
-                  : `${l.hours} h × ${money(l.rate_cents)}`}
+          <li key={l.id} className="panel">
+            <form action="/api/shop" method="post" className="space-y-2">
+              <input type="hidden" name="_op" value="update_labor" />
+              <input type="hidden" name="id" value={l.id} />
+              <input type="hidden" name="job_id" value={job.id} />
+              <input type="hidden" name="mode" value={l.is_flat ? "flat" : "hours"} />
+              <input className="field" name="description" defaultValue={l.description} />
+              {l.is_flat ? (
+                <>
+                  <label className="lbl">Amount $</label>
+                  <input
+                    className="field"
+                    name="flat"
+                    inputMode="decimal"
+                    defaultValue={l.flat_cents ? (l.flat_cents / 100).toFixed(2) : ""}
+                  />
+                </>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="lbl">Hours</label>
+                    <input className="field" name="hours" inputMode="decimal" defaultValue={String(l.hours)} />
+                  </div>
+                  <div>
+                    <label className="lbl">Rate $</label>
+                    <input
+                      className="field"
+                      name="rate"
+                      inputMode="decimal"
+                      defaultValue={l.rate_cents ? (l.rate_cents / 100).toFixed(2) : ""}
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="num text-xl text-amber">
+                {money(laborLineCents({
+                  isFlat: l.is_flat,
+                  flatCents: l.flat_cents,
+                  hours: l.hours,
+                  rateCents: l.rate_cents,
+                }))}
               </div>
-            </div>
-            <div className="text-right">
-              <div className="num text-xl">{money(laborLineCents({
-                isFlat: l.is_flat,
-                flatCents: l.flat_cents,
-                hours: l.hours,
-                rateCents: l.rate_cents,
-              }))}</div>
-              <form action="/api/shop" method="post">
-            <input type="hidden" name="_op" value="delete_labor" />
-                <input type="hidden" name="id" value={l.id} />
-                <input type="hidden" name="job_id" value={job.id} />
-                <button className="text-xs font-bold uppercase tracking-widest text-red" type="submit">
-                  Remove
-                </button>
-              </form>
-            </div>
+              <button className="tap" type="submit">
+                Save labor
+              </button>
+            </form>
+            <form action="/api/shop" method="post" className="mt-2">
+              <input type="hidden" name="_op" value="delete_labor" />
+              <input type="hidden" name="id" value={l.id} />
+              <input type="hidden" name="job_id" value={job.id} />
+              <button className="text-xs font-bold uppercase tracking-widest text-red" type="submit">
+                Remove
+              </button>
+            </form>
           </li>
         ))}
       </ul>
@@ -272,6 +310,7 @@ export default async function JobDetailPage({
             ? String(vehicle?.oil_viscosity ?? "")
             : String(shop?.oil_viscosity ?? "")
         }
+        laborRateCents={Number(settings.labor_rate_cents) || 0}
       />
       </details>
 

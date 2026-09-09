@@ -117,7 +117,8 @@ export default async function MorePage({
           <label className="lbl">Shop name</label>
           <input className="field" name="shop_name" defaultValue={s.shop_name} />
           <label className="lbl">Labor rate $ / hour</label>
-          <input className="field" name="labor_rate" defaultValue={(s.labor_rate_cents / 100).toFixed(2)} />
+          <input className="field" name="labor_rate" defaultValue={s.labor_rate_cents ? (s.labor_rate_cents / 100).toFixed(2) : ""} placeholder="90" />
+          <p className="mt-2 text-xs text-muted">Used by Hours × rate labor catalog items. Leave blank until you set it.</p>
           <label className="lbl">IRS mileage rate (cents)</label>
           <input className="field" name="mileage_rate" defaultValue={String(s.mileage_rate_cents)} />
           <p className="mt-2 text-xs text-muted">

@@ -9,6 +9,7 @@ const LINE_OPS = new Set([
   "delete_part",
   "add_oil_part",
   "add_labor",
+  "update_labor",
   "delete_labor",
   "add_job_discount",
   "delete_job_discount",

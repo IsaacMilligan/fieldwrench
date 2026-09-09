@@ -1,4 +1,4 @@
-import { db, getJobTemplate, getShopOilDefault, listCatalogItems } from "./db/queries";
+import { db, getJobTemplate, getSettings, getShopOilDefault, listCatalogItems } from "./db/queries";
 import { oilChargeCents } from "./oil-cost";
 import { isLaborItem, isOilItem } from "./catalog";
 import { isElectricEngine } from "./vpic";
@@ -82,6 +82,17 @@ export async function applyJobTemplateToJob(opts: {
       continue;
     }
     if (ln.kind === "labor" || (cat && isLaborItem(cat))) {
+      if (cat && cat.labor_mode === "hours") {
+        const shop = await getSettings().catch(() => ({ labor_rate_cents: 0 }));
+        const rate = Math.round(Number(shop.labor_rate_cents) || 0);
+        const hours = cat.labor_hours || 1;
+        if (rate > 0) {
+          await sql`INSERT INTO labor_lines (id, job_id, description, hours, rate_cents, is_flat, flat_cents) VALUES (
+            ${crypto.randomUUID()}, ${opts.jobId}, ${ln.label}, ${hours}, ${rate}, 0, 0
+          )`;
+        }
+        continue;
+      }
       const rate = cat ? (cat.price_cents > cat.cost_cents ? cat.price_cents : cat.cost_cents) : 0;
       const flat = ln.unit_price_cents != null && ln.unit_price_cents > 0 ? ln.unit_price_cents : rate;
       if (flat > 0) {
