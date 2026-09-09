@@ -99,10 +99,22 @@ const OPS: Record<string, (form: FormData) => Promise<unknown>> = {
   accept_booking: acceptBookingAction,
 };
 
+const LINE_SECTION: Record<string, string> = {
+  add_part: "parts",
+  update_part: "parts",
+  delete_part: "parts",
+  add_oil_part: "parts",
+  add_labor: "labor",
+  delete_labor: "labor",
+  add_job_discount: "discounts",
+  delete_job_discount: "discounts",
+};
+
 export async function POST(req: NextRequest) {
   const origin = req.nextUrl.origin;
   const form = await req.formData();
   const op = String(form.get("_op") ?? "");
+  const ajax = req.headers.get("x-fw-ajax") === "1";
   if (op !== "logout") {
     const s = await readSession();
     if (!s) return NextResponse.redirect(new URL("/login", origin), 303);
@@ -113,13 +125,27 @@ export async function POST(req: NextRequest) {
     await fn(form);
   } catch (e) {
     const digest = e && typeof e === "object" && "digest" in e ? String((e as { digest?: string }).digest) : "";
-    if (digest.includes("NEXT_REDIRECT")) throw e;
+    if (digest.includes("NEXT_REDIRECT")) {
+      if (ajax && LINE_SECTION[op]) return NextResponse.json({ ok: true });
+      throw e;
+    }
     console.error("shop op", op, e);
     if (op === "delete_customer") {
       const msg = e instanceof Error ? e.message.slice(0, 160) : "Could not delete this customer.";
       return NextResponse.redirect(new URL(`/customers?e=${encodeURIComponent(msg)}`, origin), 303);
     }
   }
+  if (ajax && LINE_SECTION[op]) return NextResponse.json({ ok: true });
   const back = req.headers.get("referer") || `${origin}/`;
+  const section = LINE_SECTION[op];
+  if (section) {
+    try {
+      const url = new URL(back);
+      url.hash = section;
+      return NextResponse.redirect(url, 303);
+    } catch {
+      /* fall through */
+    }
+  }
   return NextResponse.redirect(back, 303);
 }

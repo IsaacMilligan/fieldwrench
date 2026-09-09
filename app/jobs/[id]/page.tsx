@@ -12,6 +12,7 @@ import { laborLineCents, partCustomerCents } from "@/lib/profit";
 import { JobDangerActions } from "../JobDangerActions";
 import { AddItemCard } from "../AddItemCard";
 import { JobTemplatePicker } from "../JobTemplatePicker";
+import { KeepJobScroll } from "../KeepJobScroll";
 import { AddressField } from "@/components/AddressField";
 import { isElectricEngine } from "@/lib/vpic";
 
@@ -145,7 +146,8 @@ export default async function JobDetailPage({
         </button>
       </form>
 
-      <details className="mt-8" open={labor.length > 0}>
+      <KeepJobScroll>
+      <details id="labor" className="mt-8" open={labor.length > 0}>
         <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
           + Add labor
         </summary>
@@ -201,7 +203,7 @@ export default async function JobDetailPage({
       </form>
       </details>
 
-      <details className="mt-8" open={parts.length > 0}>
+      <details id="parts" className="mt-8" open={parts.length > 0}>
         <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
           + Add item
         </summary>
@@ -276,7 +278,7 @@ export default async function JobDetailPage({
       />
       </details>
 
-      <details className="mt-8" open={(discounts?.length ?? 0) > 0}>
+      <details id="discounts" className="mt-8" open={(discounts?.length ?? 0) > 0}>
         <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
           + Discounts
         </summary>
@@ -332,6 +334,7 @@ export default async function JobDetailPage({
           </button>
         </form>
       </details>
+      </KeepJobScroll>
 
       <details className="mt-8" open={photos.length > 0}>
         <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
