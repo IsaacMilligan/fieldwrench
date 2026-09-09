@@ -1,6 +1,6 @@
 import { db, getJobTemplate, getShopOilDefault, listCatalogItems } from "./db/queries";
 import { oilChargeCents } from "./oil-cost";
-import { isOilCategory } from "./catalog";
+import { isLaborItem, isOilItem } from "./catalog";
 import { isElectricEngine } from "./vpic";
 import { parseServiceIds, servicesToJson, type ServiceId } from "./services";
 import { serviceIdForTemplate } from "./job-templates";
@@ -62,7 +62,7 @@ export async function applyJobTemplateToJob(opts: {
   let oilNeed = false;
   for (const ln of tmpl.lines) {
     const cat = ln.catalog_item_id ? byId.get(ln.catalog_item_id) : matchCatalog(catalog, ln.catalog_match || ln.label);
-    const isOil = ln.kind === "oil" || (cat && isOilCategory(cat.category));
+    const isOil = ln.kind === "oil" || (cat && isOilItem(cat));
     if (isOil) {
       if (!(quarts && quarts > 0)) {
         oilNeed = true;
@@ -79,6 +79,16 @@ export async function applyJobTemplateToJob(opts: {
       await sql`INSERT INTO part_lines (id, job_id, description, qty, cost_cents, price_cents) VALUES (
         ${crypto.randomUUID()}, ${opts.jobId}, ${desc}, 1, ${cents}, ${cents}
       )`;
+      continue;
+    }
+    if (ln.kind === "labor" || (cat && isLaborItem(cat))) {
+      const rate = cat ? (cat.price_cents > cat.cost_cents ? cat.price_cents : cat.cost_cents) : 0;
+      const flat = ln.unit_price_cents != null && ln.unit_price_cents > 0 ? ln.unit_price_cents : rate;
+      if (flat > 0) {
+        await sql`INSERT INTO labor_lines (id, job_id, description, hours, rate_cents, is_flat, flat_cents) VALUES (
+          ${crypto.randomUUID()}, ${opts.jobId}, ${ln.label}, 0, 0, 1, ${flat}
+        )`;
+      }
       continue;
     }
     const qty = ln.qty || 1;

@@ -61,8 +61,8 @@ export async function seedDemo(sql: Sql) {
     VALUES (1, 'FieldWrench', 12500, 76, 24, 'light', 1, ${DEMO_SHOP_ID})
   `;
   for (const item of DEFAULT_CATALOG) {
-    await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents)
-      VALUES (${id()}, ${DEMO_SHOP_ID}, ${item.name}, ${item.category}, 0, 0, 5, 0)`;
+    await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents, tag)
+      VALUES (${id()}, ${DEMO_SHOP_ID}, ${item.name}, ${item.category}, 0, 0, 5, 0, ${item.tag})`;
   }
 
   const mara = id();

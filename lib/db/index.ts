@@ -336,9 +336,12 @@ export function ensureReady(): Promise<void> {
             cost_cents INTEGER NOT NULL DEFAULT 0,
             price_cents INTEGER NOT NULL DEFAULT 0,
             jug_qt NUMERIC NOT NULL DEFAULT 5,
-            jug_cents INTEGER NOT NULL DEFAULT 0
+            jug_cents INTEGER NOT NULL DEFAULT 0,
+            tag TEXT NOT NULL DEFAULT 'part'
           )
         `);
+        await sql.unsafe(`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS tag TEXT NOT NULL DEFAULT 'part'`);
+        await sql.unsafe(`UPDATE catalog_items SET tag = 'oil' WHERE category = 'Oil' AND tag = 'part'`);
         await sql.unsafe(`
           CREATE TABLE IF NOT EXISTS job_templates (
             id TEXT PRIMARY KEY,

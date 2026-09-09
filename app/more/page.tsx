@@ -193,7 +193,7 @@ export default async function MorePage({
             Item catalog
           </h2>
           <p className="mt-2 text-sm text-muted">
-            Search these on the job. Blank customer price bills at cost. Oil items use jug size and jug cost — leftover oil stays shop inventory.
+            Search these on the job. Tag each item oil, part, or labor. Oil uses jug size + cost; labor is hours × rate and is not parts-taxed.
           </p>
           <div className="mt-3">
             <CatalogList items={catalog} />

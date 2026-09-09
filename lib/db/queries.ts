@@ -351,8 +351,8 @@ export async function listCatalogItems(): Promise<CatalogItem[]> {
   const [n] = await sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM catalog_items WHERE shop_id = ${sid}`;
   if (!n?.n) {
     for (const item of DEFAULT_CATALOG) {
-      await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents)
-        VALUES (${crypto.randomUUID()}, ${sid}, ${item.name}, ${item.category}, 0, 0, 5, 0)`;
+      await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents, tag)
+        VALUES (${crypto.randomUUID()}, ${sid}, ${item.name}, ${item.category}, 0, 0, 5, 0, ${item.tag})`;
     }
   }
   await migrateShopJugIntoCatalog(sid);
@@ -363,7 +363,7 @@ export async function listCatalogItems(): Promise<CatalogItem[]> {
 async function migrateShopJugIntoCatalog(sid: string) {
   const sql = await db();
   const oils = await sql<{ id: string; jug_cents: number }[]>`
-    SELECT id, jug_cents FROM catalog_items WHERE shop_id = ${sid} AND category = 'Oil'
+    SELECT id, jug_cents FROM catalog_items WHERE shop_id = ${sid} AND (tag = 'oil' OR category = 'Oil')
   `;
   if (oils.some((o) => Number(o.jug_cents) > 0)) return;
   const [s] = await sql<{ oil_jug_qt: number; oil_jug_cents: number }[]>`
@@ -378,8 +378,8 @@ async function migrateShopJugIntoCatalog(sid: string) {
       WHERE id = ${oils[0].id} AND shop_id = ${sid} AND jug_cents = 0`;
     return;
   }
-  await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents)
-    VALUES (${crypto.randomUUID()}, ${sid}, ${"Oil (5 qt jug)"}, ${"Oil"}, ${jugCents}, ${jugCents}, ${jugQt}, ${jugCents})`;
+  await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents, tag)
+    VALUES (${crypto.randomUUID()}, ${sid}, ${"Oil (5 qt jug)"}, ${"Oil"}, ${jugCents}, ${jugCents}, ${jugQt}, ${jugCents}, ${"oil"})`;
 }
 
 export async function getCatalogItem(id: string): Promise<CatalogItem | null> {
@@ -459,8 +459,8 @@ async function ensureJobTemplates(sid: string) {
   const have = new Set(catalog.map((c) => c.name.toLowerCase()));
   for (const extra of TEMPLATE_CATALOG_EXTRAS) {
     if (have.has(extra.name.toLowerCase())) continue;
-    await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents)
-      VALUES (${crypto.randomUUID()}, ${sid}, ${extra.name}, ${extra.category}, 0, 0, 5, 0)`;
+    await sql`INSERT INTO catalog_items (id, shop_id, name, category, cost_cents, price_cents, jug_qt, jug_cents, tag)
+      VALUES (${crypto.randomUUID()}, ${sid}, ${extra.name}, ${extra.category}, 0, 0, 5, 0, ${extra.tag})`;
     have.add(extra.name.toLowerCase());
   }
   const fresh = await sql<{ id: string; name: string }[]>`SELECT id, name FROM catalog_items WHERE shop_id = ${sid}`;

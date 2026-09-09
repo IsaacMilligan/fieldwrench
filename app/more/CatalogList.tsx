@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { CatalogItem } from "@/lib/catalog";
 import { catalogInitials, catalogListPriceLabel } from "@/lib/catalog";
+import { CatalogTagBadge } from "./CatalogTagPicker";
 
 export function CatalogList({ items }: { items: CatalogItem[] }) {
   const [q, setQ] = useState("");
@@ -46,6 +47,7 @@ export function CatalogList({ items }: { items: CatalogItem[] }) {
                 {catalogInitials(item.name)}
               </span>
               <span className="min-w-0 flex-1 truncate font-bold">{item.name}</span>
+              <CatalogTagBadge tag={item.tag} />
               <span className="num shrink-0 text-sm text-muted">{catalogListPriceLabel(item)}</span>
             </Link>
           </li>

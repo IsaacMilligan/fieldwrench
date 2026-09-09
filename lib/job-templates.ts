@@ -46,16 +46,16 @@ export type SeedTemplate = {
   lines: SeedLine[];
 };
 
-export const TEMPLATE_CATALOG_EXTRAS: { name: string; category: "Part" | "Oil" | "Shop" }[] = [
-  { name: "Oil (5 qt jug)", category: "Oil" },
-  { name: "Filter", category: "Part" },
-  { name: "Drain plug washer", category: "Part" },
-  { name: "Brake pads", category: "Part" },
-  { name: "Rotors", category: "Part" },
-  { name: "Brake cleaner", category: "Shop" },
-  { name: "Brake hardware", category: "Part" },
-  { name: "Battery", category: "Part" },
-  { name: "Headlight kit", category: "Shop" },
+export const TEMPLATE_CATALOG_EXTRAS: { name: string; tag: "oil" | "part" | "labor"; category: "Part" | "Oil" | "Shop" }[] = [
+  { name: "Oil (5 qt jug)", tag: "oil", category: "Oil" },
+  { name: "Filter", tag: "part", category: "Part" },
+  { name: "Drain plug washer", tag: "part", category: "Part" },
+  { name: "Brake pads", tag: "part", category: "Part" },
+  { name: "Rotors", tag: "part", category: "Part" },
+  { name: "Brake cleaner", tag: "part", category: "Shop" },
+  { name: "Brake hardware", tag: "part", category: "Part" },
+  { name: "Battery", tag: "part", category: "Part" },
+  { name: "Headlight kit", tag: "part", category: "Shop" },
 ];
 
 export const DEFAULT_JOB_TEMPLATES: SeedTemplate[] = [

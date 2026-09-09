@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { CatalogItem } from "@/lib/catalog";
-import { isOilCategory } from "@/lib/catalog";
+import type { CatalogItem, CatalogTag } from "@/lib/catalog";
+import { catalogUnitCents, guessCatalogTag, isLaborItem, isOilItem } from "@/lib/catalog";
 import { money } from "@/lib/format";
 import { oilChargeCents, oilPerQtDollars } from "@/lib/oil-cost";
+import { CatalogTagBadge, CatalogTagPicker } from "@/app/more/CatalogTagPicker";
 
 function dollars(cents: number): string {
   return cents > 0 ? (cents / 100).toFixed(2) : "";
@@ -26,24 +27,38 @@ export function AddItemCard({
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [oil, setOil] = useState<CatalogItem | null>(null);
+  const [labor, setLabor] = useState<CatalogItem | null>(null);
   const [jug, setJug] = useState("");
   const [size, setSize] = useState("5");
   const [qt, setQt] = useState(quarts && quarts > 0 ? String(quarts) : "");
+  const [hours, setHours] = useState("1");
+  const [rate, setRate] = useState("");
+  const [oneOffTag, setOneOffTag] = useState<CatalogTag>("part");
 
-  const catalog = hideOil ? items.filter((i) => !isOilCategory(i.category)) : items;
+  const catalog = hideOil ? items.filter((i) => !isOilItem(i)) : items;
   const needle = q.trim().toLowerCase();
   const matches = needle
-    ? catalog.filter((i) => i.name.toLowerCase().includes(needle))
+    ? catalog.filter((i) => i.name.toLowerCase().includes(needle) || i.tag.includes(needle))
     : catalog;
   const exact = needle ? catalog.some((i) => i.name.toLowerCase() === needle) : false;
   const showOneOff = needle.length > 0 && matches.length === 0;
 
   function pickOil(item: CatalogItem) {
-    const jugCents = item.jug_cents > 0 ? item.jug_cents : item.cost_cents;
+    const jugCents = catalogUnitCents(item);
     setOil(item);
+    setLabor(null);
     setJug(dollars(jugCents));
     setSize(String(item.jug_qt || 5));
     setQt(quarts && quarts > 0 ? String(quarts) : "");
+    setOpen(false);
+    setQ(item.name);
+  }
+
+  function pickLabor(item: CatalogItem) {
+    setLabor(item);
+    setOil(null);
+    setHours("1");
+    setRate(dollars(catalogUnitCents(item)));
     setOpen(false);
     setQ(item.name);
   }
@@ -66,9 +81,12 @@ export function AddItemCard({
         className="field"
         value={q}
         onChange={(e) => {
-          setQ(e.target.value);
+          const next = e.target.value;
+          setQ(next);
           setOil(null);
+          setLabor(null);
           setOpen(true);
+          setOneOffTag(guessCatalogTag(next));
         }}
         onFocus={() => setOpen(true)}
         placeholder="Search catalog"
@@ -76,10 +94,10 @@ export function AddItemCard({
         autoCorrect="off"
         spellCheck={false}
       />
-      {open && !oil ? (
+      {open && !oil && !labor ? (
         <ul className="mt-2 max-h-64 overflow-auto rounded border-2 border-line">
           {matches.map((item) =>
-            isOilCategory(item.category) ? (
+            isOilItem(item) ? (
               <li key={item.id}>
                 <button
                   type="button"
@@ -87,7 +105,23 @@ export function AddItemCard({
                   onClick={() => pickOil(item)}
                 >
                   <span>{item.name}</span>
-                  <span className="text-xs font-bold uppercase tracking-widest text-muted">Oil</span>
+                  <CatalogTagBadge tag="oil" />
+                </button>
+              </li>
+            ) : isLaborItem(item) ? (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className="flex min-h-14 w-full items-center justify-between gap-2 px-3 text-left font-bold"
+                  onClick={() => pickLabor(item)}
+                >
+                  <span>{item.name}</span>
+                  <span className="flex items-center gap-2">
+                    <CatalogTagBadge tag="labor" />
+                    <span className="num text-sm text-muted">
+                      {catalogUnitCents(item) > 0 ? money(catalogUnitCents(item)) : ""}
+                    </span>
+                  </span>
                 </button>
               </li>
             ) : (
@@ -104,8 +138,11 @@ export function AddItemCard({
                     type="submit"
                   >
                     <span>{item.name}</span>
-                    <span className="num text-sm text-muted">
-                      {item.cost_cents > 0 ? money(item.cost_cents) : item.category}
+                    <span className="flex items-center gap-2">
+                      <CatalogTagBadge tag="part" />
+                      <span className="num text-sm text-muted">
+                        {item.cost_cents > 0 ? money(item.cost_cents) : ""}
+                      </span>
                     </span>
                   </button>
                 </form>
@@ -128,7 +165,7 @@ export function AddItemCard({
           <p className="text-sm text-muted">
             Charge the vehicle’s quarts. Leftover in the jug stays shop inventory.
           </p>
-          <label className="lbl">Jug cost $</label>
+          <label className="lbl">Cost $</label>
           <input
             className="field"
             name="jug_cost"
@@ -165,35 +202,93 @@ export function AddItemCard({
         </form>
       ) : null}
 
+      {labor ? (
+        <form action="/api/shop" method="post" className="mt-3">
+          <input type="hidden" name="_op" value="add_labor" />
+          <input type="hidden" name="job_id" value={jobId} />
+          <input type="hidden" name="description" value={labor.name} />
+          <input type="hidden" name="mode" value="hours" />
+          <label className="lbl">Hours</label>
+          <input
+            className="field"
+            name="hours"
+            inputMode="decimal"
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
+          />
+          <label className="lbl">Rate $</label>
+          <input
+            className="field"
+            name="rate"
+            inputMode="decimal"
+            value={rate}
+            onChange={(e) => setRate(e.target.value)}
+          />
+          <p className="mt-2 text-xs text-muted">Labor — not taxed as parts.</p>
+          <button className="tap mt-3" type="submit">
+            Add labor
+          </button>
+        </form>
+      ) : null}
+
       {showOneOff ? (
         <form action="/api/shop" method="post" className="mt-3 border-t border-line pt-3">
-          <input type="hidden" name="_op" value="add_part" />
+          <input
+            type="hidden"
+            name="_op"
+            value={oneOffTag === "labor" ? "add_labor" : oneOffTag === "oil" ? "add_oil_part" : "add_part"}
+          />
           <input type="hidden" name="job_id" value={jobId} />
           <input type="hidden" name="description" value={q.trim()} />
-          <p className="text-sm text-muted">Add “{q.trim()}” as a new line. Not saved to the catalog unless you check below.</p>
-          <label className="lbl">Qty</label>
-          <input className="field" name="qty" inputMode="decimal" defaultValue="1" />
-          <label className="lbl">Your cost $</label>
-          <input className="field" name="cost" inputMode="decimal" />
-          <label className="lbl">Customer price $</label>
-          <input className="field" name="price" inputMode="decimal" placeholder="same as cost if blank" />
+          {oneOffTag === "labor" ? <input type="hidden" name="mode" value="hours" /> : null}
+          <p className="text-sm text-muted">
+            Add “{q.trim()}” as a new line. Not saved to the catalog unless you check below.
+          </p>
+          <CatalogTagPicker value={oneOffTag} onChange={setOneOffTag} />
+          {oneOffTag === "oil" ? (
+            <>
+              <label className="lbl">Jug size (qt)</label>
+              <input className="field" name="jug_qt" inputMode="decimal" defaultValue="5" />
+              <label className="lbl">Cost $</label>
+              <input className="field" name="jug_cost" inputMode="decimal" />
+              <label className="lbl">Quarts to charge</label>
+              <input
+                className="field"
+                name="quarts"
+                inputMode="decimal"
+                defaultValue={quarts && quarts > 0 ? String(quarts) : ""}
+                placeholder="qt"
+                required
+              />
+            </>
+          ) : oneOffTag === "labor" ? (
+            <>
+              <label className="lbl">Hours</label>
+              <input className="field" name="hours" inputMode="decimal" defaultValue="1" />
+              <label className="lbl">Rate $</label>
+              <input className="field" name="rate" inputMode="decimal" />
+            </>
+          ) : (
+            <>
+              <label className="lbl">Qty</label>
+              <input className="field" name="qty" inputMode="decimal" defaultValue="1" />
+              <label className="lbl">Cost $</label>
+              <input className="field" name="cost" inputMode="decimal" />
+              <label className="lbl">Customer price $</label>
+              <input className="field" name="price" inputMode="decimal" placeholder="same as cost if blank" />
+            </>
+          )}
           <label className="mt-3 flex min-h-14 items-center gap-3 text-sm font-bold">
             <input type="checkbox" name="save_catalog" value="1" className="h-6 w-6" />
             Save to catalog
           </label>
-          <label className="lbl">Category</label>
-          <select className="field" name="category" defaultValue="Part">
-            <option value="Part">Part</option>
-            <option value="Oil">Oil</option>
-            <option value="Shop">Shop</option>
-          </select>
           <button className="tap mt-3" type="submit">
             Add line
           </button>
         </form>
       ) : null}
 
-      {open && needle && matches.length > 0 && !exact && !oil ? (
+      {open && needle && matches.length > 0 && !exact && !oil && !labor ? (
         <p className="mt-2 text-xs text-muted">No exact name — keep typing or pick a match.</p>
       ) : null}
     </div>
