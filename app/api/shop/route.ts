@@ -111,6 +111,7 @@ const LINE_SECTION: Record<string, string> = {
   delete_labor: "labor",
   add_job_discount: "discounts",
   delete_job_discount: "discounts",
+  upload_photo: "photos",
 };
 
 export async function POST(req: NextRequest) {
@@ -133,6 +134,16 @@ export async function POST(req: NextRequest) {
       throw e;
     }
     console.error("shop op", op, e);
+    if (op === "upload_photo") {
+      const jobId = String(form.get("job_id") ?? "");
+      const msg = e instanceof Error ? e.message.slice(0, 180) : "Could not save photo.";
+      if (ajax) return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+      const u = new URL(jobId ? `/jobs/${jobId}` : "/", origin);
+      u.searchParams.set("e", "photo");
+      u.searchParams.set("msg", msg);
+      u.hash = "photos";
+      return NextResponse.redirect(u, 303);
+    }
     if (op === "delete_customer") {
       const msg = e instanceof Error ? e.message.slice(0, 160) : "Could not delete this customer.";
       return NextResponse.redirect(new URL(`/customers?e=${encodeURIComponent(msg)}`, origin), 303);

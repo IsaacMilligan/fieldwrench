@@ -13,6 +13,7 @@ import { JobDangerActions } from "../JobDangerActions";
 import { AddItemCard } from "../AddItemCard";
 import { JobTemplatePicker } from "../JobTemplatePicker";
 import { KeepJobScroll } from "../KeepJobScroll";
+import { PhotoUploadForm } from "../PhotoUploadForm";
 import { AddressField } from "@/components/AddressField";
 import { isElectricEngine } from "@/lib/vpic";
 
@@ -23,7 +24,7 @@ export default async function JobDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ oil?: string; e?: string }>;
+  searchParams: Promise<{ oil?: string; e?: string; photo?: string; msg?: string }>;
 }) {
   await requireSession();
   const { id } = await params;
@@ -388,11 +389,12 @@ export default async function JobDetailPage({
           </button>
         </form>
       </details>
-      </KeepJobScroll>
-
-      <details className="mt-8" open={photos.length > 0}>
-        <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
-          + Add photos
+      <details id="photos" className="group mt-8" open={photos.length > 0 || q.photo === "1" || q.e === "photo"}>
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest [&::-webkit-details-marker]:hidden">
+          <span className="inline-block shrink-0 text-base transition-transform group-open:rotate-90" aria-hidden>
+            ▶
+          </span>
+          <span className="min-w-0 flex-1">+ Add photos</span>
         </summary>
       <div className="mt-3 grid grid-cols-2 gap-2">
         {photos.map((ph) => (
@@ -405,16 +407,12 @@ export default async function JobDetailPage({
           />
         ))}
       </div>
-      <form action="/api/shop" method="post" className="mt-3">
-            <input type="hidden" name="_op" value="upload_photo" />
-        <input type="hidden" name="job_id" value={job.id} />
-        <label className="lbl">Upload / camera</label>
-        <input className="field" type="file" name="file" accept="image/*" capture="environment" />
-        <button className="tap mt-3" type="submit">
-          Save photo
-        </button>
-      </form>
+      {q.e === "photo" ? (
+        <p className="mt-3 text-sm font-bold text-red">{q.msg || "Could not save photo."}</p>
+      ) : null}
+      <PhotoUploadForm jobId={job.id} focus={q.photo === "1" || q.e === "photo"} />
       </details>
+      </KeepJobScroll>
 
       {receipts.length > 0 ? (
         <div className="mt-8 panel">

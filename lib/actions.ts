@@ -18,6 +18,7 @@ import { oilChargeCents } from "./oil-cost";
 import { catalogTag, categoryForTag, catalogLaborMode } from "./catalog";
 import { geocodeAddress } from "./geocode";
 import { applyJobTemplateToJob } from "./apply-job-template";
+import { prepareJobPhoto } from "./job-photo";
 import { templateKind } from "./job-templates";
 import {
   DEFAULT_BUFFER_MIN,
@@ -911,30 +912,39 @@ export async function deletePartAction(form: FormData) {
 }
 
 export async function uploadPhotoAction(form: FormData) {
-  await requireSession();
-  const sql = await db();
+  const s = await requireSession();
   const jobId = str(form, "job_id");
+  if (!jobId) throw new Error("Missing job.");
+  const token = process.env["BLOB_READ_WRITE_TOKEN"] || process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) {
+    console.error("upload_photo missing BLOB_READ_WRITE_TOKEN");
+    throw new Error("Photo storage is not set up. Add BLOB_READ_WRITE_TOKEN in Vercel (Production).");
+  }
+  const sql = await db();
+  const [job] = await sql<{ id: string }[]>`SELECT id FROM jobs WHERE id = ${jobId} AND shop_id = ${s.shopId}`;
+  if (!job) throw new Error("Job not found.");
   const file = form.get("file");
-  if (!(file instanceof File) || file.size === 0) return;
+  if (!(file instanceof File) || file.size === 0) throw new Error("Pick a photo first.");
+  const { buffer, contentType } = await prepareJobPhoto(file);
   const photoId = crypto.randomUUID();
-  const type = file.type || "image/jpeg";
-  const buf = Buffer.from(await file.arrayBuffer());
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
   let url = "";
-  let bytes: Buffer | null = buf;
-  if (token) {
-    const blob = await put(`jobs/${jobId}/${photoId}`, buf, {
+  try {
+    const blob = await put(`jobs/${jobId}/${photoId}.jpg`, buffer, {
       access: "public",
-      contentType: type,
+      contentType,
       token,
     });
     url = blob.url;
-    bytes = null;
+  } catch (e) {
+    console.error("upload_photo blob", e instanceof Error ? e.message : e);
+    throw new Error("Could not store that photo. Try again.");
   }
-  await sql`INSERT INTO photos (id, job_id, url, content_type, bytes) VALUES (
-    ${photoId}, ${jobId}, ${url}, ${type}, ${bytes}
+  if (!url) throw new Error("Could not store that photo.");
+  await sql`INSERT INTO photos (id, job_id, url, content_type, bytes, shop_id) VALUES (
+    ${photoId}, ${jobId}, ${url}, ${contentType}, ${null}, ${s.shopId}
   )`;
   revalidatePath(`/jobs/${jobId}`);
+  redirect(`/jobs/${jobId}?photo=1`);
 }
 
 export async function markInvoicePaidAction(form: FormData) {

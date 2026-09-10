@@ -344,6 +344,7 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`UPDATE catalog_items SET tag = 'oil' WHERE category = 'Oil' AND tag = 'part'`);
         await sql.unsafe(`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS labor_mode TEXT NOT NULL DEFAULT 'fixed'`);
         await sql.unsafe(`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS labor_hours NUMERIC NOT NULL DEFAULT 1`);
+        await sql.unsafe(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'live'`);
         await sql.unsafe(`
           CREATE TABLE IF NOT EXISTS job_templates (
             id TEXT PRIMARY KEY,
