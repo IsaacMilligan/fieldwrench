@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { put } from "@vercel/blob";
+import { putPrivateBlob, blobConfigured, blobUserMessage } from "./blob";
 import { DEMO, clearSession, createSession, requireSession, verifyLogin } from "./auth";
 import { getCustomerUser } from "./supabase/server";
 import { db, ensureInvoice } from "./db/queries";
@@ -915,10 +915,9 @@ export async function uploadPhotoAction(form: FormData) {
   const s = await requireSession();
   const jobId = str(form, "job_id");
   if (!jobId) throw new Error("Missing job.");
-  const token = process.env["BLOB_READ_WRITE_TOKEN"] || process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token) {
-    console.error("upload_photo missing BLOB_READ_WRITE_TOKEN");
-    throw new Error("Photo storage is not set up. Add BLOB_READ_WRITE_TOKEN in Vercel (Production).");
+  if (!blobConfigured()) {
+    console.error("upload_photo Blob storage not configured (need BLOB_STORE_ID+OIDC or BLOB_READ_WRITE_TOKEN)");
+    throw new Error("Blob storage not configured");
   }
   const sql = await db();
   const [job] = await sql<{ id: string }[]>`SELECT id FROM jobs WHERE id = ${jobId} AND shop_id = ${s.shopId}`;
@@ -927,21 +926,20 @@ export async function uploadPhotoAction(form: FormData) {
   if (!(file instanceof File) || file.size === 0) throw new Error("Pick a photo first.");
   const { buffer, contentType } = await prepareJobPhoto(file);
   const photoId = crypto.randomUUID();
+  const pathname = `jobs/${jobId}/${photoId}.jpg`;
   let url = "";
   try {
-    const blob = await put(`jobs/${jobId}/${photoId}.jpg`, buffer, {
-      access: "public",
-      contentType,
-      token,
-    });
+    const blob = await putPrivateBlob(pathname, buffer, contentType);
     url = blob.url;
   } catch (e) {
-    console.error("upload_photo blob", e instanceof Error ? e.message : e);
-    throw new Error("Could not store that photo. Try again.");
+    const name = e instanceof Error ? e.name : "";
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("upload_photo blob", name, msg);
+    throw new Error(blobUserMessage(e));
   }
   if (!url) throw new Error("Could not store that photo.");
-  await sql`INSERT INTO photos (id, job_id, url, content_type, bytes, shop_id) VALUES (
-    ${photoId}, ${jobId}, ${url}, ${contentType}, ${null}, ${s.shopId}
+  await sql`INSERT INTO photos (id, job_id, url, content_type, bytes, shop_id, pathname) VALUES (
+    ${photoId}, ${jobId}, ${url}, ${contentType}, ${null}, ${s.shopId}, ${pathname}
   )`;
   revalidatePath(`/jobs/${jobId}`);
   redirect(`/jobs/${jobId}?photo=1`);
@@ -982,15 +980,12 @@ export async function addReceiptAction(form: FormData) {
   const id = crypto.randomUUID();
   const file = form.get("file");
   let photoUrl = "";
-  if (file instanceof File && file.size > 0) {
-    const token = process.env.BLOB_READ_WRITE_TOKEN;
-    if (token) {
-      const blob = await put(`receipts/${id}`, Buffer.from(await file.arrayBuffer()), {
-        access: "public",
-        contentType: file.type || "image/jpeg",
-        token,
-      });
+  if (file instanceof File && file.size > 0 && blobConfigured()) {
+    try {
+      const blob = await putPrivateBlob(`receipts/${id}.bin`, Buffer.from(await file.arrayBuffer()), file.type || "image/jpeg");
       photoUrl = blob.url;
+    } catch (e) {
+      console.error("receipt blob", e instanceof Error ? e.message : e);
     }
   }
   await sql`INSERT INTO receipts (id, amount_cents, vendor, category, date, job_id, photo_url, shop_id) VALUES (

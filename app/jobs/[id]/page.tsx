@@ -401,7 +401,7 @@ export default async function JobDetailPage({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             key={ph.id}
-            src={ph.url || `/api/media/${ph.id}`}
+            src={`/api/media/${ph.id}`}
             alt="Job photo"
             className="h-36 w-full rounded object-cover"
           />

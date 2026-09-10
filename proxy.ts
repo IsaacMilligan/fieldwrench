@@ -10,7 +10,6 @@ const PUBLIC = [
   /^\/api\/places/,
   /^\/api\/vpic/,
   /^\/api\/session/,
-  /^\/api\/media\//,
   /^\/customer/,
   /^\/auth\//,
 ];
