@@ -196,6 +196,7 @@ export function BookForm({
             <ServiceChips
               items={services}
               bev={bev}
+              variant="rows"
               onChange={(ids) => {
                 setPicked(ids);
                 setNeedService(false);

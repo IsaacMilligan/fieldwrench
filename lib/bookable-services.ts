@@ -39,3 +39,9 @@ export function labelsFromBookable(ids: string[], rows: BookableService[]): stri
   const byId = new Map(rows.map((r) => [r.id, r.name]));
   return ids.map((id) => byId.get(id) || id).filter(Boolean).join(", ");
 }
+
+export function formatDurationLabel(min: number): string {
+  const n = Math.max(0, Math.round(Number(min) || 0));
+  if (n >= 60 && n % 60 === 0) return `${n / 60} hr`;
+  return `${n} min`;
+}

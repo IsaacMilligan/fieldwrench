@@ -76,7 +76,12 @@ export default async function BookPage({
       hours={hours}
       durations={durations}
       slotStep={slotStep}
-      services={bookable.map((s) => ({ id: s.id, label: s.name, blurb: s.blurb || undefined }))}
+      services={bookable.map((s) => ({
+        id: s.id,
+        label: s.name,
+        blurb: s.blurb || undefined,
+        durationMin: s.duration_min,
+      }))}
     />
   );
 }
