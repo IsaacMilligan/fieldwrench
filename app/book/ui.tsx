@@ -7,7 +7,8 @@ import { ServiceChips } from "@/components/ServiceChips";
 import { AddressField } from "@/components/AddressField";
 import { VehiclePicker } from "./VehiclePicker";
 import { ELECTRIC_ENGINE, isKnownBev } from "@/lib/vpic";
-import { weekdayFromISO, WEEKDAY_NAMES } from "@/lib/schedule";
+import { weekdayFromISO, WEEKDAY_NAMES, bookingDurationMinutes, formatClock, startTimesForDay, type DayHours } from "@/lib/schedule";
+import { type ServiceId } from "@/lib/services";
 
 export function BookForm({
   signedIn,
@@ -20,12 +21,16 @@ export function BookForm({
   fullRejected,
   areaRejected,
   addressRejected,
+  timeRejected,
   savedVehicles = [],
   minDate,
   leadHours,
   closedWeekdays,
   fullDates,
   radiusMi,
+  hours,
+  durations,
+  slotStep,
 }: {
   signedIn: boolean;
   name?: string;
@@ -37,14 +42,21 @@ export function BookForm({
   fullRejected?: boolean;
   areaRejected?: boolean;
   addressRejected?: boolean;
+  timeRejected?: boolean;
   savedVehicles?: { year: number | null; make: string; model: string }[];
   minDate: string;
   leadHours: number;
   closedWeekdays: number[];
   fullDates: string[];
   radiusMi: number;
+  hours: DayHours[];
+  durations: Record<ServiceId, number>;
+  slotStep: number;
 }) {
   const [needService, setNeedService] = useState(false);
+  const [picked, setPicked] = useState<ServiceId[]>([]);
+  const [startTime, setStartTime] = useState("");
+  const [needTime, setNeedTime] = useState(Boolean(timeRejected));
   const [bev, setBev] = useState(false);
   const [date, setDate] = useState(minDate);
   const [leadErr, setLeadErr] = useState(Boolean(leadRejected));
@@ -52,6 +64,10 @@ export function BookForm({
   const [fullErr, setFullErr] = useState(Boolean(fullRejected));
   const leadMsg = `Pick a date at least ${leadHours} hours out.`;
   const closedNames = closedWeekdays.map((d) => WEEKDAY_NAMES[d]?.slice(0, 3)).filter(Boolean).join(", ");
+  const durationMin = bookingDurationMinutes(picked, durations);
+  const dateOk = Boolean(date) && date >= minDate && !closedWeekdays.includes(weekdayFromISO(date)) && !fullDates.includes(date);
+  const slots = picked.length && dateOk ? startTimesForDay(hours, date, durationMin, slotStep) : [];
+  const startValid = slots.includes(startTime);
 
   useEffect(() => {
     setDate((d) => (!d || d < minDate ? minDate : d));
@@ -73,6 +89,8 @@ export function BookForm({
     setLeadErr(false);
     setClosedErr(closedWeekdays.includes(weekdayFromISO(raw)));
     setFullErr(fullDates.includes(raw));
+    setStartTime("");
+    setNeedTime(false);
   }
 
   if (ok) {
@@ -143,6 +161,12 @@ export function BookForm({
           if (fullDates.includes(day)) {
             e.preventDefault();
             setFullErr(true);
+            return;
+          }
+          const t = String(fd.get("preferred_time") ?? "");
+          if (!t || !slots.includes(t)) {
+            e.preventDefault();
+            setNeedTime(true);
           }
         }}
       >
@@ -159,7 +183,18 @@ export function BookForm({
         />
         <p className="lbl">Services</p>
         <p className="mb-2 text-sm text-muted">Tap every job you want. You can pick more than one.</p>
-        <ServiceChips bev={bev} onChange={() => setNeedService(false)} />
+        <ServiceChips
+          bev={bev}
+          onChange={(ids) => {
+            setPicked(ids);
+            setNeedService(false);
+            setStartTime("");
+            setNeedTime(false);
+          }}
+        />
+        {picked.length ? (
+          <p className="mt-2 text-sm text-muted">About {durationMin} min on-site</p>
+        ) : null}
         <label className="lbl">Additional notes</label>
         <textarea
           className="field min-h-24"
@@ -192,14 +227,38 @@ export function BookForm({
           onChange={(e) => applyDate(e.target.value)}
           onBlur={(e) => applyDate(e.target.value || minDate)}
         />
-        <label className="lbl">Preferred window</label>
-        <select className="field" name="preferred_window" defaultValue="either">
-          <option value="either">Either</option>
-          <option value="morning">Morning</option>
-          <option value="afternoon">Afternoon</option>
-        </select>
+        <p className="lbl mt-4">Start time</p>
+        <input type="hidden" name="preferred_time" value={startValid ? startTime : ""} />
+        {!picked.length ? (
+          <p className="mt-2 text-sm text-muted">Pick services first</p>
+        ) : !dateOk ? (
+          <p className="mt-2 text-sm text-muted">Pick an open date first.</p>
+        ) : slots.length ? (
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {slots.map((t) => {
+              const on = startTime === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  className={`flex min-h-14 items-center justify-center rounded-xl border-2 px-2 py-2 text-center text-sm font-extrabold ${
+                    on ? "border-amber bg-amber text-[#120e04]" : "border-line bg-panel2"
+                  }`}
+                  onClick={() => {
+                    setStartTime(t);
+                    setNeedTime(false);
+                  }}
+                >
+                  {formatClock(t)}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-2 text-sm font-bold text-red">Nothing that long fits that day.</p>
+        )}
         <p id="preferred-date-help" className="mt-2 text-sm text-muted">
-          I’ll confirm the exact time when I reply.
+          This is a request — I’ll confirm when I reply.
           {closedNames ? ` Closed: ${closedNames}.` : ""}
         </p>
         {leadErr ? (
@@ -224,6 +283,7 @@ export function BookForm({
           <p className="mt-3 text-lg font-bold text-red">Couldn’t find that address. Add a city and ZIP.</p>
         ) : null}
         {needService ? <p className="mt-3 text-lg font-bold text-red">Pick at least one service.</p> : null}
+        {needTime ? <p className="mt-3 text-lg font-bold text-red">Pick a start time that fits.</p> : null}
         {failed ? <p className="mt-3 text-red">Could not save the request. Try again.</p> : null}
         <button className="tap mt-6" type="submit">
           Send request

@@ -41,10 +41,19 @@ export function earliestBookDateISO(leadHours: number, now = new Date()): string
 }
 
 export function preferredWindowLabel(raw: unknown): string {
-  const s = String(raw ?? "").toLowerCase();
-  if (s === "morning") return "Morning";
-  if (s === "afternoon") return "Afternoon";
-  if (s === "either") return "Either";
+  const s = String(raw ?? "").trim();
+  const clock = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (clock) {
+    const h = Math.min(23, Number(clock[1]));
+    const m = Math.min(59, Number(clock[2]));
+    const am = h < 12;
+    const h12 = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2, "0")} ${am ? "AM" : "PM"}`;
+  }
+  const low = s.toLowerCase();
+  if (low === "morning") return "Morning";
+  if (low === "afternoon") return "Afternoon";
+  if (low === "either") return "Either";
   return "";
 }
 

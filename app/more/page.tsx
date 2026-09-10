@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { getSettings, listCatalogItems, listDiscountPresets, listJobTemplates, listReceipts, listMileage, listJobsLite } from "@/lib/db/queries";
 import { denverDateISO, formatDate, money } from "@/lib/format";
 import { WEEKDAY_NAMES } from "@/lib/schedule";
+import { SERVICES } from "@/lib/services";
 import { LeadHoursField } from "./LeadHoursField";
 import { ThemeToggle } from "./ThemeToggle";
 import { ReceiptScanForm } from "./ReceiptScanForm";
@@ -168,6 +169,33 @@ export default async function MorePage({
               );
             })}
           </ul>
+          <p className="lbl mt-4">Service duration (minutes)</p>
+          <p className="mt-2 text-xs text-muted">
+            How long each /book service takes on site. Multiple services add up. Used for start times.
+          </p>
+          <ul className="mt-2 space-y-2">
+            {SERVICES.map((svc) => (
+              <li key={svc.id} className="grid grid-cols-[1fr_6rem] items-center gap-2">
+                <span className="text-sm font-bold">{svc.label}</span>
+                <input
+                  className="field"
+                  name={`duration_${svc.id}`}
+                  inputMode="numeric"
+                  defaultValue={String(s.service_durations?.[svc.id] ?? 45)}
+                />
+              </li>
+            ))}
+          </ul>
+          <label className="lbl">Booking slot step (minutes)</label>
+          <input
+            className="field"
+            name="slot_step_min"
+            inputMode="numeric"
+            defaultValue={String(s.slot_step_min || 30)}
+          />
+          <p className="mt-2 text-xs text-muted">
+            Spacing of start-time buttons on /book. Separate from how long the job takes.
+          </p>
           <label className="lbl">Parts tax rate %</label>
           <input
             className="field"

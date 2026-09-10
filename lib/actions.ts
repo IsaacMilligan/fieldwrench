@@ -11,7 +11,7 @@ import { getSql } from "./db/index";
 import { parseMoney, parseNumber, vinOk } from "./format";
 import type { JobStatus, PayMethod } from "./status";
 import { JOB_STATUSES, PAY_METHODS } from "./status";
-import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "./services";
+import { formatServiceList, isServiceId, servicesToJson, SERVICES, type ServiceId } from "./services";
 import { ELECTRIC_ENGINE, isElectricEngine } from "./vpic";
 import { oilYmmeKey } from "./oil-specs";
 import { oilChargeCents } from "./oil-cost";
@@ -26,6 +26,9 @@ import {
   DEFAULT_HOURS,
   DEFAULT_RADIUS_MI,
   parseHours,
+  parseServiceDurations,
+  clampSlotStep,
+  parseStartClock,
   windowHour,
 } from "./schedule";
 
@@ -95,6 +98,11 @@ export async function saveSettingsAction(form: FormData) {
     end: str(form, `hours_${i}_end`) || d.end,
   }));
   const hoursJson = JSON.stringify(parseHours(hours));
+  const durations = parseServiceDurations(
+    Object.fromEntries(SERVICES.map((svc) => [svc.id, str(form, `duration_${svc.id}`)])),
+  );
+  const durationsJson = JSON.stringify(durations);
+  const slotStep = clampSlotStep(str(form, "slot_step_min"));
   const pickedLat = Number(str(form, "home_lat"));
   const pickedLng = Number(str(form, "home_lng"));
   const geo =
@@ -102,7 +110,8 @@ export async function saveSettingsAction(form: FormData) {
       ? { lat: pickedLat, lng: pickedLng }
       : await geocodeAddress(homeBase);
   await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead}, parts_tax_rate = ${tax},
-    home_base = ${homeBase}, home_lat = ${geo?.lat ?? null}, home_lng = ${geo?.lng ?? null}, service_radius_mi = ${radius}, job_buffer_min = ${buffer}, hours_json = ${hoursJson}
+    home_base = ${homeBase}, home_lat = ${geo?.lat ?? null}, home_lng = ${geo?.lng ?? null}, service_radius_mi = ${radius}, job_buffer_min = ${buffer}, hours_json = ${hoursJson},
+    service_durations_json = ${durationsJson}, slot_step_min = ${slotStep}
     WHERE shop_id = ${s.shopId}`;
   revalidatePath("/");
   revalidatePath("/book");
@@ -1116,8 +1125,12 @@ export async function acceptBookingAction(form: FormData) {
   const dateIso = b.preferred_date ? String(b.preferred_date).slice(0, 10) : "";
   const dateBit = dateIso ? ` Preferred date: ${dateIso}` : "";
   const complaint = `${b.issue}${notesBit}${dateBit}`;
-  const hour = windowHour(b.preferred_time);
-  const local = dateIso ? `${dateIso} ${String(hour).padStart(2, "0")}:00:00` : null;
+  const clock = parseStartClock(b.preferred_time);
+  const hour = clock ? clock.hour : windowHour(b.preferred_time);
+  const minute = clock ? clock.minute : 0;
+  const local = dateIso
+    ? `${dateIso} ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`
+    : null;
   if (local) {
     await sql`INSERT INTO jobs (id, customer_id, vehicle_id, status, address, complaint, services, shop_id, scheduled_at) VALUES (
       ${jobId}, ${customerId}, ${vehicleId}, 'scheduled', ${b.address}, ${complaint}, ${b.services || "[]"}, ${s.shopId},

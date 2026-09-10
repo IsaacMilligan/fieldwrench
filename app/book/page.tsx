@@ -6,9 +6,11 @@ import {
   DEFAULT_BUFFER_MIN,
   DEFAULT_HOURS,
   DEFAULT_RADIUS_MI,
+  DEFAULT_SLOT_STEP,
   isShopOpenOn,
   maxJobsOnDay,
   parseHours,
+  parseServiceDurations,
 } from "@/lib/schedule";
 import { BookForm } from "./ui";
 
@@ -26,12 +28,16 @@ export default async function BookPage({
     hours: DEFAULT_HOURS,
     job_buffer_min: DEFAULT_BUFFER_MIN,
     service_radius_mi: DEFAULT_RADIUS_MI,
+    service_durations: parseServiceDurations(null),
+    slot_step_min: DEFAULT_SLOT_STEP,
   }));
   const leadHours = normalizeLeadHours(settings.lead_hours ?? 24);
   const minDate = earliestBookDateISO(leadHours);
   const hours = parseHours(settings.hours ?? DEFAULT_HOURS);
   const buffer = Number(settings.job_buffer_min) || DEFAULT_BUFFER_MIN;
   const radiusMi = Number(settings.service_radius_mi) || DEFAULT_RADIUS_MI;
+  const durations = parseServiceDurations(settings.service_durations);
+  const slotStep = Number(settings.slot_step_min) || DEFAULT_SLOT_STEP;
   const closedWeekdays = hours.map((h, i) => (h.open ? -1 : i)).filter((i) => i >= 0);
   const loads = await listDayLoads(minDate).catch(() => new Map<string, number>());
   const fullDates: string[] = [];
@@ -60,12 +66,16 @@ export default async function BookPage({
       fullRejected={q.e === "full"}
       areaRejected={q.e === "area"}
       addressRejected={q.e === "address"}
+      timeRejected={q.e === "time"}
       savedVehicles={savedVehicles}
       minDate={minDate}
       leadHours={leadHours}
       closedWeekdays={closedWeekdays}
       fullDates={fullDates}
       radiusMi={radiusMi}
+      hours={hours}
+      durations={durations}
+      slotStep={slotStep}
     />
   );
 }

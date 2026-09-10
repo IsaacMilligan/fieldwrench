@@ -23,9 +23,13 @@ import {
   DEFAULT_HOME_BASE,
   DEFAULT_HOURS,
   DEFAULT_RADIUS_MI,
+  DEFAULT_SLOT_STEP,
   parseHours,
+  parseServiceDurations,
+  clampSlotStep,
   type DayHours,
 } from "../schedule";
+import { DEFAULT_SERVICE_MINUTES, type ServiceId } from "../services";
 
 export async function db() {
   await ensureReady();
@@ -138,6 +142,8 @@ export type Settings = {
   service_radius_mi: number;
   job_buffer_min: number;
   hours: DayHours[];
+  service_durations: Record<ServiceId, number>;
+  slot_step_min: number;
 };
 
 export type DiscountPreset = {
@@ -268,10 +274,12 @@ export async function getSettings(): Promise<Settings> {
     (Settings & {
       parts_tax_rate?: number;
       hours_json?: string;
+      service_durations_json?: string;
+      slot_step_min?: number;
     })[]
   >`
     SELECT shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme, parts_tax_rate, oil_jug_qt, oil_jug_cents,
-      home_base, home_lat, home_lng, service_radius_mi, job_buffer_min, hours_json
+      home_base, home_lat, home_lng, service_radius_mi, job_buffer_min, hours_json, service_durations_json, slot_step_min
     FROM settings WHERE shop_id = ${sid} LIMIT 1
   `;
   const theme = s?.theme === "dark" ? "dark" : "light";
@@ -293,6 +301,8 @@ export async function getSettings(): Promise<Settings> {
     service_radius_mi: DEFAULT_RADIUS_MI,
     job_buffer_min: DEFAULT_BUFFER_MIN,
     hours: DEFAULT_HOURS,
+    service_durations: { ...DEFAULT_SERVICE_MINUTES },
+    slot_step_min: DEFAULT_SLOT_STEP,
   };
   if (!s) return fallback;
   const lat = s.home_lat == null ? null : Number(s.home_lat);
@@ -309,6 +319,8 @@ export async function getSettings(): Promise<Settings> {
     service_radius_mi: Number(s.service_radius_mi) > 0 ? Number(s.service_radius_mi) : DEFAULT_RADIUS_MI,
     job_buffer_min: Math.max(0, Math.round(Number(s.job_buffer_min ?? DEFAULT_BUFFER_MIN) || DEFAULT_BUFFER_MIN)),
     hours: parseHours(s.hours_json),
+    service_durations: parseServiceDurations(s.service_durations_json),
+    slot_step_min: clampSlotStep(s.slot_step_min),
   };
 }
 

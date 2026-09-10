@@ -11,11 +11,15 @@ import {
   DEFAULT_HOME_COORDS,
   DEFAULT_HOURS,
   DEFAULT_RADIUS_MI,
+  DEFAULT_SLOT_STEP,
+  bookingDurationMinutes,
   haversineMiles,
   isShopOpenOn,
+  isValidStartTime,
   maxJobsOnDay,
-  normalizeWindow,
   parseHours,
+  parseServiceDurations,
+  clampSlotStep,
 } from "@/lib/schedule";
 
 export const runtime = "nodejs";
@@ -36,7 +40,7 @@ export async function POST(req: NextRequest) {
     const model = String(form.get("vehicle_model") ?? "").trim();
     const engine = String(form.get("vehicle_engine") ?? "").trim();
     const preferredDate = String(form.get("preferred_date") ?? "").trim();
-    const window = normalizeWindow(form.get("preferred_window"));
+    const preferredTime = String(form.get("preferred_time") ?? "").trim();
     const services = form
       .getAll("service")
       .map(String)
@@ -49,12 +53,17 @@ export async function POST(req: NextRequest) {
       home_lat: null as number | null,
       home_lng: null as number | null,
       home_base: "",
+      service_durations: parseServiceDurations(null),
+      slot_step_min: DEFAULT_SLOT_STEP,
     }));
     const leadHours = normalizeLeadHours(settings.lead_hours ?? 24);
     const minDate = earliestBookDateISO(leadHours);
     const hours = parseHours(settings.hours ?? DEFAULT_HOURS);
     const buffer = Number(settings.job_buffer_min) || DEFAULT_BUFFER_MIN;
     const radius = Number(settings.service_radius_mi) || DEFAULT_RADIUS_MI;
+    const durations = parseServiceDurations(settings.service_durations);
+    const slotStep = clampSlotStep(settings.slot_step_min ?? DEFAULT_SLOT_STEP);
+    const durationMin = bookingDurationMinutes(services, durations);
     if (!name || !phone || !address || !services.length || !year || !make || !model) {
       return NextResponse.redirect(new URL("/book?e=1", origin), 303);
     }
@@ -63,6 +72,9 @@ export async function POST(req: NextRequest) {
     }
     if (!isShopOpenOn(hours, preferredDate)) {
       return NextResponse.redirect(new URL("/book?e=closed", origin), 303);
+    }
+    if (!isValidStartTime(hours, preferredDate, preferredTime, durationMin, slotStep)) {
+      return NextResponse.redirect(new URL("/book?e=time", origin), 303);
     }
     const loads = await listDayLoads(minDate).catch(() => new Map<string, number>());
     const cap = maxJobsOnDay(hours, preferredDate, buffer);
@@ -98,11 +110,11 @@ export async function POST(req: NextRequest) {
     const shopId = await bookingShopId();
     await sql`INSERT INTO bookings (
       id, name, phone, address, vehicle, vehicle_year, vehicle_make, vehicle_model, vehicle_engine,
-      issue, services, notes, preferred_time, preferred_date, status, customer_email, shop_id
+      issue, services, notes, preferred_time, preferred_date, duration_minutes, status, customer_email, shop_id
     ) VALUES (
       ${crypto.randomUUID()}, ${name}, ${phone}, ${address}, ${vehicle},
       ${year}, ${make}, ${model}, ${engineStored},
-      ${issue}, ${servicesToJson(services)}, ${notes}, ${window}, ${preferredDate}, 'pending', ${email}, ${shopId}
+      ${issue}, ${servicesToJson(services)}, ${notes}, ${preferredTime}, ${preferredDate}, ${durationMin}, 'pending', ${email}, ${shopId}
     )`;
     return NextResponse.redirect(new URL("/book?ok=1", origin), 303);
   } catch (e) {

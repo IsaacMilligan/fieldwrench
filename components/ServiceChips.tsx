@@ -8,14 +8,17 @@ export function ServiceChips({
   onChange,
 }: {
   bev?: boolean;
-  onChange?: () => void;
+  onChange?: (ids: ServiceId[]) => void;
 }) {
   const [picked, setPicked] = useState<ServiceId[]>([]);
   const list = bev ? SERVICES.filter((s) => !BEV_HIDDEN_SERVICES.has(s.id)) : SERVICES;
 
   function toggle(id: ServiceId) {
-    setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
-    onChange?.();
+    setPicked((cur) => {
+      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+      onChange?.(next);
+      return next;
+    });
   }
 
   return (

@@ -36,6 +36,21 @@ export const SERVICES: ServiceDef[] = [
   { id: "other", label: "Other", miles: null, months: null },
 ];
 
+/** On-site minutes per /book chip. Mechanic can edit in Settings. */
+export const DEFAULT_SERVICE_MINUTES: Record<ServiceId, number> = {
+  oil_change: 45,
+  tire_rotation: 30,
+  brake_inspection: 30,
+  brake_job: 120,
+  battery_test: 45,
+  air_filter: 30,
+  cabin_filter: 30,
+  coolant: 45,
+  spark_plugs: 60,
+  diagnostic: 45,
+  other: 45,
+};
+
 const BY_ID = Object.fromEntries(SERVICES.map((s) => [s.id, s])) as Record<ServiceId, ServiceDef>;
 
 export function isServiceId(v: string): v is ServiceId {

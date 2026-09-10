@@ -59,7 +59,8 @@ export default async function BookingsPage() {
         {notes ? <p className="mt-1 text-sm">{notes}</p> : null}
         <div className="mt-2 text-sm text-steel">
           Preferred date: {preferredDateLabel(b.preferred_date ?? b.preferred_time)}
-          {window ? ` · ${window}` : ""} · {formatDateTime(b.created_at as string)}
+          {window ? ` · ${window}` : ""}
+          {Number(b.duration_minutes) > 0 ? ` · ${b.duration_minutes} min` : ""} · {formatDateTime(b.created_at as string)}
         </div>
         {conflict ? <p className="mt-2 text-sm font-bold text-amber">{conflict} Accept anyway if you want.</p> : null}
         {b.status === "pending" ? (
