@@ -3,17 +3,24 @@
 import { useState } from "react";
 import { BEV_HIDDEN_SERVICES, SERVICES, type ServiceId } from "@/lib/services";
 
+export type ServiceChipItem = { id: string; label: string; blurb?: string };
+
 export function ServiceChips({
+  items,
   bev = false,
   onChange,
 }: {
+  items?: ServiceChipItem[];
   bev?: boolean;
-  onChange?: (ids: ServiceId[]) => void;
+  onChange?: (ids: string[]) => void;
 }) {
-  const [picked, setPicked] = useState<ServiceId[]>([]);
-  const list = bev ? SERVICES.filter((s) => !BEV_HIDDEN_SERVICES.has(s.id)) : SERVICES;
+  const [picked, setPicked] = useState<string[]>([]);
+  const source: ServiceChipItem[] = items ?? SERVICES.map((s) => ({ id: s.id, label: s.label }));
+  const list = bev
+    ? source.filter((s) => !BEV_HIDDEN_SERVICES.has(s.id as ServiceId))
+    : source;
 
-  function toggle(id: ServiceId) {
+  function toggle(id: string) {
     setPicked((cur) => {
       const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
       onChange?.(next);
@@ -28,7 +35,7 @@ export function ServiceChips({
         return (
           <label
             key={s.id}
-            className={`flex min-h-14 cursor-pointer items-center justify-center rounded-xl border-2 px-2 py-2 text-center text-sm font-extrabold leading-tight ${
+            className={`flex min-h-14 cursor-pointer flex-col items-center justify-center rounded-xl border-2 px-2 py-2 text-center text-sm font-extrabold leading-tight ${
               on ? "border-amber bg-amber text-[#120e04]" : "border-line bg-panel2"
             }`}
           >
@@ -41,6 +48,7 @@ export function ServiceChips({
               onChange={() => toggle(s.id)}
             />
             {s.label}
+            {s.blurb ? <span className={`mt-1 text-[11px] font-semibold ${on ? "text-[#120e04]/70" : "text-muted"}`}>{s.blurb}</span> : null}
           </label>
         );
       })}

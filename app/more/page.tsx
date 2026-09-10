@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
-import { getSettings, listCatalogItems, listDiscountPresets, listJobTemplates, listReceipts, listMileage, listJobsLite } from "@/lib/db/queries";
+import { getSettings, listCatalogItems, listDiscountPresets, listJobTemplates, listReceipts, listMileage, listJobsLite, listBookableServices } from "@/lib/db/queries";
 import { denverDateISO, formatDate, money } from "@/lib/format";
 import { WEEKDAY_NAMES } from "@/lib/schedule";
-import { SERVICES } from "@/lib/services";
+import { BookableServicesPanel } from "./BookableServicesPanel";
 import { LeadHoursField } from "./LeadHoursField";
 import { ThemeToggle } from "./ThemeToggle";
 import { ReceiptScanForm } from "./ReceiptScanForm";
@@ -17,10 +17,10 @@ export const dynamic = "force-dynamic";
 export default async function MorePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; e?: string }>;
 }) {
   const sess = await requireSession();
-  const { tab } = await searchParams;
+  const { tab, e: settingsErr } = await searchParams;
   const jobs = await listJobsLite();
 
   if (tab === "receipts") {
@@ -107,6 +107,7 @@ export default async function MorePage({
     const presets = await listDiscountPresets();
     const catalog = await listCatalogItems();
     const jobTemplates = await listJobTemplates({ includeArchived: true });
+    const bookable = await listBookableServices();
     return (
       <Shell title="Settings">
         <form action="/api/shop" method="post" className="mb-6">
@@ -169,23 +170,6 @@ export default async function MorePage({
               );
             })}
           </ul>
-          <p className="lbl mt-4">Service duration (minutes)</p>
-          <p className="mt-2 text-xs text-muted">
-            How long each /book service takes on site. Multiple services add up. Used for start times.
-          </p>
-          <ul className="mt-2 space-y-2">
-            {SERVICES.map((svc) => (
-              <li key={svc.id} className="grid grid-cols-[1fr_6rem] items-center gap-2">
-                <span className="text-sm font-bold">{svc.label}</span>
-                <input
-                  className="field"
-                  name={`duration_${svc.id}`}
-                  inputMode="numeric"
-                  defaultValue={String(s.service_durations?.[svc.id] ?? 45)}
-                />
-              </li>
-            ))}
-          </ul>
           <label className="lbl">Booking slot step (minutes)</label>
           <input
             className="field"
@@ -206,6 +190,7 @@ export default async function MorePage({
           <p className="mt-2 text-xs text-muted">Utah parts tax. Applies to parts charged, not labor. 0 until you set it.</p>
           <button className="tap mt-4" type="submit">Save settings</button>
         </form>
+        <BookableServicesPanel services={bookable} error={settingsErr} />
         <section className="panel mt-6">
           <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
             Job templates

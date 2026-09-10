@@ -8,7 +8,7 @@ import { AddressField } from "@/components/AddressField";
 import { VehiclePicker } from "./VehiclePicker";
 import { ELECTRIC_ENGINE, isKnownBev } from "@/lib/vpic";
 import { weekdayFromISO, WEEKDAY_NAMES, bookingDurationMinutes, formatClock, startTimesForDay, type DayHours } from "@/lib/schedule";
-import { type ServiceId } from "@/lib/services";
+import type { ServiceChipItem } from "@/components/ServiceChips";
 
 export function BookForm({
   signedIn,
@@ -31,6 +31,7 @@ export function BookForm({
   hours,
   durations,
   slotStep,
+  services,
 }: {
   signedIn: boolean;
   name?: string;
@@ -50,11 +51,12 @@ export function BookForm({
   fullDates: string[];
   radiusMi: number;
   hours: DayHours[];
-  durations: Record<ServiceId, number>;
+  durations: Record<string, number>;
   slotStep: number;
+  services: ServiceChipItem[];
 }) {
   const [needService, setNeedService] = useState(false);
-  const [picked, setPicked] = useState<ServiceId[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
   const [startTime, setStartTime] = useState("");
   const [needTime, setNeedTime] = useState(Boolean(timeRejected));
   const [bev, setBev] = useState(false);
@@ -140,6 +142,10 @@ export function BookForm({
         method="post"
         className="mt-6"
         onSubmit={(e) => {
+          if (!services.length) {
+            e.preventDefault();
+            return;
+          }
           const fd = new FormData(e.currentTarget);
           if (!fd.getAll("service").length) {
             e.preventDefault();
@@ -182,19 +188,26 @@ export function BookForm({
           onYmme={(v) => setBev(isKnownBev(v.make, v.model) || v.engine === ELECTRIC_ENGINE)}
         />
         <p className="lbl">Services</p>
-        <p className="mb-2 text-sm text-muted">Tap every job you want. You can pick more than one.</p>
-        <ServiceChips
-          bev={bev}
-          onChange={(ids) => {
-            setPicked(ids);
-            setNeedService(false);
-            setStartTime("");
-            setNeedTime(false);
-          }}
-        />
-        {picked.length ? (
-          <p className="mt-2 text-sm text-muted">About {durationMin} min on-site</p>
-        ) : null}
+        {services.length === 0 ? (
+          <p className="mt-2 text-lg font-bold text-red">Booking unavailable — check back soon</p>
+        ) : (
+          <>
+            <p className="mb-2 text-sm text-muted">Tap every job you want. You can pick more than one.</p>
+            <ServiceChips
+              items={services}
+              bev={bev}
+              onChange={(ids) => {
+                setPicked(ids);
+                setNeedService(false);
+                setStartTime("");
+                setNeedTime(false);
+              }}
+            />
+            {picked.length ? (
+              <p className="mt-2 text-sm text-muted">About {durationMin} min on-site</p>
+            ) : null}
+          </>
+        )}
         <label className="lbl">Additional notes</label>
         <textarea
           className="field min-h-24"
@@ -285,7 +298,7 @@ export function BookForm({
         {needService ? <p className="mt-3 text-lg font-bold text-red">Pick at least one service.</p> : null}
         {needTime ? <p className="mt-3 text-lg font-bold text-red">Pick a start time that fits.</p> : null}
         {failed ? <p className="mt-3 text-red">Could not save the request. Try again.</p> : null}
-        <button className="tap mt-6" type="submit">
+        <button className="tap mt-6" type="submit" disabled={services.length === 0}>
           Send request
         </button>
       </form>

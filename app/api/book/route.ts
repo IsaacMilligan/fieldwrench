@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, getSettings, listDayLoads } from "@/lib/db/queries";
+import { db, getSettings, listDayLoads, listBookableServices } from "@/lib/db/queries";
 import { getCustomerUser } from "@/lib/supabase/server";
 import { ensureReady } from "@/lib/db/index";
-import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "@/lib/services";
+import { servicesToJson } from "@/lib/services";
+import { durationsFromBookable, labelsFromBookable } from "@/lib/bookable-services";
 import { bookingShopId } from "@/lib/auth";
 import { earliestBookDateISO, normalizeLeadHours } from "@/lib/format";
 import { geocodeAddress } from "@/lib/geocode";
@@ -18,7 +19,6 @@ import {
   isValidStartTime,
   maxJobsOnDay,
   parseHours,
-  parseServiceDurations,
   clampSlotStep,
 } from "@/lib/schedule";
 
@@ -41,10 +41,13 @@ export async function POST(req: NextRequest) {
     const engine = String(form.get("vehicle_engine") ?? "").trim();
     const preferredDate = String(form.get("preferred_date") ?? "").trim();
     const preferredTime = String(form.get("preferred_time") ?? "").trim();
-    const services = form
-      .getAll("service")
-      .map(String)
-      .filter(isServiceId) as ServiceId[];
+    const requested = form.getAll("service").map(String).filter(Boolean);
+    const catalog = await listBookableServices({ activeOnly: true }).catch(() => []);
+    const allowed = new Set(catalog.map((s) => s.id));
+    const services = requested.filter((id) => allowed.has(id));
+    if (!services.length || services.length !== requested.length) {
+      return NextResponse.redirect(new URL("/book?e=1", origin), 303);
+    }
     const settings = await getSettings().catch(() => ({
       lead_hours: 24,
       hours: DEFAULT_HOURS,
@@ -53,7 +56,6 @@ export async function POST(req: NextRequest) {
       home_lat: null as number | null,
       home_lng: null as number | null,
       home_base: "",
-      service_durations: parseServiceDurations(null),
       slot_step_min: DEFAULT_SLOT_STEP,
     }));
     const leadHours = normalizeLeadHours(settings.lead_hours ?? 24);
@@ -61,7 +63,7 @@ export async function POST(req: NextRequest) {
     const hours = parseHours(settings.hours ?? DEFAULT_HOURS);
     const buffer = Number(settings.job_buffer_min) || DEFAULT_BUFFER_MIN;
     const radius = Number(settings.service_radius_mi) || DEFAULT_RADIUS_MI;
-    const durations = parseServiceDurations(settings.service_durations);
+    const durations = durationsFromBookable(catalog);
     const slotStep = clampSlotStep(settings.slot_step_min ?? DEFAULT_SLOT_STEP);
     const durationMin = bookingDurationMinutes(services, durations);
     if (!name || !phone || !address || !services.length || !year || !make || !model) {
@@ -104,7 +106,7 @@ export async function POST(req: NextRequest) {
     }
     const user = await getCustomerUser();
     const email = (user?.email ?? String(form.get("email") ?? "")).toLowerCase();
-    const issue = formatServiceList(services);
+    const issue = labelsFromBookable(services, catalog);
     const engineStored = !engine || engine === "__unsure__" ? "" : engine;
     const vehicle = `${year} ${make} ${model}${engineStored ? ` ${engineStored}` : ""}`.trim();
     const shopId = await bookingShopId();

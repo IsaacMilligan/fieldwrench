@@ -153,8 +153,11 @@ export function parseServiceDurations(raw: unknown): Record<ServiceId, number> {
   return out;
 }
 
-export function bookingDurationMinutes(ids: ServiceId[], durations: Record<ServiceId, number>): number {
-  const sum = ids.reduce((acc, id) => acc + (durations[id] ?? DEFAULT_SERVICE_MINUTES[id] ?? 45), 0);
+export function bookingDurationMinutes(ids: string[], durations: Record<string, number>): number {
+  const sum = ids.reduce((acc, id) => {
+    const n = Number(durations[id]);
+    return acc + (Number.isFinite(n) && n > 0 ? n : 45);
+  }, 0);
   return Math.max(30, sum);
 }
 

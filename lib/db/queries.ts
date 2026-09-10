@@ -18,6 +18,7 @@ import {
   type JobTemplate,
   type JobTemplateLine,
 } from "../job-templates";
+import { seedBookableServices, type BookableService } from "../bookable-services";
 import {
   DEFAULT_BUFFER_MIN,
   DEFAULT_HOME_BASE,
@@ -490,6 +491,63 @@ async function ensureJobTemplates(sid: string) {
       i += 1;
     }
   }
+}
+
+export async function listBookableServices(opts?: { activeOnly?: boolean }): Promise<BookableService[]> {
+  try {
+    const sql = await db();
+    const sid = await shopId().catch(() => bookingShopId());
+    await ensureBookableServices(sid);
+    const rows = opts?.activeOnly
+      ? await sql<{ id: string; name: string; duration_min: number; blurb: string; sort_order: number; active: number }[]>`
+          SELECT id, name, duration_min, blurb, sort_order, active FROM bookable_services
+          WHERE shop_id = ${sid} AND active = 1 ORDER BY sort_order, name
+        `
+      : await sql<{ id: string; name: string; duration_min: number; blurb: string; sort_order: number; active: number }[]>`
+          SELECT id, name, duration_min, blurb, sort_order, active FROM bookable_services
+          WHERE shop_id = ${sid} ORDER BY sort_order, name
+        `;
+    return rows.map((r) => ({
+      id: String(r.id),
+      name: String(r.name),
+      duration_min: Math.max(15, Math.round(Number(r.duration_min) || 45)),
+      blurb: String(r.blurb || ""),
+      sort_order: Number(r.sort_order) || 0,
+      active: Number(r.active) === 1,
+    }));
+  } catch (e) {
+    console.error("listBookableServices", e instanceof Error ? e.message : e);
+    return [];
+  }
+}
+
+async function ensureBookableServices(sid: string) {
+  const sql = await db();
+  const [n] = await sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM bookable_services WHERE shop_id = ${sid}`;
+  if (n?.n) return;
+  const [s] = await sql<{ service_durations_json?: string }[]>`
+    SELECT service_durations_json FROM settings WHERE shop_id = ${sid} LIMIT 1
+  `;
+  const leftover = parseServiceDurations(s?.service_durations_json);
+  for (const row of seedBookableServices()) {
+    const minutes = leftover[row.id as keyof typeof leftover] || row.duration_min;
+    await sql`INSERT INTO bookable_services (shop_id, id, name, duration_min, blurb, sort_order, active)
+      VALUES (${sid}, ${row.id}, ${row.name}, ${minutes}, ${""}, ${row.sort_order}, 1)
+      ON CONFLICT (shop_id, id) DO NOTHING`;
+  }
+}
+
+export async function bookableServiceInUse(shopId: string, id: string): Promise<boolean> {
+  const sql = await db();
+  const needle = `%"${id}"%`;
+  const [b] = await sql<{ n: number }[]>`
+    SELECT COUNT(*)::int AS n FROM bookings WHERE shop_id = ${shopId} AND services LIKE ${needle}
+  `;
+  if ((b?.n ?? 0) > 0) return true;
+  const [j] = await sql<{ n: number }[]>`
+    SELECT COUNT(*)::int AS n FROM jobs WHERE shop_id = ${shopId} AND services LIKE ${needle}
+  `;
+  return (j?.n ?? 0) > 0;
 }
 
 export async function listJobDiscounts(jobId: string) {

@@ -311,6 +311,19 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS slot_step_min INTEGER NOT NULL DEFAULT 30`);
         await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS duration_minutes INTEGER NOT NULL DEFAULT 0`);
         await sql.unsafe(`
+          CREATE TABLE IF NOT EXISTS bookable_services (
+            shop_id TEXT NOT NULL DEFAULT 'live',
+            id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            duration_min INTEGER NOT NULL DEFAULT 45,
+            blurb TEXT NOT NULL DEFAULT '',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            active INTEGER NOT NULL DEFAULT 1,
+            PRIMARY KEY (shop_id, id)
+          )
+        `);
+        await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_bookable_services_shop ON bookable_services(shop_id, sort_order)`);
+        await sql.unsafe(`
           CREATE TABLE IF NOT EXISTS discount_presets (
             id TEXT PRIMARY KEY,
             shop_id TEXT NOT NULL DEFAULT 'live',

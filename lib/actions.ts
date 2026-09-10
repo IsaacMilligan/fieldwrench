@@ -5,13 +5,13 @@ import { revalidatePath } from "next/cache";
 import { putPrivateBlob, delPrivateBlob, blobConfigured, blobUserMessage } from "./blob";
 import { DEMO, clearSession, createSession, requireSession, verifyLogin } from "./auth";
 import { getCustomerUser } from "./supabase/server";
-import { db, ensureInvoice } from "./db/queries";
+import { db, ensureInvoice, bookableServiceInUse } from "./db/queries";
 import { seedDemo } from "./db/seed";
 import { getSql } from "./db/index";
 import { parseMoney, parseNumber, vinOk } from "./format";
 import type { JobStatus, PayMethod } from "./status";
 import { JOB_STATUSES, PAY_METHODS } from "./status";
-import { formatServiceList, isServiceId, servicesToJson, SERVICES, type ServiceId } from "./services";
+import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "./services";
 import { ELECTRIC_ENGINE, isElectricEngine } from "./vpic";
 import { oilYmmeKey } from "./oil-specs";
 import { oilChargeCents } from "./oil-cost";
@@ -20,13 +20,13 @@ import { geocodeAddress } from "./geocode";
 import { applyJobTemplateToJob } from "./apply-job-template";
 import { prepareJobPhoto } from "./job-photo";
 import { templateKind } from "./job-templates";
+import { clampServiceDuration } from "./bookable-services";
 import {
   DEFAULT_BUFFER_MIN,
   DEFAULT_HOME_BASE,
   DEFAULT_HOURS,
   DEFAULT_RADIUS_MI,
   parseHours,
-  parseServiceDurations,
   clampSlotStep,
   parseStartClock,
   windowHour,
@@ -98,10 +98,6 @@ export async function saveSettingsAction(form: FormData) {
     end: str(form, `hours_${i}_end`) || d.end,
   }));
   const hoursJson = JSON.stringify(parseHours(hours));
-  const durations = parseServiceDurations(
-    Object.fromEntries(SERVICES.map((svc) => [svc.id, str(form, `duration_${svc.id}`)])),
-  );
-  const durationsJson = JSON.stringify(durations);
   const slotStep = clampSlotStep(str(form, "slot_step_min"));
   const pickedLat = Number(str(form, "home_lat"));
   const pickedLng = Number(str(form, "home_lng"));
@@ -111,12 +107,76 @@ export async function saveSettingsAction(form: FormData) {
       : await geocodeAddress(homeBase);
   await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead}, parts_tax_rate = ${tax},
     home_base = ${homeBase}, home_lat = ${geo?.lat ?? null}, home_lng = ${geo?.lng ?? null}, service_radius_mi = ${radius}, job_buffer_min = ${buffer}, hours_json = ${hoursJson},
-    service_durations_json = ${durationsJson}, slot_step_min = ${slotStep}
+    slot_step_min = ${slotStep}
     WHERE shop_id = ${s.shopId}`;
   revalidatePath("/");
   revalidatePath("/book");
   revalidatePath("/calendar");
   redirect("/more?tab=settings");
+}
+
+function bookableSettingsRedirect(err?: string) {
+  revalidatePath("/more");
+  revalidatePath("/book");
+  if (err) redirect(`/more?tab=settings&e=${encodeURIComponent(err.slice(0, 120))}#bookable`);
+  redirect("/more?tab=settings#bookable");
+}
+
+export async function addBookableServiceAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const name = str(form, "name").trim();
+  if (!name) bookableSettingsRedirect("Name is required.");
+  const duration = clampServiceDuration(str(form, "duration_min"));
+  const blurb = str(form, "blurb").slice(0, 160);
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 24) || "svc";
+  const id = `${base}_${crypto.randomUUID().slice(0, 8)}`;
+  const [max] = await sql<{ n: number }[]>`SELECT COALESCE(MAX(sort_order), 0)::int AS n FROM bookable_services WHERE shop_id = ${s.shopId}`;
+  await sql`INSERT INTO bookable_services (shop_id, id, name, duration_min, blurb, sort_order, active)
+    VALUES (${s.shopId}, ${id}, ${name}, ${duration}, ${blurb}, ${(max?.n ?? 0) + 10}, 1)`;
+  bookableSettingsRedirect();
+}
+
+export async function updateBookableServiceAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const id = str(form, "id");
+  const name = str(form, "name").trim();
+  if (!id || !name) bookableSettingsRedirect("Name is required.");
+  const duration = clampServiceDuration(str(form, "duration_min"));
+  const blurb = str(form, "blurb").slice(0, 160);
+  await sql`UPDATE bookable_services SET name = ${name}, duration_min = ${duration}, blurb = ${blurb}
+    WHERE shop_id = ${s.shopId} AND id = ${id}`;
+  bookableSettingsRedirect();
+}
+
+export async function setBookableServiceActiveAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const id = str(form, "id");
+  const active = str(form, "active") === "1" ? 1 : 0;
+  await sql`UPDATE bookable_services SET active = ${active} WHERE shop_id = ${s.shopId} AND id = ${id}`;
+  bookableSettingsRedirect();
+}
+
+export async function deleteBookableServiceAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const id = str(form, "id");
+  if (await bookableServiceInUse(s.shopId, id)) {
+    bookableSettingsRedirect("That service is on a booking. Hide it instead.");
+  }
+  await sql`DELETE FROM bookable_services WHERE shop_id = ${s.shopId} AND id = ${id}`;
+  bookableSettingsRedirect();
+}
+
+export async function reorderBookableServiceAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const id = str(form, "id");
+  const dir = str(form, "dir") === "up" ? -15 : 15;
+  await sql`UPDATE bookable_services SET sort_order = sort_order + ${dir} WHERE shop_id = ${s.shopId} AND id = ${id}`;
+  bookableSettingsRedirect();
 }
 
 function discountFields(form: FormData) {

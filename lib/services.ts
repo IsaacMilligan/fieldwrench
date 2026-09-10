@@ -83,7 +83,7 @@ export function formatServiceList(ids: ServiceId[]): string {
   return serviceLabels(ids).join(", ");
 }
 
-export function servicesToJson(ids: ServiceId[]): string {
+export function servicesToJson(ids: string[]): string {
   return JSON.stringify(ids);
 }
 

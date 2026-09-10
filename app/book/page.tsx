@@ -1,5 +1,5 @@
 import { getCustomerUser } from "@/lib/supabase/server";
-import { getSettings, listCustomerGarage, listDayLoads } from "@/lib/db/queries";
+import { getSettings, listCustomerGarage, listDayLoads, listBookableServices } from "@/lib/db/queries";
 import { earliestBookDateISO, normalizeLeadHours } from "@/lib/format";
 import {
   addDaysISO,
@@ -10,8 +10,8 @@ import {
   isShopOpenOn,
   maxJobsOnDay,
   parseHours,
-  parseServiceDurations,
 } from "@/lib/schedule";
+import { durationsFromBookable } from "@/lib/bookable-services";
 import { BookForm } from "./ui";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +28,6 @@ export default async function BookPage({
     hours: DEFAULT_HOURS,
     job_buffer_min: DEFAULT_BUFFER_MIN,
     service_radius_mi: DEFAULT_RADIUS_MI,
-    service_durations: parseServiceDurations(null),
     slot_step_min: DEFAULT_SLOT_STEP,
   }));
   const leadHours = normalizeLeadHours(settings.lead_hours ?? 24);
@@ -36,7 +35,8 @@ export default async function BookPage({
   const hours = parseHours(settings.hours ?? DEFAULT_HOURS);
   const buffer = Number(settings.job_buffer_min) || DEFAULT_BUFFER_MIN;
   const radiusMi = Number(settings.service_radius_mi) || DEFAULT_RADIUS_MI;
-  const durations = parseServiceDurations(settings.service_durations);
+  const bookable = await listBookableServices({ activeOnly: true }).catch(() => []);
+  const durations = durationsFromBookable(bookable);
   const slotStep = Number(settings.slot_step_min) || DEFAULT_SLOT_STEP;
   const closedWeekdays = hours.map((h, i) => (h.open ? -1 : i)).filter((i) => i >= 0);
   const loads = await listDayLoads(minDate).catch(() => new Map<string, number>());
@@ -76,6 +76,7 @@ export default async function BookPage({
       hours={hours}
       durations={durations}
       slotStep={slotStep}
+      services={bookable.map((s) => ({ id: s.id, label: s.name, blurb: s.blurb || undefined }))}
     />
   );
 }
