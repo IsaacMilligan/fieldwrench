@@ -25,7 +25,7 @@ function squareBase(env: SquareEnv): string {
   return env.environment === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com";
 }
 
-type SquareErr = { category?: string; code?: string; detail?: string };
+type SquareErr = { category?: string; code?: string; detail?: string; field?: string };
 
 async function squareFetch<T>(env: SquareEnv, path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${squareBase(env)}${path}`, {
@@ -39,8 +39,11 @@ async function squareFetch<T>(env: SquareEnv, path: string, init?: RequestInit):
   });
   const json = (await res.json().catch(() => ({}))) as { errors?: SquareErr[] } & T;
   if (!res.ok) {
-    const e = json.errors?.[0];
-    const msg = e?.detail || e?.code || `Square HTTP ${res.status}`;
+    const errs = json.errors || [];
+    console.error("square", path, res.status, JSON.stringify(errs));
+    const e = errs[0];
+    const field = e?.field ? ` (${e.field})` : "";
+    const msg = `${e?.detail || e?.code || `Square HTTP ${res.status}`}${field}`;
     const err = new Error(msg);
     err.name = e?.code || "SquareError";
     throw err;
@@ -183,7 +186,6 @@ export async function squareCreateInvoice(
           order_id: input.orderId,
           primary_recipient: { customer_id: input.customerId },
           delivery_method: "SHARE_MANUALLY",
-          timezone: "America/Denver",
           title: input.title.slice(0, 100) || "Driveway service",
           description: input.description.slice(0, 2000),
           payment_requests: [
