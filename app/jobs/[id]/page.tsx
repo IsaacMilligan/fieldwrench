@@ -49,6 +49,20 @@ export default async function JobDetailPage({
         }).catch(() => null)
       : null;
 
+  const laborTotal = labor.reduce(
+    (s, l) =>
+      s +
+      laborLineCents({
+        isFlat: l.is_flat,
+        flatCents: l.flat_cents,
+        hours: l.hours,
+        rateCents: l.rate_cents,
+      }),
+    0,
+  );
+  const itemsTotal = parts.reduce((s, p) => s + partCustomerCents(p), 0);
+  const discountTotal = Math.round(Number(profit.discountTotal) || 0);
+
   return (
     <Shell title="Job">
       <div className="flex items-start justify-between gap-3">
@@ -155,9 +169,13 @@ export default async function JobDetailPage({
       </form>
 
       <KeepJobScroll>
-      <details id="labor" className="mt-8" open={labor.length > 0}>
-        <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
-          + Add labor
+      <details id="labor" className="group mt-8" open={labor.length > 0}>
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest [&::-webkit-details-marker]:hidden">
+          <span className="inline-block shrink-0 text-base transition-transform group-open:rotate-90" aria-hidden>
+            ▶
+          </span>
+          <span className="min-w-0 flex-1">+ Add labor</span>
+          <span className="num shrink-0 text-xl font-extrabold normal-case tracking-normal">{money(laborTotal)}</span>
         </summary>
       <ul className="mt-3 space-y-2">
         {labor.map((l) => (
@@ -229,9 +247,13 @@ export default async function JobDetailPage({
       />
       </details>
 
-      <details id="parts" className="mt-8" open={parts.length > 0}>
-        <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
-          + Add item
+      <details id="parts" className="group mt-8" open={parts.length > 0}>
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest [&::-webkit-details-marker]:hidden">
+          <span className="inline-block shrink-0 text-base transition-transform group-open:rotate-90" aria-hidden>
+            ▶
+          </span>
+          <span className="min-w-0 flex-1">+ Add item</span>
+          <span className="num shrink-0 text-xl font-extrabold normal-case tracking-normal">{money(itemsTotal)}</span>
         </summary>
       <ul className="mt-3 space-y-2">
         {parts.map((p) => (
@@ -304,9 +326,15 @@ export default async function JobDetailPage({
       />
       </details>
 
-      <details id="discounts" className="mt-8" open={(discounts?.length ?? 0) > 0}>
-        <summary className="cursor-pointer font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest">
-          + Discounts
+      <details id="discounts" className="group mt-8" open={(discounts?.length ?? 0) > 0}>
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 font-[family-name:var(--font-display)] text-xl font-bold uppercase tracking-widest [&::-webkit-details-marker]:hidden">
+          <span className="inline-block shrink-0 text-base transition-transform group-open:rotate-90" aria-hidden>
+            ▶
+          </span>
+          <span className="min-w-0 flex-1">+ Discounts</span>
+          <span className="num shrink-0 text-xl font-extrabold normal-case tracking-normal">
+            {discountTotal > 0 ? `−${money(discountTotal)}` : money(0)}
+          </span>
         </summary>
         <ul className="mt-3 space-y-2">
           {(discounts ?? []).map((d) => (
