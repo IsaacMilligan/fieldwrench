@@ -218,26 +218,15 @@ export default async function JobDetailPage({
           </li>
         ))}
       </ul>
-      <form action="/api/shop" method="post" className="mt-3 panel">
-            <input type="hidden" name="_op" value="add_labor" />
-        <input type="hidden" name="job_id" value={job.id} />
-        <label className="lbl">Description</label>
-        <input className="field" name="description" placeholder="Driveway labor" />
-        <label className="lbl">Mode</label>
-        <select className="field" name="mode" defaultValue="hours">
-          <option value="hours">Hours × rate</option>
-          <option value="flat">Flat fee</option>
-        </select>
-        <label className="lbl">Hours</label>
-        <input className="field" name="hours" inputMode="decimal" placeholder="1.5" />
-        <label className="lbl">Hourly rate $</label>
-        <input className="field" name="rate" inputMode="decimal" placeholder="125" />
-        <label className="lbl">Flat $</label>
-        <input className="field" name="flat" inputMode="decimal" placeholder="85" />
-        <button className="tap mt-4" type="submit">
-          Add labor
-        </button>
-      </form>
+      <AddItemCard
+        jobId={job.id}
+        items={catalog}
+        hideOil
+        quarts={null}
+        viscosity=""
+        laborRateCents={Number(settings.labor_rate_cents) || 0}
+        section="labor"
+      />
       </details>
 
       <details id="parts" className="mt-8" open={parts.length > 0}>
@@ -311,6 +300,7 @@ export default async function JobDetailPage({
             : String(shop?.oil_viscosity ?? "")
         }
         laborRateCents={Number(settings.labor_rate_cents) || 0}
+        section="items"
       />
       </details>
 

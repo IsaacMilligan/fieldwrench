@@ -123,6 +123,14 @@ export function catalogListPriceLabel(item: CatalogItem): string {
   return charged > 0 ? money(charged) : "—";
 }
 
+export function lineLooksLikeLabor(description: string, catalog: CatalogItem[]): boolean {
+  const base = String(description || "").split("·")[0].trim();
+  if (!base) return false;
+  const cat = catalog.find((c) => c.name.toLowerCase() === base.toLowerCase());
+  if (cat) return isLaborItem(cat);
+  return guessCatalogTag(base) === "labor";
+}
+
 export function catalogUnitCents(item: CatalogItem): number {
   if (item.tag === "oil") return item.jug_cents > 0 ? item.jug_cents : item.cost_cents;
   return item.price_cents > item.cost_cents ? item.price_cents : item.cost_cents;

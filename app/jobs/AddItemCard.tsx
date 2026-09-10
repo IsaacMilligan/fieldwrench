@@ -18,6 +18,7 @@ export function AddItemCard({
   quarts,
   viscosity,
   laborRateCents,
+  section = "items",
 }: {
   jobId: string;
   items: CatalogItem[];
@@ -25,6 +26,7 @@ export function AddItemCard({
   quarts: number | null;
   viscosity?: string;
   laborRateCents: number;
+  section?: "labor" | "items";
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -36,10 +38,13 @@ export function AddItemCard({
   const [hours, setHours] = useState("1");
   const [rate, setRate] = useState("");
   const [flat, setFlat] = useState("");
-  const [oneOffTag, setOneOffTag] = useState<CatalogTag>("part");
+  const [oneOffTag, setOneOffTag] = useState<CatalogTag>(section === "labor" ? "labor" : "part");
   const [oneOffLaborMode, setOneOffLaborMode] = useState<"hours" | "fixed">("hours");
+  const laborOnly = section === "labor";
 
-  const catalog = hideOil ? items.filter((i) => !isOilItem(i)) : items;
+  const catalog = laborOnly
+    ? items.filter((i) => isLaborItem(i))
+    : items.filter((i) => !isLaborItem(i) && (!hideOil || !isOilItem(i)));
   const needle = q.trim().toLowerCase();
   const matches = needle
     ? catalog.filter((i) => i.name.toLowerCase().includes(needle) || i.tag.includes(needle))
@@ -81,7 +86,7 @@ export function AddItemCard({
 
   return (
     <div className="mt-3 panel">
-      <label className="lbl">Add item</label>
+      <label className="lbl">{laborOnly ? "Add labor" : "Add item"}</label>
       <input
         className="field"
         value={q}
@@ -91,10 +96,10 @@ export function AddItemCard({
           setOil(null);
           setLabor(null);
           setOpen(true);
-          setOneOffTag(guessCatalogTag(next));
+          setOneOffTag(laborOnly ? "labor" : guessCatalogTag(next) === "labor" ? "part" : guessCatalogTag(next));
         }}
         onFocus={() => setOpen(true)}
-        placeholder="Search catalog"
+        placeholder={laborOnly ? "Search labor" : "Search catalog"}
         autoComplete="off"
         autoCorrect="off"
         spellCheck={false}
@@ -276,7 +281,11 @@ export function AddItemCard({
           <p className="text-sm text-muted">
             Add “{q.trim()}” as a new line. Not saved to the catalog unless you check below.
           </p>
-          <CatalogTagPicker value={oneOffTag} onChange={setOneOffTag} />
+          <CatalogTagPicker
+            value={oneOffTag}
+            onChange={setOneOffTag}
+            tags={laborOnly ? (["labor"] as const) : hideOil ? (["part"] as const) : (["oil", "part"] as const)}
+          />
           {oneOffTag === "oil" ? (
             <>
               <label className="lbl">Jug size (qt)</label>

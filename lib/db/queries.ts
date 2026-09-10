@@ -9,7 +9,7 @@ import { oilYmmeKey } from "../oil-specs";
 import { computeInvoice, type DiscountInput, type InvoiceMath } from "../invoice";
 import type { JobStatus, PayMethod } from "../status";
 import { bookingShopId, readSession } from "../auth";
-import { DEFAULT_CATALOG, mapCatalogRow, type CatalogItem } from "../catalog";
+import { DEFAULT_CATALOG, lineLooksLikeLabor, mapCatalogRow, type CatalogItem } from "../catalog";
 import {
   DEFAULT_JOB_TEMPLATES,
   TEMPLATE_CATALOG_EXTRAS,
@@ -1018,6 +1018,19 @@ export async function getJobBundle(jobId: string) {
           drive: "",
         }
       : null;
+  const partRaw0 = await sql`SELECT * FROM part_lines WHERE job_id = ${jobId}`;
+  const catalog = await listCatalogItems().catch(() => [] as CatalogItem[]);
+  for (const p of partRaw0) {
+    const row = p as Record<string, unknown>;
+    const desc = String(row.description ?? "");
+    if (!lineLooksLikeLabor(desc, catalog)) continue;
+    const mapped = mapPart(row);
+    const cents = partCustomerCents(mapped);
+    await sql`INSERT INTO labor_lines (id, job_id, description, hours, rate_cents, is_flat, flat_cents) VALUES (
+      ${crypto.randomUUID()}, ${jobId}, ${desc}, 0, 0, 1, ${cents}
+    )`;
+    await sql`DELETE FROM part_lines WHERE id = ${String(row.id)}`;
+  }
   const laborRaw = await sql`SELECT * FROM labor_lines WHERE job_id = ${jobId}`;
   const partRaw = await sql`SELECT * FROM part_lines WHERE job_id = ${jobId}`;
   const labor = laborRaw.map(mapLabor);

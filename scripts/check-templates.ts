@@ -1,5 +1,5 @@
 import { DEFAULT_JOB_TEMPLATES } from "../lib/job-templates";
-import { guessCatalogTag } from "../lib/catalog";
+import { guessCatalogTag, lineLooksLikeLabor } from "../lib/catalog";
 import { oilChargeCents } from "../lib/oil-cost";
 
 const oil = DEFAULT_JOB_TEMPLATES.find((t) => t.slug === "oil-change");
@@ -19,6 +19,14 @@ if (lights?.default_labor_cents !== 7500) {
 }
 if (guessCatalogTag("5W-30 jug") !== "oil" || guessCatalogTag("Oil filter") !== "part" || guessCatalogTag("Oil change labor") !== "labor") {
   console.error("FAIL catalog tag guess");
+  process.exit(1);
+}
+const fake = [
+  { name: "Oil change labor", tag: "labor" as const },
+  { name: "Oil filter", tag: "part" as const },
+] as import("../lib/catalog").CatalogItem[];
+if (!lineLooksLikeLabor("Oil change labor", fake) || lineLooksLikeLabor("Oil filter", fake)) {
+  console.error("FAIL lineLooksLikeLabor");
   process.exit(1);
 }
 if (oilChargeCents(2817, 5, 4.5) !== Math.round((2817 * 4.5) / 5)) {

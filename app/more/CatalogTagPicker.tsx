@@ -6,27 +6,34 @@ export function CatalogTagPicker({
   value,
   onChange,
   name = "tag",
+  tags = CATALOG_TAGS,
 }: {
   value: CatalogTag;
   onChange: (tag: CatalogTag) => void;
   name?: string;
+  tags?: readonly CatalogTag[];
 }) {
+  const cols = tags.length === 2 ? "grid-cols-2" : "grid-cols-3";
   return (
     <div>
-      <p className="lbl">Tag</p>
       <input type="hidden" name={name} value={value} />
-      <div className="grid grid-cols-3 gap-2">
-        {CATALOG_TAGS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            className={`tap ${value === t ? "" : "tap-steel"}`}
-            onClick={() => onChange(t)}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+      {tags.length > 1 ? (
+        <>
+          <p className="lbl">Tag</p>
+          <div className={`grid ${cols} gap-2`}>
+            {tags.map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={`tap ${value === t ? "" : "tap-steel"}`}
+                onClick={() => onChange(t)}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }
