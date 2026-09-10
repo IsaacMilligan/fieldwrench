@@ -10,6 +10,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { ReceiptScanForm } from "./ReceiptScanForm";
 import { CatalogList } from "./CatalogList";
 import { JobTemplateList } from "./JobTemplateList";
+import { DiscountPresetList } from "./DiscountPresetList";
 import { AddressField } from "@/components/AddressField";
 
 export const dynamic = "force-dynamic";
@@ -218,46 +219,7 @@ export default async function MorePage({
             Discount presets
           </h2>
           <p className="mt-2 text-sm text-muted">Named % or $ off a job. Pick them on the job, or add a one-off there that is not saved here.</p>
-          <ul className="mt-3 space-y-3">
-            {presets.map((p) => (
-              <li key={p.id} className="border-t border-line pt-3">
-                <form action="/api/shop" method="post" className="space-y-2">
-                  <input type="hidden" name="_op" value="update_discount_preset" />
-                  <input type="hidden" name="id" value={p.id} />
-                  <input className="field" name="name" defaultValue={p.name} />
-                  <select className="field" name="kind" defaultValue={p.kind}>
-                    <option value="percent">Percent %</option>
-                    <option value="amount">Amount $</option>
-                  </select>
-                  <input
-                    className="field"
-                    name="value"
-                    inputMode="decimal"
-                    defaultValue={p.kind === "amount" ? (p.amount_cents / 100).toFixed(2) : String(p.pct)}
-                  />
-                  <button className="tap" type="submit">Save preset</button>
-                </form>
-                <form action="/api/shop" method="post" className="mt-2">
-                  <input type="hidden" name="_op" value="delete_discount_preset" />
-                  <input type="hidden" name="id" value={p.id} />
-                  <button className="tap tap-red" type="submit">Delete preset</button>
-                </form>
-              </li>
-            ))}
-          </ul>
-          <form action="/api/shop" method="post" className="mt-4">
-            <input type="hidden" name="_op" value="add_discount_preset" />
-            <label className="lbl">New preset name</label>
-            <input className="field" name="name" placeholder="Military" required />
-            <label className="lbl">Type</label>
-            <select className="field" name="kind" defaultValue="percent">
-              <option value="percent">Percent %</option>
-              <option value="amount">Amount $</option>
-            </select>
-            <label className="lbl">Value</label>
-            <input className="field" name="value" inputMode="decimal" placeholder="10 or 20" required />
-            <button className="tap mt-3" type="submit">Add preset</button>
-          </form>
+          <DiscountPresetList presets={presets} />
         </section>
         <ThemeToggle value={s.theme === "dark" ? "dark" : "light"} />
         {sess.isDemo ? (
