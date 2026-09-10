@@ -28,6 +28,9 @@ import {
   markInvoicePaidAction,
   markInvoiceUnpaidAction,
   openInvoiceAction,
+  sendSquareInvoiceAction,
+  sendSquareEstimateAction,
+  refreshSquareInvoiceAction,
   resetDemoAction,
   restoreBookingAction,
   saveOilSpecAction,
@@ -106,6 +109,9 @@ const OPS: Record<string, (form: FormData) => Promise<unknown>> = {
   mark_paid: markInvoicePaidAction,
   mark_unpaid: markInvoiceUnpaidAction,
   open_invoice: openInvoiceAction,
+  send_square_invoice: sendSquareInvoiceAction,
+  send_square_estimate: sendSquareEstimateAction,
+  refresh_square: refreshSquareInvoiceAction,
   add_receipt: addReceiptAction,
   add_mileage: addMileageAction,
   dismiss_booking: dismissBookingAction,
@@ -125,6 +131,9 @@ const LINE_SECTION: Record<string, string> = {
   delete_job_discount: "discounts",
   upload_photo: "photos",
   delete_photo: "photos",
+  send_square_invoice: "square",
+  send_square_estimate: "square",
+  refresh_square: "square",
 };
 
 export async function POST(req: NextRequest) {
@@ -155,6 +164,16 @@ export async function POST(req: NextRequest) {
       u.searchParams.set("e", "photo");
       u.searchParams.set("msg", msg);
       u.hash = "photos";
+      return NextResponse.redirect(u, 303);
+    }
+    if (op === "send_square_invoice" || op === "send_square_estimate" || op === "refresh_square") {
+      const jobId = String(form.get("job_id") ?? "");
+      const msg = e instanceof Error ? e.message.slice(0, 180) : "Square request failed.";
+      if (ajax) return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+      const u = new URL(jobId ? `/jobs/${jobId}` : "/", origin);
+      u.searchParams.set("e", "square");
+      u.searchParams.set("msg", msg);
+      u.hash = "square";
       return NextResponse.redirect(u, 303);
     }
     if (op === "delete_customer") {

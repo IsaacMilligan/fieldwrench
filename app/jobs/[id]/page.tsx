@@ -15,8 +15,10 @@ import { JobTemplatePicker } from "../JobTemplatePicker";
 import { KeepJobScroll } from "../KeepJobScroll";
 import { PhotoUploadForm } from "../PhotoUploadForm";
 import { JobPhotoGrid } from "../JobPhotoGrid";
+import { SquareJobPanel } from "../SquareJobPanel";
 import { AddressField } from "@/components/AddressField";
 import { isElectricEngine } from "@/lib/vpic";
+import { squareConfigured } from "@/lib/square";
 
 export const dynamic = "force-dynamic";
 
@@ -169,6 +171,15 @@ export default async function JobDetailPage({
           Invoice {invoice?.status === "paid" ? "(paid)" : "(unpaid)"}
         </button>
       </form>
+      <SquareJobPanel
+        jobId={job.id}
+        configured={squareConfigured()}
+        status={String(invoice?.square_status || "not_sent")}
+        publicUrl={String(invoice?.square_public_url || "")}
+        kind={String(invoice?.square_kind || "")}
+        error={String(invoice?.square_error || "")}
+        pageError={q.e === "square" ? q.msg : undefined}
+      />
 
       <KeepJobScroll>
       <details id="labor" className="group mt-8" open={labor.length > 0}>

@@ -27,7 +27,7 @@ export const STATUS_TONE: Record<JobStatus, "amber" | "green" | "red" | "steel">
     cancelled: "steel",
   };
 
-export const PAY_METHODS = ["cash", "zelle", "venmo", "card", "check"] as const;
+export const PAY_METHODS = ["cash", "zelle", "venmo", "card", "check", "square"] as const;
 export type PayMethod = (typeof PAY_METHODS)[number];
 
 export const PAY_LABEL: Record<PayMethod, string> = {
@@ -36,4 +36,5 @@ export const PAY_LABEL: Record<PayMethod, string> = {
   venmo: "Venmo",
   card: "Card",
   check: "Check",
+  square: "Square",
 };

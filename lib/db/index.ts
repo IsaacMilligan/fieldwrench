@@ -310,6 +310,14 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS service_durations_json TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS slot_step_min INTEGER NOT NULL DEFAULT 30`);
         await sql.unsafe(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS duration_minutes INTEGER NOT NULL DEFAULT 0`);
+        await sql.unsafe(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS square_note TEXT NOT NULL DEFAULT 'Ascent Auto Care — driveway service'`);
+        await sql.unsafe(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS square_invoice_id TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS square_order_id TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS square_public_url TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS square_status TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS square_kind TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS square_version INTEGER NOT NULL DEFAULT 0`);
+        await sql.unsafe(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS square_error TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`
           CREATE TABLE IF NOT EXISTS bookable_services (
             shop_id TEXT NOT NULL DEFAULT 'live',

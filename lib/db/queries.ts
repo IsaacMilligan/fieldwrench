@@ -126,6 +126,13 @@ export type Invoice = {
   paid_method: PayMethod | null;
   paid_at: string | null;
   created_at?: string;
+  square_invoice_id?: string;
+  square_order_id?: string;
+  square_public_url?: string;
+  square_status?: string;
+  square_kind?: string;
+  square_version?: number;
+  square_error?: string;
 };
 
 export type Settings = {
@@ -145,6 +152,7 @@ export type Settings = {
   hours: DayHours[];
   service_durations: Record<ServiceId, number>;
   slot_step_min: number;
+  square_note: string;
 };
 
 export type DiscountPreset = {
@@ -277,10 +285,11 @@ export async function getSettings(): Promise<Settings> {
       hours_json?: string;
       service_durations_json?: string;
       slot_step_min?: number;
+      square_note?: string;
     })[]
   >`
     SELECT shop_name, labor_rate_cents, mileage_rate_cents, lead_hours, theme, parts_tax_rate, oil_jug_qt, oil_jug_cents,
-      home_base, home_lat, home_lng, service_radius_mi, job_buffer_min, hours_json, service_durations_json, slot_step_min
+      home_base, home_lat, home_lng, service_radius_mi, job_buffer_min, hours_json, service_durations_json, slot_step_min, square_note
     FROM settings WHERE shop_id = ${sid} LIMIT 1
   `;
   const theme = s?.theme === "dark" ? "dark" : "light";
@@ -304,6 +313,7 @@ export async function getSettings(): Promise<Settings> {
     hours: DEFAULT_HOURS,
     service_durations: { ...DEFAULT_SERVICE_MINUTES },
     slot_step_min: DEFAULT_SLOT_STEP,
+    square_note: "Ascent Auto Care — driveway service",
   };
   if (!s) return fallback;
   const lat = s.home_lat == null ? null : Number(s.home_lat);
@@ -322,6 +332,7 @@ export async function getSettings(): Promise<Settings> {
     hours: parseHours(s.hours_json),
     service_durations: parseServiceDurations(s.service_durations_json),
     slot_step_min: clampSlotStep(s.slot_step_min),
+    square_note: String(s.square_note || "Ascent Auto Care — driveway service"),
   };
 }
 

@@ -5,6 +5,7 @@ import { getSettings, listCatalogItems, listDiscountPresets, listJobTemplates, l
 import { denverDateISO, formatDate, money } from "@/lib/format";
 import { WEEKDAY_NAMES } from "@/lib/schedule";
 import { BookableServicesPanel } from "./BookableServicesPanel";
+import { SquareSettingsPanel } from "./SquareSettingsPanel";
 import { LeadHoursField } from "./LeadHoursField";
 import { ThemeToggle } from "./ThemeToggle";
 import { ReceiptScanForm } from "./ReceiptScanForm";
@@ -115,7 +116,7 @@ export default async function MorePage({
             <input type="hidden" name="_op" value="logout" />
           <button className="tap tap-red" type="submit">Log out</button>
         </form>
-        <form action="/api/shop" method="post" className="panel">
+        <form id="fw-settings" action="/api/shop" method="post" className="panel">
             <input type="hidden" name="_op" value="save_settings" />
           <label className="lbl">Shop name</label>
           <input className="field" name="shop_name" defaultValue={s.shop_name} />
@@ -192,6 +193,7 @@ export default async function MorePage({
           <button className="tap mt-4" type="submit">Save settings</button>
         </form>
         <BookableServicesPanel services={bookable} error={settingsErr} />
+        <SquareSettingsPanel note={s.square_note || "Ascent Auto Care — driveway service"} />
         <section className="panel mt-6">
           <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
             Job templates

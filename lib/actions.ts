@@ -5,10 +5,10 @@ import { revalidatePath } from "next/cache";
 import { putPrivateBlob, delPrivateBlob, blobConfigured, blobUserMessage } from "./blob";
 import { DEMO, clearSession, createSession, requireSession, verifyLogin } from "./auth";
 import { getCustomerUser } from "./supabase/server";
-import { db, ensureInvoice, bookableServiceInUse } from "./db/queries";
+import { db, ensureInvoice, bookableServiceInUse, getJobBundle, getSettings } from "./db/queries";
 import { seedDemo } from "./db/seed";
 import { getSql } from "./db/index";
-import { parseMoney, parseNumber, vinOk } from "./format";
+import { parseMoney, parseNumber, vinOk, money } from "./format";
 import type { JobStatus, PayMethod } from "./status";
 import { JOB_STATUSES, PAY_METHODS } from "./status";
 import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "./services";
@@ -21,6 +21,16 @@ import { applyJobTemplateToJob } from "./apply-job-template";
 import { prepareJobPhoto } from "./job-photo";
 import { templateKind } from "./job-templates";
 import { clampServiceDuration } from "./bookable-services";
+import { laborLineCents, partCustomerCents } from "./profit";
+import {
+  squareEnv,
+  squareCreateCustomer,
+  squareCreateOrder,
+  squareCreateInvoice,
+  squareGetInvoice,
+  squareUserMessage,
+  mapSquareInvoiceStatus,
+} from "./square";
 import {
   DEFAULT_BUFFER_MIN,
   DEFAULT_HOME_BASE,
@@ -99,6 +109,7 @@ export async function saveSettingsAction(form: FormData) {
   }));
   const hoursJson = JSON.stringify(parseHours(hours));
   const slotStep = clampSlotStep(str(form, "slot_step_min"));
+  const squareNote = str(form, "square_note") || "Ascent Auto Care — driveway service";
   const pickedLat = Number(str(form, "home_lat"));
   const pickedLng = Number(str(form, "home_lng"));
   const geo =
@@ -107,7 +118,7 @@ export async function saveSettingsAction(form: FormData) {
       : await geocodeAddress(homeBase);
   await sql`UPDATE settings SET shop_name = ${shop}, labor_rate_cents = ${labor}, mileage_rate_cents = ${mileageCents}, lead_hours = ${lead}, parts_tax_rate = ${tax},
     home_base = ${homeBase}, home_lat = ${geo?.lat ?? null}, home_lng = ${geo?.lng ?? null}, service_radius_mi = ${radius}, job_buffer_min = ${buffer}, hours_json = ${hoursJson},
-    slot_step_min = ${slotStep}
+    slot_step_min = ${slotStep}, square_note = ${squareNote}
     WHERE shop_id = ${s.shopId}`;
   revalidatePath("/");
   revalidatePath("/book");
@@ -1067,6 +1078,124 @@ export async function openInvoiceAction(form: FormData) {
   const jobId = str(form, "job_id");
   await ensureInvoice(jobId);
   redirect(`/invoices/${jobId}`);
+}
+
+async function applySquarePaid(jobId: string, invoiceId: string) {
+  const sql = await db();
+  await sql`UPDATE invoices SET status = 'paid', paid_method = 'square', paid_at = COALESCE(paid_at, NOW()) WHERE id = ${invoiceId} AND job_id = ${jobId}`;
+}
+
+function squareBreakdown(bundle: NonNullable<Awaited<ReturnType<typeof getJobBundle>>>): { title: string; description: string; total: number } {
+  const p = bundle.profit;
+  const lines: string[] = [];
+  for (const l of bundle.labor) {
+    const cents = laborLineCents({ isFlat: l.is_flat, flatCents: l.flat_cents, hours: l.hours, rateCents: l.rate_cents });
+    if (cents) lines.push(`${l.description}  ${money(cents)}`);
+  }
+  for (const part of bundle.parts) {
+    const cents = partCustomerCents(part);
+    if (cents) lines.push(`${part.description}  ${money(cents)}`);
+  }
+  for (const d of p.discountLines) {
+    if (d.cents) lines.push(`${d.name}  −${money(d.cents)}`);
+  }
+  if (p.partsTax) lines.push(`Parts tax  ${money(p.partsTax)}`);
+  lines.push(`Total  ${money(p.invoicedTotal)}`);
+  return {
+    title: "Driveway service",
+    description: lines.join("\n"),
+    total: p.invoicedTotal,
+  };
+}
+
+export async function sendSquareInvoiceAction(form: FormData) {
+  await sendSquareDocument(form, true);
+}
+
+export async function sendSquareEstimateAction(form: FormData) {
+  await sendSquareDocument(form, false);
+}
+
+async function sendSquareDocument(form: FormData, publish: boolean) {
+  const s = await requireSession();
+  const jobId = str(form, "job_id");
+  if (!jobId) throw new Error("Missing job.");
+  const env = squareEnv();
+  if (!env) throw new Error("Connect Square in Settings / Vercel env.");
+  const bundle = await getJobBundle(jobId);
+  if (!bundle) throw new Error("Job not found.");
+  const settings = await getSettings().catch(() => ({ shop_name: "FieldWrench", square_note: "" }));
+  const note = String(settings.square_note || "").trim();
+  const built = squareBreakdown(bundle);
+  const description = [note, built.description].filter(Boolean).join("\n\n");
+  const inv = await ensureInvoice(jobId);
+  try {
+    const customerId = await squareCreateCustomer(env, {
+      name: bundle.customer.name || "Customer",
+      phone: bundle.customer.phone,
+      email: bundle.customer.email,
+    });
+    const orderId = await squareCreateOrder(env, {
+      name: `${settings.shop_name || "FieldWrench"} — ${built.title}`,
+      amountCents: built.total,
+    });
+    const rec = await squareCreateInvoice(env, {
+      orderId,
+      customerId,
+      title: `${settings.shop_name || "FieldWrench"}`,
+      description,
+      publish,
+    });
+    const mapped = mapSquareInvoiceStatus(rec.status);
+    const sql = await db();
+    await sql`UPDATE invoices SET
+      square_invoice_id = ${rec.id},
+      square_order_id = ${rec.orderId || orderId},
+      square_public_url = ${rec.publicUrl},
+      square_status = ${mapped},
+      square_kind = ${publish ? "invoice" : "estimate"},
+      square_version = ${rec.version},
+      square_error = ${""}
+      WHERE id = ${inv.id} AND job_id = ${jobId}`;
+    if (mapped === "paid") await applySquarePaid(jobId, inv.id);
+  } catch (e) {
+    const msg = squareUserMessage(e);
+    console.error("square send", e instanceof Error ? e.message : e);
+    const sql = await db();
+    await sql`UPDATE invoices SET square_status = ${"failed"}, square_error = ${msg} WHERE id = ${inv.id} AND job_id = ${jobId}`;
+    throw new Error(msg);
+  }
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath(`/invoices/${jobId}`);
+}
+
+export async function refreshSquareInvoiceAction(form: FormData) {
+  await requireSession();
+  const jobId = str(form, "job_id");
+  if (!jobId) throw new Error("Missing job.");
+  const env = squareEnv();
+  if (!env) throw new Error("Connect Square in Settings / Vercel env.");
+  const inv = await ensureInvoice(jobId);
+  const sid = String(inv.square_invoice_id || "");
+  if (!sid) throw new Error("No Square invoice on this job yet.");
+  try {
+    const rec = await squareGetInvoice(env, sid);
+    const mapped = mapSquareInvoiceStatus(rec.status);
+    const sql = await db();
+    await sql`UPDATE invoices SET
+      square_public_url = ${rec.publicUrl || inv.square_public_url || ""},
+      square_status = ${mapped},
+      square_version = ${rec.version},
+      square_error = ${""}
+      WHERE id = ${inv.id} AND job_id = ${jobId}`;
+    if (mapped === "paid") await applySquarePaid(jobId, inv.id);
+  } catch (e) {
+    const msg = squareUserMessage(e);
+    console.error("square refresh", e instanceof Error ? e.message : e);
+    throw new Error(msg);
+  }
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath(`/invoices/${jobId}`);
 }
 
 export async function addReceiptAction(form: FormData) {
