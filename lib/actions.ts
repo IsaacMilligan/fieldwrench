@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { putPrivateBlob, blobConfigured, blobUserMessage } from "./blob";
+import { putPrivateBlob, delPrivateBlob, blobConfigured, blobUserMessage } from "./blob";
 import { DEMO, clearSession, createSession, requireSession, verifyLogin } from "./auth";
 import { getCustomerUser } from "./supabase/server";
 import { db, ensureInvoice } from "./db/queries";
@@ -941,6 +941,33 @@ export async function uploadPhotoAction(form: FormData) {
   await sql`INSERT INTO photos (id, job_id, url, content_type, bytes, shop_id, pathname) VALUES (
     ${photoId}, ${jobId}, ${url}, ${contentType}, ${null}, ${s.shopId}, ${pathname}
   )`;
+  revalidatePath(`/jobs/${jobId}`);
+  redirect(`/jobs/${jobId}?photo=1`);
+}
+
+export async function deletePhotoAction(form: FormData) {
+  const s = await requireSession();
+  const jobId = str(form, "job_id");
+  const photoId = str(form, "photo_id") || str(form, "id");
+  if (!jobId || !photoId) throw new Error("Missing photo.");
+  const sql = await db();
+  const [row] = await sql<{ id: string; url: string; pathname: string | null }[]>`
+    SELECT p.id, p.url, p.pathname
+    FROM photos p
+    JOIN jobs j ON j.id = p.job_id
+    WHERE p.id = ${photoId} AND p.job_id = ${jobId} AND j.shop_id = ${s.shopId}
+  `;
+  if (row) {
+    const key = (row.pathname && row.pathname.trim()) || row.url || "";
+    if (key) {
+      try {
+        await delPrivateBlob(key);
+      } catch (e) {
+        console.error("delete_photo blob", e instanceof Error ? e.message : e);
+      }
+    }
+    await sql`DELETE FROM photos WHERE id = ${photoId} AND job_id = ${jobId} AND shop_id = ${s.shopId}`;
+  }
   revalidatePath(`/jobs/${jobId}`);
   redirect(`/jobs/${jobId}?photo=1`);
 }

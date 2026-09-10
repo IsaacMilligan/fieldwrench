@@ -14,6 +14,7 @@ import { AddItemCard } from "../AddItemCard";
 import { JobTemplatePicker } from "../JobTemplatePicker";
 import { KeepJobScroll } from "../KeepJobScroll";
 import { PhotoUploadForm } from "../PhotoUploadForm";
+import { JobPhotoGrid } from "../JobPhotoGrid";
 import { AddressField } from "@/components/AddressField";
 import { isElectricEngine } from "@/lib/vpic";
 
@@ -396,16 +397,8 @@ export default async function JobDetailPage({
           </span>
           <span className="min-w-0 flex-1">+ Add photos</span>
         </summary>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        {photos.map((ph) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={ph.id}
-            src={`/api/media/${ph.id}`}
-            alt="Job photo"
-            className="h-36 w-full rounded object-cover"
-          />
-        ))}
+      <div className="mt-3">
+        <JobPhotoGrid jobId={job.id} photos={photos.map((ph) => ({ id: ph.id }))} />
       </div>
       {q.e === "photo" ? (
         <p className="mt-3 text-sm font-bold text-red">{q.msg || "Could not save photo."}</p>

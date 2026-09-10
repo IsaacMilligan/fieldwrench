@@ -42,6 +42,7 @@ import {
   updateJobAction,
   updateVehicleAction,
   uploadPhotoAction,
+  deletePhotoAction,
   updateJobTemplateAction,
   archiveJobTemplateAction,
   reorderJobTemplateAction,
@@ -91,6 +92,7 @@ const OPS: Record<string, (form: FormData) => Promise<unknown>> = {
   add_oil_part: addOilPartAction,
   delete_part: deletePartAction,
   upload_photo: uploadPhotoAction,
+  delete_photo: deletePhotoAction,
   mark_paid: markInvoicePaidAction,
   mark_unpaid: markInvoiceUnpaidAction,
   open_invoice: openInvoiceAction,
@@ -112,6 +114,7 @@ const LINE_SECTION: Record<string, string> = {
   add_job_discount: "discounts",
   delete_job_discount: "discounts",
   upload_photo: "photos",
+  delete_photo: "photos",
 };
 
 export async function POST(req: NextRequest) {

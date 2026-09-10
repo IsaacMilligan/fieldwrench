@@ -1,4 +1,4 @@
-import { get, put } from "@vercel/blob";
+import { del, get, put } from "@vercel/blob";
 
 export function blobConfigured(): boolean {
   const storeId = process.env["BLOB_STORE_ID"] || "";
@@ -45,4 +45,18 @@ export async function getPrivateBlob(urlOrPathname: string) {
   const auth = blobAuth();
   if (!auth) return null;
   return get(urlOrPathname, { access: "private", ...auth });
+}
+
+/** Blob 404 is a no-op so the DB row can still be cleared. */
+export async function delPrivateBlob(urlOrPathname: string) {
+  const auth = blobAuth();
+  if (!auth || !urlOrPathname) return;
+  try {
+    await del(urlOrPathname, auth);
+  } catch (e) {
+    const name = e instanceof Error ? e.name : "";
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/notfound|not found|404/i.test(`${name} ${msg}`)) return;
+    throw e;
+  }
 }

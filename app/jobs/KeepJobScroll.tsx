@@ -13,6 +13,8 @@ const LINE_OPS = new Set([
   "delete_labor",
   "add_job_discount",
   "delete_job_discount",
+  "upload_photo",
+  "delete_photo",
 ]);
 
 export function KeepJobScroll({ children }: { children: ReactNode }) {
