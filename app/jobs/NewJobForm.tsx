@@ -147,7 +147,7 @@ export function NewJobForm({
         ))}
       </select>
       <label className="lbl">When</label>
-      <input className="field" type="datetime-local" name="scheduled_at" />
+      <input className="field min-w-0 max-w-full" type="datetime-local" name="scheduled_at" />
       <label className="lbl">Driveway address</label>
       <AddressField />
 

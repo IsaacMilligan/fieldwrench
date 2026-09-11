@@ -115,12 +115,31 @@ button, input, select, textarea {
 
 .field {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 56px;
   padding: 12px 14px;
   background: var(--field);
   border: 2px solid var(--line);
   border-radius: 4px;
   font-size: 18px;
+}
+
+input.field[type="datetime-local"],
+input.field[type="date"],
+input.field[type="time"] {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+
+input.field[type="datetime-local"]::-webkit-datetime-edit,
+input.field[type="date"]::-webkit-datetime-edit,
+input.field[type="time"]::-webkit-datetime-edit {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .field:focus {

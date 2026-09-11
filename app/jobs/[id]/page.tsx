@@ -147,7 +147,7 @@ export default async function JobDetailPage({
           ))}
         </select>
         <label className="lbl">When</label>
-        <input className="field" type="datetime-local" name="scheduled_at" defaultValue={scheduled} />
+        <input className="field min-w-0 max-w-full" type="datetime-local" name="scheduled_at" defaultValue={scheduled} />
         <label className="lbl">Address</label>
         <AddressField defaultValue={job.address} />
         <label className="lbl">Complaint</label>
