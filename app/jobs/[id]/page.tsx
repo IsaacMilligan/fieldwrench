@@ -19,6 +19,7 @@ import { SquareJobPanel } from "../SquareJobPanel";
 import { AddressField } from "@/components/AddressField";
 import { isElectricEngine } from "@/lib/vpic";
 import { squareConfigured } from "@/lib/square";
+import { photoCountSummary } from "@/lib/photo-kind";
 
 export const dynamic = "force-dynamic";
 
@@ -407,9 +408,14 @@ export default async function JobDetailPage({
             ▶
           </span>
           <span className="min-w-0 flex-1">+ Add photos</span>
+          {photos.length ? (
+            <span className="shrink-0 text-xs font-bold uppercase tracking-widest text-muted">
+              {photoCountSummary(photos)}
+            </span>
+          ) : null}
         </summary>
       <div className="mt-3">
-        <JobPhotoGrid jobId={job.id} photos={photos.map((ph) => ({ id: ph.id }))} />
+        <JobPhotoGrid jobId={job.id} photos={photos.map((ph) => ({ id: ph.id, kind: ph.kind }))} />
       </div>
       {q.e === "photo" ? (
         <p className="mt-3 text-sm font-bold text-red">{q.msg || "Could not save photo."}</p>

@@ -15,6 +15,7 @@ const LINE_OPS = new Set([
   "delete_job_discount",
   "upload_photo",
   "delete_photo",
+  "set_photo_kind",
   "send_square_invoice",
   "send_square_estimate",
   "refresh_square",

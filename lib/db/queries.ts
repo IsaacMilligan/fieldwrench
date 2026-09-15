@@ -1116,8 +1116,8 @@ export async function getJobBundle(jobId: string) {
   const partRaw = await sql`SELECT * FROM part_lines WHERE job_id = ${jobId}`;
   const labor = laborRaw.map(mapLabor);
   const parts = partRaw.map(mapPart);
-  const photos = await sql<{ id: string; url: string; content_type: string }[]>`
-    SELECT id, url, content_type FROM photos WHERE job_id = ${jobId} ORDER BY created_at
+  const photos = await sql<{ id: string; url: string; content_type: string; kind: string }[]>`
+    SELECT id, url, content_type, COALESCE(kind, '') AS kind FROM photos WHERE job_id = ${jobId} ORDER BY created_at
   `;
   const [invoice] = await sql<Invoice[]>`SELECT * FROM invoices WHERE job_id = ${jobId}`;
   const recs = await sql<{ amount_cents: number }[]>`SELECT amount_cents FROM receipts WHERE job_id = ${jobId}`;

@@ -46,6 +46,7 @@ import {
   updateVehicleAction,
   uploadPhotoAction,
   deletePhotoAction,
+  setPhotoKindAction,
   addBookableServiceAction,
   updateBookableServiceAction,
   setBookableServiceActiveAction,
@@ -101,6 +102,7 @@ const OPS: Record<string, (form: FormData) => Promise<unknown>> = {
   delete_part: deletePartAction,
   upload_photo: uploadPhotoAction,
   delete_photo: deletePhotoAction,
+  set_photo_kind: setPhotoKindAction,
   add_bookable_service: addBookableServiceAction,
   update_bookable_service: updateBookableServiceAction,
   set_bookable_service_active: setBookableServiceActiveAction,
@@ -131,6 +133,7 @@ const LINE_SECTION: Record<string, string> = {
   delete_job_discount: "discounts",
   upload_photo: "photos",
   delete_photo: "photos",
+  set_photo_kind: "photos",
   send_square_invoice: "square",
   send_square_estimate: "square",
   refresh_square: "square",
@@ -156,7 +159,7 @@ export async function POST(req: NextRequest) {
       throw e;
     }
     console.error("shop op", op, e);
-    if (op === "upload_photo") {
+    if (op === "upload_photo" || op === "set_photo_kind") {
       const jobId = String(form.get("job_id") ?? "");
       const msg = e instanceof Error ? e.message.slice(0, 180) : "Could not save photo.";
       if (ajax) return NextResponse.json({ ok: false, error: msg }, { status: 400 });

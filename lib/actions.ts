@@ -19,6 +19,7 @@ import { catalogTag, categoryForTag, catalogLaborMode } from "./catalog";
 import { geocodeAddress } from "./geocode";
 import { applyJobTemplateToJob } from "./apply-job-template";
 import { prepareJobPhoto } from "./job-photo";
+import { parsePhotoKind } from "./photo-kind";
 import { templateKind } from "./job-templates";
 import { clampServiceDuration } from "./bookable-services";
 import { laborLineCents, partCustomerCents } from "./profit";
@@ -1004,6 +1005,8 @@ export async function uploadPhotoAction(form: FormData) {
   if (!job) throw new Error("Job not found.");
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Pick a photo first.");
+  const kind = parsePhotoKind(str(form, "kind"));
+  if (!kind) throw new Error("Pick Before, After, or Existing damage.");
   const { buffer, contentType } = await prepareJobPhoto(file);
   const photoId = crypto.randomUUID();
   const pathname = `jobs/${jobId}/${photoId}.jpg`;
@@ -1018,8 +1021,8 @@ export async function uploadPhotoAction(form: FormData) {
     throw new Error(blobUserMessage(e));
   }
   if (!url) throw new Error("Could not store that photo.");
-  await sql`INSERT INTO photos (id, job_id, url, content_type, bytes, shop_id, pathname) VALUES (
-    ${photoId}, ${jobId}, ${url}, ${contentType}, ${null}, ${s.shopId}, ${pathname}
+  await sql`INSERT INTO photos (id, job_id, url, content_type, bytes, shop_id, pathname, kind) VALUES (
+    ${photoId}, ${jobId}, ${url}, ${contentType}, ${null}, ${s.shopId}, ${pathname}, ${kind}
   )`;
   revalidatePath(`/jobs/${jobId}`);
   redirect(`/jobs/${jobId}?photo=1`);
@@ -1048,6 +1051,26 @@ export async function deletePhotoAction(form: FormData) {
     }
     await sql`DELETE FROM photos WHERE id = ${photoId} AND job_id = ${jobId} AND shop_id = ${s.shopId}`;
   }
+  revalidatePath(`/jobs/${jobId}`);
+  redirect(`/jobs/${jobId}?photo=1`);
+}
+
+export async function setPhotoKindAction(form: FormData) {
+  const s = await requireSession();
+  const jobId = str(form, "job_id");
+  const photoId = str(form, "photo_id") || str(form, "id");
+  const kind = parsePhotoKind(str(form, "kind"));
+  if (!jobId || !photoId) throw new Error("Missing photo.");
+  if (!kind) throw new Error("Pick Before, After, or Existing damage.");
+  const sql = await db();
+  const [row] = await sql<{ id: string }[]>`
+    SELECT p.id
+    FROM photos p
+    JOIN jobs j ON j.id = p.job_id
+    WHERE p.id = ${photoId} AND p.job_id = ${jobId} AND j.shop_id = ${s.shopId}
+  `;
+  if (!row) throw new Error("Photo not found.");
+  await sql`UPDATE photos SET kind = ${kind} WHERE id = ${photoId} AND job_id = ${jobId} AND shop_id = ${s.shopId}`;
   revalidatePath(`/jobs/${jobId}`);
   redirect(`/jobs/${jobId}?photo=1`);
 }

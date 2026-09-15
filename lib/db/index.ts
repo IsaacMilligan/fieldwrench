@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS photos (
   url TEXT NOT NULL DEFAULT '',
   content_type TEXT NOT NULL DEFAULT 'image/jpeg',
   bytes BYTEA,
+  kind TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS invoices (
@@ -370,6 +371,7 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS labor_hours NUMERIC NOT NULL DEFAULT 1`);
         await sql.unsafe(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS shop_id TEXT NOT NULL DEFAULT 'live'`);
         await sql.unsafe(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS pathname TEXT NOT NULL DEFAULT ''`);
+        await sql.unsafe(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT ''`);
         await sql.unsafe(`
           CREATE TABLE IF NOT EXISTS job_templates (
             id TEXT PRIMARY KEY,

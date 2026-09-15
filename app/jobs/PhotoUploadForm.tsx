@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import { PhotoKindPicker } from "./PhotoKindPicker";
+import { type PhotoKind } from "@/lib/photo-kind";
 
 async function shrinkForUpload(file: File): Promise<File> {
   if (file.size < 2_400_000 && /jpeg|jpg|png|webp/i.test(file.type || file.name)) return file;
@@ -25,13 +27,20 @@ async function shrinkForUpload(file: File): Promise<File> {
   }
 }
 
+function stayOnPhotos() {
+  const el = document.getElementById("photos") as HTMLDetailsElement | null;
+  if (el) el.open = true;
+  el?.scrollIntoView({ block: "start" });
+}
+
 export function PhotoUploadForm({ jobId, focus }: { jobId: string; focus?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [kind, setKind] = useState<PhotoKind | "">("");
 
   useEffect(() => {
-    if (focus) document.getElementById("photos")?.scrollIntoView({ block: "start" });
+    if (focus) stayOnPhotos();
   }, [focus]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -40,6 +49,10 @@ export function PhotoUploadForm({ jobId, focus }: { jobId: string; focus?: boole
     const form = e.currentTarget;
     const input = form.elements.namedItem("file") as HTMLInputElement | null;
     const raw = input?.files?.[0];
+    if (!kind) {
+      setErr("Pick Before, After, or Existing damage.");
+      return;
+    }
     if (!raw) {
       setErr("Pick a photo first.");
       return;
@@ -51,6 +64,7 @@ export function PhotoUploadForm({ jobId, focus }: { jobId: string; focus?: boole
       const fd = new FormData();
       fd.set("_op", "upload_photo");
       fd.set("job_id", jobId);
+      fd.set("kind", kind);
       fd.set("file", file, file.name);
       const res = await fetch("/api/shop", {
         method: "POST",
@@ -69,8 +83,11 @@ export function PhotoUploadForm({ jobId, focus }: { jobId: string; focus?: boole
         setBusy(false);
         return;
       }
+      setKind("");
       router.refresh();
-      requestAnimationFrame(() => document.getElementById("photos")?.scrollIntoView({ block: "start" }));
+      requestAnimationFrame(stayOnPhotos);
+      window.setTimeout(stayOnPhotos, 50);
+      window.setTimeout(stayOnPhotos, 200);
       if (input) input.value = "";
     } catch {
       setErr("Could not save photo.");
@@ -82,6 +99,8 @@ export function PhotoUploadForm({ jobId, focus }: { jobId: string; focus?: boole
     <form action="/api/shop" method="post" className="mt-3" onSubmit={onSubmit} encType="multipart/form-data">
       <input type="hidden" name="_op" value="upload_photo" />
       <input type="hidden" name="job_id" value={jobId} />
+      <label className="lbl">Kind</label>
+      <PhotoKindPicker name="kind" value={kind} onChange={setKind} />
       <label className="lbl">Upload / camera</label>
       <input
         className="field"
