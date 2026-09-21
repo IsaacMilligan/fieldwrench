@@ -34,17 +34,12 @@ export function NewJobForm({
   const [vehicleId, setVehicleId] = useState("");
   const [needService, setNeedService] = useState(false);
   const [services, setServices] = useState<string[]>([]);
-  const [autoServiceId, setAutoServiceId] = useState<string | null>(null);
+  const [templatePicked, setTemplatePicked] = useState(false);
 
   function onTemplatePick(template: JobTemplate | null) {
     const nextAuto = template ? serviceIdForTemplate(template.service_type) : null;
-    setServices((cur) => {
-      let next = cur;
-      if (autoServiceId) next = next.filter((id) => id !== autoServiceId);
-      if (nextAuto && !next.includes(nextAuto)) next = [...next, nextAuto];
-      return next;
-    });
-    setAutoServiceId(nextAuto);
+    setServices(nextAuto ? [nextAuto] : []);
+    setTemplatePicked(Boolean(template));
     if (nextAuto) setNeedService(false);
   }
 
@@ -168,9 +163,14 @@ export function NewJobForm({
       <JobTemplatePicker templates={templates} hideOil={hideOil} onPick={onTemplatePick} />
 
       <p className="lbl">Services</p>
-      <p className="mb-2 text-sm text-muted">Tap every job. You can pick more than one.</p>
+      <p className="mb-2 text-sm text-muted">
+        {templatePicked
+          ? "From template — tap more if you need them."
+          : "Tap every job. You can pick more than one."}
+      </p>
       <ServiceChips
         selected={services}
+        bev={hideOil}
         onChange={(ids) => {
           setServices(ids);
           setNeedService(false);
