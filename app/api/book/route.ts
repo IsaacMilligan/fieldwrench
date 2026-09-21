@@ -9,6 +9,7 @@ import { earliestBookDateISO, normalizeLeadHours } from "@/lib/format";
 import { geocodeAddress } from "@/lib/geocode";
 import {
   DEFAULT_BUFFER_MIN,
+  DEFAULT_HOME_BASE,
   DEFAULT_HOME_COORDS,
   DEFAULT_HOURS,
   DEFAULT_RADIUS_MI,
@@ -24,6 +25,23 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function validCoords(lat: unknown, lng: unknown): { lat: number; lng: number } | null {
+  const la = Number(lat);
+  const ln = Number(lng);
+  if (!Number.isFinite(la) || !Number.isFinite(ln)) return null;
+  if (la === 0 && ln === 0) return null;
+  if (Math.abs(la) > 90 || Math.abs(ln) > 180) return null;
+  return { lat: la, lng: ln };
+}
+
+/** City + ZIP (or fuller line) — partial "123 Main" must not become e=area. */
+function addressLooksComplete(address: string): boolean {
+  const a = address.trim();
+  if (/\b\d{5}(-\d{4})?\b/.test(a)) return true;
+  if (/,\s*[A-Za-z][A-Za-z .'-]+,\s*[A-Z]{2}\b/.test(a)) return true;
+  return false;
+}
 
 export async function POST(req: NextRequest) {
   const origin = req.nextUrl.origin;
@@ -83,27 +101,32 @@ export async function POST(req: NextRequest) {
     if ((loads.get(preferredDate) ?? 0) >= cap) {
       return NextResponse.redirect(new URL("/book?e=full", origin), 303);
     }
-    let home = {
-      lat: settings.home_lat,
-      lng: settings.home_lng,
-    };
-    if (home.lat == null || home.lng == null) {
-      const g = await geocodeAddress(String(settings.home_base || ""));
-      if (g) home = g;
-      else home = DEFAULT_HOME_COORDS;
+
+    let home = validCoords(settings.home_lat, settings.home_lng);
+    if (!home) {
+      const g = await geocodeAddress(String(settings.home_base || DEFAULT_HOME_BASE));
+      home = (g && validCoords(g.lat, g.lng)) || DEFAULT_HOME_COORDS;
     }
-    const pickedLat = Number(String(form.get("address_lat") ?? ""));
-    const pickedLng = Number(String(form.get("address_lng") ?? ""));
-    let dest =
-      Number.isFinite(pickedLat) && Number.isFinite(pickedLng) && pickedLat !== 0
-        ? { lat: pickedLat, lng: pickedLng }
-        : await geocodeAddress(address);
-    if (home.lat != null && home.lng != null && dest) {
-      const miles = haversineMiles({ lat: Number(home.lat), lng: Number(home.lng) }, dest);
-      if (miles > radius + 0.05) {
-        return NextResponse.redirect(new URL("/book?e=area", origin), 303);
+
+    const picked = validCoords(form.get("address_lat"), form.get("address_lng"));
+    const complete = addressLooksComplete(address);
+    let dest = picked;
+    if (!dest) {
+      const geocoded = await geocodeAddress(address);
+      dest = geocoded ? validCoords(geocoded.lat, geocoded.lng) : null;
+    }
+    if (!dest) {
+      return NextResponse.redirect(new URL("/book?e=address", origin), 303);
+    }
+    const miles = haversineMiles(home, dest);
+    if (miles > radius + 0.05) {
+      // Autocomplete pick or full address → real outside-area. Partial free-text geocode hit → address miss.
+      if (!picked && !complete) {
+        return NextResponse.redirect(new URL("/book?e=address", origin), 303);
       }
+      return NextResponse.redirect(new URL("/book?e=area", origin), 303);
     }
+
     const user = await getCustomerUser();
     const email = (user?.email ?? String(form.get("email") ?? "")).toLowerCase();
     const issue = labelsFromBookable(services, catalog);

@@ -6,22 +6,30 @@ type Hit = { id: string; label: string; lat: number | null; lng: number | null }
 
 export function AddressField({
   name = "address",
+  id = "book-address",
   defaultValue = "",
+  defaultLat = "",
+  defaultLng = "",
   required,
   placeholder = "Street, city, ZIP",
   latName = "address_lat",
   lngName = "address_lng",
+  invalid,
 }: {
   name?: string;
+  id?: string;
   defaultValue?: string;
+  defaultLat?: string;
+  defaultLng?: string;
   required?: boolean;
   placeholder?: string;
   latName?: string;
   lngName?: string;
+  invalid?: boolean;
 }) {
   const [value, setValue] = useState(defaultValue);
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
+  const [lat, setLat] = useState(defaultLat);
+  const [lng, setLng] = useState(defaultLng);
   const [hits, setHits] = useState<Hit[]>([]);
   const [open, setOpen] = useState(false);
   const [disabled, setDisabled] = useState(false);
@@ -86,6 +94,7 @@ export function AddressField({
   return (
     <div ref={wrap} className="relative">
       <input
+        id={id}
         className="field"
         name={name}
         value={value}
@@ -94,6 +103,7 @@ export function AddressField({
         autoComplete="off"
         autoCorrect="off"
         spellCheck={false}
+        aria-invalid={invalid || undefined}
         onChange={(e) => {
           setValue(e.target.value);
           setLat("");
