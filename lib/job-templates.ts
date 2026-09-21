@@ -122,9 +122,12 @@ export function templateServiceType(raw: unknown): TemplateServiceType {
   return "custom";
 }
 
-export function serviceIdForTemplate(t: TemplateServiceType): "oil_change" | "brake_job" | "battery_test" | null {
+export function serviceIdForTemplate(
+  t: TemplateServiceType,
+): "oil_change" | "brake_job" | "battery_test" | "other" | null {
   if (t === "oil_change") return "oil_change";
   if (t === "brakes") return "brake_job";
   if (t === "battery") return "battery_test";
+  if (t === "headlights") return "other";
   return null;
 }

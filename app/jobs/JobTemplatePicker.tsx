@@ -8,11 +8,14 @@ export function JobTemplatePicker({
   jobId,
   hideOil,
   hasLines,
+  onPick,
 }: {
   templates: JobTemplate[];
   jobId?: string;
   hideOil?: boolean;
   hasLines?: boolean;
+  /** Create-job: notify parent so services can auto-select. */
+  onPick?: (template: JobTemplate | null) => void;
 }) {
   const [picked, setPicked] = useState<JobTemplate | null>(null);
   const [confirm, setConfirm] = useState<JobTemplate | null>(null);
@@ -21,7 +24,9 @@ export function JobTemplatePicker({
 
   function tap(t: JobTemplate) {
     if (!jobId) {
-      setPicked(t);
+      const next = picked?.id === t.id ? null : t;
+      setPicked(next);
+      onPick?.(next);
       return;
     }
     if (hasLines) {

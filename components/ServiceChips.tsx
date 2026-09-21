@@ -11,15 +11,20 @@ export function ServiceChips({
   bev = false,
   variant = "chips",
   initialSelected = [],
+  selected,
   onChange,
 }: {
   items?: ServiceChipItem[];
   bev?: boolean;
   variant?: "chips" | "rows";
   initialSelected?: string[];
+  /** Controlled selection (create-job template auto-select). */
+  selected?: string[];
   onChange?: (ids: string[]) => void;
 }) {
-  const [picked, setPicked] = useState<string[]>(initialSelected);
+  const [inner, setInner] = useState<string[]>(initialSelected);
+  const controlled = selected !== undefined;
+  const picked = controlled ? selected : inner;
   const [openBlurb, setOpenBlurb] = useState<string | null>(null);
   const source: ServiceChipItem[] = items ?? SERVICES.map((s) => ({ id: s.id, label: s.label }));
   const list = bev
@@ -27,11 +32,10 @@ export function ServiceChips({
     : source;
 
   function toggle(id: string) {
-    setPicked((cur) => {
-      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
-      onChange?.(next);
-      return next;
-    });
+    const cur = picked;
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    if (!controlled) setInner(next);
+    onChange?.(next);
   }
 
   if (variant === "rows") {
