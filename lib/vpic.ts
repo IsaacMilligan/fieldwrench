@@ -3,7 +3,11 @@ const EPA = "https://www.fueleconomy.gov/ws/rest/vehicle/menu";
 
 async function getJson(url: string): Promise<unknown> {
   const res = await fetch(url, {
-    headers: { Accept: "application/json", "User-Agent": "FieldWrench/1.0" },
+    headers: {
+      Accept: "application/json",
+      "User-Agent":
+        "Mozilla/5.0 (compatible; FieldWrench/1.0; +https://aac-app-code-6iop.vercel.app)",
+    },
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`Lookup failed (${res.status})`);
@@ -143,20 +147,53 @@ export async function vpicMakes(): Promise<string[]> {
   return list;
 }
 
+/** Strip EPA drive/fuel suffixes so "Rogue Select AWD" → "Rogue Select". */
+function epaModelBase(name: string): string {
+  return name
+    .replace(/\s+FFV\b/gi, "")
+    .replace(/\s+(AWD|FWD|RWD|4WD|2WD|4[x×]4|4[x×]2)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export async function vpicModels(year: number, make: string): Promise<string[]> {
-  const id = await vpicMakeId(make);
-  const url = id
-    ? `${VPIC}/GetModelsForMakeIdYear/makeId/${id}/modelyear/${year}?format=json`
-    : `${VPIC}/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`;
-  const data = (await getJson(url)) as VpicList;
   const names = new Set<string>();
   const want = make.trim().toLowerCase();
-  for (const row of data.Results ?? []) {
-    const makeName = String(row.Make_Name ?? row.MakeName ?? "").trim().toLowerCase();
-    if (makeName && makeName !== want) continue;
-    const n = String(row.Model_Name ?? row.ModelName ?? "").trim();
-    if (n) names.add(n);
+
+  // Soft-fail NHTSA: some Vercel egress IPs get 403 from vPIC; EPA still fills models.
+  try {
+    const id = await vpicMakeId(make);
+    const url = id
+      ? `${VPIC}/GetModelsForMakeIdYear/makeId/${id}/modelyear/${year}?format=json`
+      : `${VPIC}/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`;
+    const data = (await getJson(url)) as VpicList;
+    for (const row of data.Results ?? []) {
+      const makeName = String(row.Make_Name ?? row.MakeName ?? "").trim().toLowerCase();
+      if (makeName && makeName !== want) continue;
+      const n = String(row.Model_Name ?? row.ModelName ?? "").trim();
+      if (n) names.add(n);
+    }
+  } catch {
+    /* NHTSA miss/403 — EPA fill below */
   }
+
+  // NHTSA year lists can omit real retail models (e.g. 2015 Nissan Rogue Select).
+  // EPA menu for the same year/make fills those gaps; engines already use EPA.
+  const seen = new Set([...names].map(modelKey));
+  try {
+    const epaUrl = `${EPA}/model?year=${year}&make=${encodeURIComponent(make)}`;
+    for (const it of menuItems(await getJson(epaUrl))) {
+      const base = epaModelBase(it.text || it.value);
+      if (!base) continue;
+      const key = modelKey(base);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      names.add(base);
+    }
+  } catch {
+    /* EPA miss is ok — keep NHTSA list */
+  }
+
   return [...names].sort((a, b) => a.localeCompare(b));
 }
 
