@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Mark } from "@/components/Mark";
 import { ServiceChips } from "@/components/ServiceChips";
@@ -9,6 +9,51 @@ import { VehiclePicker } from "./VehiclePicker";
 import { ELECTRIC_ENGINE, isKnownBev } from "@/lib/vpic";
 import { weekdayFromISO, WEEKDAY_NAMES, bookingDurationMinutes, formatClock, startTimesForDay, type DayHours } from "@/lib/schedule";
 import type { ServiceChipItem } from "@/components/ServiceChips";
+
+const DRAFT_KEY = "fw_book_draft";
+
+type BookDraft = {
+  name?: string;
+  phone?: string;
+  address?: string;
+  address_lat?: string;
+  address_lng?: string;
+  notes?: string;
+  preferred_date?: string;
+  preferred_time?: string;
+  vehicle_year?: string;
+  vehicle_make?: string;
+  vehicle_model?: string;
+  vehicle_engine?: string;
+  service?: string[];
+};
+
+function readDraft(): BookDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as BookDraft;
+  } catch {
+    return null;
+  }
+}
+
+function stashForm(form: HTMLFormElement) {
+  const fd = new FormData(form);
+  const draft: BookDraft = {};
+  const services: string[] = [];
+  for (const [k, v] of fd.entries()) {
+    if (k === "service") services.push(String(v));
+    else (draft as Record<string, string>)[k] = String(v);
+  }
+  if (services.length) draft.service = services;
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    /* ignore quota */
+  }
+}
 
 export function BookForm({
   signedIn,
@@ -55,12 +100,37 @@ export function BookForm({
   slotStep: number;
   services: ServiceChipItem[];
 }) {
+  const keepFields = Boolean(areaRejected || addressRejected);
+  const [draftReady, setDraftReady] = useState(!keepFields);
+  const [draft, setDraft] = useState<BookDraft | null>(null);
+
+  useEffect(() => {
+    if (!keepFields) {
+      try {
+        sessionStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* ignore */
+      }
+      setDraftReady(true);
+      return;
+    }
+    const d = readDraft();
+    setDraft(d);
+    setDraftReady(true);
+    requestAnimationFrame(() => {
+      const el = document.getElementById("book-address");
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      el?.focus();
+    });
+  }, [keepFields]);
+
+  const draftServices = draft?.service ?? [];
   const [needService, setNeedService] = useState(false);
-  const [picked, setPicked] = useState<string[]>([]);
-  const [startTime, setStartTime] = useState("");
+  const [picked, setPicked] = useState<string[]>(draftServices);
+  const [startTime, setStartTime] = useState(draft?.preferred_time ?? "");
   const [needTime, setNeedTime] = useState(Boolean(timeRejected));
   const [bev, setBev] = useState(false);
-  const [date, setDate] = useState(minDate);
+  const [date, setDate] = useState(draft?.preferred_date && draft.preferred_date >= minDate ? draft.preferred_date : minDate);
   const [leadErr, setLeadErr] = useState(Boolean(leadRejected));
   const [closedErr, setClosedErr] = useState(Boolean(closedRejected));
   const [fullErr, setFullErr] = useState(Boolean(fullRejected));
@@ -71,9 +141,25 @@ export function BookForm({
   const slots = picked.length && dateOk ? startTimesForDay(hours, date, durationMin, slotStep) : [];
   const startValid = slots.includes(startTime);
 
+  const vehicleInitial = useMemo(() => {
+    if (!draft?.vehicle_year && !draft?.vehicle_make) return undefined;
+    return {
+      year: draft.vehicle_year ? Number(draft.vehicle_year) : null,
+      make: draft.vehicle_make || "",
+      model: draft.vehicle_model || "",
+      engine: draft.vehicle_engine || "",
+    };
+  }, [draft]);
+
   useEffect(() => {
     setDate((d) => (!d || d < minDate ? minDate : d));
   }, [minDate]);
+
+  useEffect(() => {
+    if (draftServices.length) setPicked(draftServices);
+    if (draft?.preferred_time) setStartTime(draft.preferred_time);
+    if (draft?.preferred_date && draft.preferred_date >= minDate) setDate(draft.preferred_date);
+  }, [draft, draftServices, minDate]);
 
   function applyDate(raw: string) {
     if (!raw) {
@@ -96,6 +182,11 @@ export function BookForm({
   }
 
   if (ok) {
+    try {
+      sessionStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
     return (
       <div className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-5">
         <Mark big />
@@ -113,6 +204,11 @@ export function BookForm({
       </div>
     );
   }
+
+  if (!draftReady) {
+    return <div className="mx-auto min-h-dvh max-w-lg px-5 py-10" />;
+  }
+
   return (
     <div className="mx-auto min-h-dvh max-w-lg px-5 py-10">
       <Mark />
@@ -138,6 +234,7 @@ export function BookForm({
         )}
       </p>
       <form
+        key={keepFields ? `restore-${draft?.address ?? "x"}` : "fresh"}
         action="/api/book"
         method="post"
         className="mt-6"
@@ -173,18 +270,40 @@ export function BookForm({
           if (!t || !slots.includes(t)) {
             e.preventDefault();
             setNeedTime(true);
+            return;
           }
+          stashForm(e.currentTarget);
         }}
       >
         <label className="lbl">Your name</label>
-        <input className="field" name="name" required defaultValue={name ?? ""} />
+        <input className="field" name="name" required defaultValue={draft?.name ?? name ?? ""} />
         <label className="lbl">Phone</label>
-        <input className="field" name="phone" type="tel" required defaultValue={phone ?? ""} />
-        <label className="lbl">Address</label>
-        <AddressField required placeholder="Street, city, ZIP" />
+        <input className="field" name="phone" type="tel" required defaultValue={draft?.phone ?? phone ?? ""} />
+        <label className="lbl" htmlFor="book-address">
+          Address
+        </label>
+        <AddressField
+          required
+          placeholder="Street, city, ZIP"
+          defaultValue={draft?.address ?? ""}
+          defaultLat={draft?.address_lat ?? ""}
+          defaultLng={draft?.address_lng ?? ""}
+          invalid={areaRejected || addressRejected}
+        />
         <p className="mt-2 text-xs text-muted">Must be inside the {radiusMi}-mile service area.</p>
+        {areaRejected ? (
+          <p id="book-address-err" className="mt-2 text-lg font-bold text-red">
+            Outside the {radiusMi}-mile service area. Try a driveway closer to Eagle Mountain, or text (801) 692-3778.
+          </p>
+        ) : null}
+        {addressRejected ? (
+          <p id="book-address-err" className="mt-2 text-lg font-bold text-red">
+            Couldn’t find that address. Add a city and ZIP.
+          </p>
+        ) : null}
         <VehiclePicker
           saved={savedVehicles}
+          initial={vehicleInitial}
           onYmme={(v) => setBev(isKnownBev(v.make, v.model) || v.engine === ELECTRIC_ENGINE)}
         />
         <p className="lbl">Services</p>
@@ -197,6 +316,7 @@ export function BookForm({
               items={services}
               bev={bev}
               variant="rows"
+              initialSelected={draftServices}
               onChange={(ids) => {
                 setPicked(ids);
                 setNeedService(false);
@@ -213,6 +333,7 @@ export function BookForm({
         <textarea
           className="field min-h-24"
           name="notes"
+          defaultValue={draft?.notes ?? ""}
           placeholder="Anything else — driveway, gate code, noise details…"
         />
         <label className="lbl" htmlFor="preferred_date">
@@ -290,12 +411,6 @@ export function BookForm({
         ) : (
           <span id="preferred-date-err" className="hidden" />
         )}
-        {areaRejected ? (
-          <p className="mt-3 text-lg font-bold text-red">Outside the {radiusMi}-mile service area.</p>
-        ) : null}
-        {addressRejected ? (
-          <p className="mt-3 text-lg font-bold text-red">Couldn’t find that address. Add a city and ZIP.</p>
-        ) : null}
         {needService ? <p className="mt-3 text-lg font-bold text-red">Pick at least one service.</p> : null}
         {needTime ? <p className="mt-3 text-lg font-bold text-red">Pick a start time that fits.</p> : null}
         {failed ? <p className="mt-3 text-red">Could not save the request. Try again.</p> : null}
