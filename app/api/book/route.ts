@@ -35,6 +35,14 @@ function validCoords(lat: unknown, lng: unknown): { lat: number; lng: number } |
   return { lat: la, lng: ln };
 }
 
+/** City + ZIP (or fuller line) — partial "123 Main" must not become e=area. */
+function addressLooksComplete(address: string): boolean {
+  const a = address.trim();
+  if (/\b\d{5}(-\d{4})?\b/.test(a)) return true;
+  if (/,\s*[A-Za-z][A-Za-z .'-]+,\s*[A-Z]{2}\b/.test(a)) return true;
+  return false;
+}
+
 export async function POST(req: NextRequest) {
   const origin = req.nextUrl.origin;
   try {
@@ -101,13 +109,21 @@ export async function POST(req: NextRequest) {
     }
 
     const picked = validCoords(form.get("address_lat"), form.get("address_lng"));
-    const geocoded = picked ? null : await geocodeAddress(address);
-    const dest = picked ?? (geocoded ? validCoords(geocoded.lat, geocoded.lng) : null);
+    const complete = addressLooksComplete(address);
+    let dest = picked;
+    if (!dest) {
+      const geocoded = await geocodeAddress(address);
+      dest = geocoded ? validCoords(geocoded.lat, geocoded.lng) : null;
+    }
     if (!dest) {
       return NextResponse.redirect(new URL("/book?e=address", origin), 303);
     }
     const miles = haversineMiles(home, dest);
     if (miles > radius + 0.05) {
+      // Autocomplete pick or full address → real outside-area. Partial free-text geocode hit → address miss.
+      if (!picked && !complete) {
+        return NextResponse.redirect(new URL("/book?e=address", origin), 303);
+      }
       return NextResponse.redirect(new URL("/book?e=area", origin), 303);
     }
 
