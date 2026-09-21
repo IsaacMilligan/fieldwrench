@@ -97,11 +97,12 @@ export async function POST(req: NextRequest) {
     let home = validCoords(settings.home_lat, settings.home_lng);
     if (!home) {
       const g = await geocodeAddress(String(settings.home_base || DEFAULT_HOME_BASE));
-      home = g ? validCoords(g.lat, g.lng) : DEFAULT_HOME_COORDS;
+      home = (g && validCoords(g.lat, g.lng)) || DEFAULT_HOME_COORDS;
     }
 
     const picked = validCoords(form.get("address_lat"), form.get("address_lng"));
-    const dest = picked ?? (await geocodeAddress(address));
+    const geocoded = picked ? null : await geocodeAddress(address);
+    const dest = picked ?? (geocoded ? validCoords(geocoded.lat, geocoded.lng) : null);
     if (!dest) {
       return NextResponse.redirect(new URL("/book?e=address", origin), 303);
     }
