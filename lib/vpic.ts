@@ -143,6 +143,15 @@ export async function vpicMakes(): Promise<string[]> {
   return list;
 }
 
+/** Strip EPA drive/fuel suffixes so "Rogue Select AWD" → "Rogue Select". */
+function epaModelBase(name: string): string {
+  return name
+    .replace(/\s+FFV\b/gi, "")
+    .replace(/\s+(AWD|FWD|RWD|4WD|2WD|4[x×]4|4[x×]2)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export async function vpicModels(year: number, make: string): Promise<string[]> {
   const id = await vpicMakeId(make);
   const url = id
@@ -157,6 +166,24 @@ export async function vpicModels(year: number, make: string): Promise<string[]> 
     const n = String(row.Model_Name ?? row.ModelName ?? "").trim();
     if (n) names.add(n);
   }
+
+  // NHTSA year lists can omit real retail models (e.g. 2015 Nissan Rogue Select).
+  // EPA menu for the same year/make fills those gaps; engines already use EPA.
+  const seen = new Set([...names].map(modelKey));
+  try {
+    const epaUrl = `${EPA}/model?year=${year}&make=${encodeURIComponent(make)}`;
+    for (const it of menuItems(await getJson(epaUrl))) {
+      const base = epaModelBase(it.text || it.value);
+      if (!base) continue;
+      const key = modelKey(base);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      names.add(base);
+    }
+  } catch {
+    /* EPA miss is ok — keep NHTSA list */
+  }
+
   return [...names].sort((a, b) => a.localeCompare(b));
 }
 
