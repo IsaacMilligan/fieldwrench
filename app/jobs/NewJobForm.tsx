@@ -7,7 +7,7 @@ import { OPEN_JOB_STATUSES, STATUS_LABEL, type JobStatus } from "@/lib/status";
 import { vehicleLabel } from "@/lib/format";
 import { AddressField } from "@/components/AddressField";
 import { JobTemplatePicker } from "./JobTemplatePicker";
-import type { JobTemplate } from "@/lib/job-templates";
+import { serviceIdForTemplate, type JobTemplate } from "@/lib/job-templates";
 import { isElectricEngine } from "@/lib/vpic";
 
 export type JobCustomer = { id: string; name: string; phone: string; email: string };
@@ -33,6 +33,15 @@ export function NewJobForm({
   const [customerId, setCustomerId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [needService, setNeedService] = useState(false);
+  const [services, setServices] = useState<string[]>([]);
+  const [templatePicked, setTemplatePicked] = useState(false);
+
+  function onTemplatePick(template: JobTemplate | null) {
+    const nextAuto = template ? serviceIdForTemplate(template.service_type) : null;
+    setServices(nextAuto ? [nextAuto] : []);
+    setTemplatePicked(Boolean(template));
+    if (nextAuto) setNeedService(false);
+  }
 
   const theirs = useMemo(
     () => vehicles.filter((v) => v.customer_id === customerId),
@@ -151,11 +160,22 @@ export function NewJobForm({
       <label className="lbl">Driveway address</label>
       <AddressField />
 
-      <JobTemplatePicker templates={templates} hideOil={hideOil} />
+      <JobTemplatePicker templates={templates} hideOil={hideOil} onPick={onTemplatePick} />
 
       <p className="lbl">Services</p>
-      <p className="mb-2 text-sm text-muted">Tap every job. You can pick more than one.</p>
-      <ServiceChips onChange={() => setNeedService(false)} />
+      <p className="mb-2 text-sm text-muted">
+        {templatePicked
+          ? "From template — tap more if you need them."
+          : "Tap every job. You can pick more than one."}
+      </p>
+      <ServiceChips
+        selected={services}
+        bev={hideOil}
+        onChange={(ids) => {
+          setServices(ids);
+          setNeedService(false);
+        }}
+      />
       <label className="lbl">Additional notes</label>
       <textarea className="field min-h-24" name="notes" placeholder="Anything else" />
       {needService ? <p className="mt-3 text-lg font-bold text-red">Pick at least one service.</p> : null}
