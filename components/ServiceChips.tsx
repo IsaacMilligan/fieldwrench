@@ -10,14 +10,16 @@ export function ServiceChips({
   items,
   bev = false,
   variant = "chips",
+  initialSelected = [],
   onChange,
 }: {
   items?: ServiceChipItem[];
   bev?: boolean;
   variant?: "chips" | "rows";
+  initialSelected?: string[];
   onChange?: (ids: string[]) => void;
 }) {
-  const [picked, setPicked] = useState<string[]>([]);
+  const [picked, setPicked] = useState<string[]>(initialSelected);
   const [openBlurb, setOpenBlurb] = useState<string | null>(null);
   const source: ServiceChipItem[] = items ?? SERVICES.map((s) => ({ id: s.id, label: s.label }));
   const list = bev
