@@ -14,7 +14,7 @@ Production host is Vercel. After `npx vercel login` (this machine is not logged 
 npx vercel --prod --yes
 ```
 
-Set `DATABASE_URL` and `SESSION_SECRET` on the project. Optional: `BLOB_READ_WRITE_TOKEN`.
+Set `DATABASE_URL` and `SESSION_SECRET` on the project. Optional: `BLOB_READ_WRITE_TOKEN`, `VEHICLE_FINDER_API_KEY` (Vehicle Finder Free VIN → year/make/model; NHTSA fallback when unset).
 Customer login: `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (public app key only).
 
 Local: `http://localhost:3000`
@@ -41,6 +41,7 @@ cp env.example .env.local
 # set DATABASE_URL to a Postgres URL (Prisma Postgres, Neon, or Vercel Postgres)
 # set SESSION_SECRET to a long random string
 # optional: BLOB_READ_WRITE_TOKEN for Vercel Blob photo uploads
+# optional: VEHICLE_FINDER_API_KEY for Vehicle Finder Free VIN decode (NHTSA fallback without it)
 npm run dev
 ```
 
@@ -93,7 +94,7 @@ IRS mileage default: **76 cents** (business rate from July 1, 2026). Editable in
 
 ## VIN + DTC
 
-- VIN: server route `POST /api/vin` → live `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/{VIN}?format=json`
+- VIN: server route `POST /api/vin` → Vehicle Finder Free (`VEHICLE_FINDER_API_KEY`) for year/make/model when set; soft-fails to NHTSA vPIC `DecodeVinValues` otherwise. Oil/fluids from Vehicle Finder Starter are not used.
 - DTC: bundled generic OBD-II list (150+ P/B/C/U codes), no paid API
 
 ## Stack

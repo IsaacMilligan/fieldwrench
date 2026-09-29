@@ -93,7 +93,7 @@ export function VinTool({
       <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
         VIN decode
       </h2>
-      <p className="mt-1 text-sm text-muted">Live NHTSA vPIC. 17 characters. No I, O, or Q.</p>
+      <p className="mt-1 text-sm text-muted">Fills year / make / model. 17 characters. No I, O, or Q.</p>
       <label className="lbl">VIN</label>
       <input
         className="field font-mono uppercase"

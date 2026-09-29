@@ -2,13 +2,7 @@ import { NextResponse } from "next/server";
 import { readSession } from "@/lib/auth";
 import { getShopSpec } from "@/lib/db/queries";
 import { vinOk } from "@/lib/format";
-import {
-  formatVpicBody,
-  formatVpicDrive,
-  formatVpicEngine,
-  formatVpicTrim,
-  isVpicBev,
-} from "@/lib/vpic";
+import { decodeVin, isVinDecodeFailure } from "@/lib/vin-decode";
 
 export async function POST(req: Request) {
   const session = await readSession();
@@ -20,29 +14,16 @@ export async function POST(req: Request) {
       error: "VIN must be 17 characters. Letters I, O, and Q are not used.",
     });
   }
-  const url = `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${encodeURIComponent(vin)}?format=json`;
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    return NextResponse.json({ error: "NHTSA vPIC did not respond. Try again." }, { status: 502 });
-  }
-  const json = (await res.json()) as { Results?: Array<Record<string, string>> };
-  const row = json.Results?.[0];
-  if (!row) return NextResponse.json({ error: "No decode result." });
-  const year = row.ModelYear ? Number(row.ModelYear) : null;
-  const make = row.Make || "";
-  const model = row.Model || "";
-  const errorCode = row.ErrorCode ?? "";
-  if (!make && !model) {
+
+  const decoded = await decodeVin(vin);
+  if (isVinDecodeFailure(decoded)) {
     return NextResponse.json({
-      error: row.ErrorText || "Invalid VIN — NHTSA could not decode it.",
-      errorCode,
+      error: decoded.error,
+      ...(decoded.errorCode ? { errorCode: decoded.errorCode } : {}),
     });
   }
-  const bev = isVpicBev(row);
-  const engine = formatVpicEngine(row, bev);
-  const trim = formatVpicTrim(row);
-  const bodyClass = formatVpicBody(row);
-  const drive = formatVpicDrive(row);
+
+  const { year, make, model, engine, trim, body: bodyClass, drive, bev } = decoded;
   const spec = await getShopSpec({ year, make, model, engine }).catch(() => null);
   const oil =
     spec && (spec.oil_qt || spec.oil_viscosity || spec.oil_drain_tq || spec.oil_socket)
@@ -53,6 +34,7 @@ export async function POST(req: Request) {
           socket: spec.oil_socket,
         }
       : null;
+
   return NextResponse.json({
     vin,
     year,
@@ -64,5 +46,6 @@ export async function POST(req: Request) {
     drive: drive || spec?.drive || "",
     oil,
     bev,
+    source: decoded.source,
   });
 }
