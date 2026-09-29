@@ -78,8 +78,10 @@ export function OilScreenshotImport({
   const router = useRouter();
   const eng = engine && engine !== "__unsure__" ? String(engine).trim() : "";
   const vehicleText =
-    [year, make, model, trim].map((v) => String(v ?? "").trim()).filter(Boolean).join(" ") +
-    (eng ? ` · ${eng}` : "");
+    [year, make, model, trim]
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean)
+      .join(" ") + (eng ? ` · ${eng}` : "");
   const [open, setOpen] = useState(false);
   const [shots, setShots] = useState<Shot[]>([]);
   const [busy, setBusy] = useState<"" | "read" | "save">("");
@@ -190,9 +192,13 @@ export function OilScreenshotImport({
         return;
       }
       const res = await fetch("/api/oil/extract", { method: "POST", body: fd });
-      const json = (await res.json().catch(() => null)) as
-        | { ok?: boolean; fields?: Extracted; capacityWithoutFilter?: boolean; error?: string; code?: string }
-        | null;
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        fields?: Extracted;
+        capacityWithoutFilter?: boolean;
+        error?: string;
+        code?: string;
+      } | null;
       if (!res.ok || !json?.ok || !json.fields) {
         if (json?.code === "not_configured") setDisabledMsg(json.error || "");
         setError(
@@ -267,134 +273,139 @@ export function OilScreenshotImport({
     />
   );
 
-  if (!open) {
-    return (
-      <div className={className}>
-        {saved ? <p className="mb-2 text-sm font-bold text-green">{saved}</p> : null}
-        <button type="button" className="tap tap-ghost" onClick={start}>
-          Add from O&apos;Reilly screenshots
-        </button>
-        {picker}
-      </div>
-    );
-  }
-
+  // The file input stays mounted in one place: the picker opens on the first tap, before the
+  // panel renders, and its change event must reach the same element.
   return (
-    <div className={`rounded-lg border border-white/15 p-3 ${className}`}>
+    <div className={className}>
       {picker}
-      <div className="flex items-center justify-between gap-2">
-        <p className="lbl mb-0 mt-0">O&apos;Reilly screenshots</p>
-        {!draft ? (
-          <button
-            type="button"
-            className="text-sm text-muted underline"
-            onClick={() => {
-              reset();
-              setOpen(false);
-            }}
-          >
-            Close
+      {!open ? (
+        <>
+          {saved ? <p className="mb-2 text-sm font-bold text-green">{saved}</p> : null}
+          <button type="button" className="tap tap-ghost" onClick={start}>
+            Add from O&apos;Reilly screenshots
           </button>
-        ) : null}
-      </div>
+        </>
+      ) : (
+        <div className="rounded-lg border border-white/15 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="lbl mb-0 mt-0">O&apos;Reilly screenshots</p>
+            {!draft ? (
+              <button
+                type="button"
+                className="text-sm text-muted underline"
+                onClick={() => {
+                  reset();
+                  setOpen(false);
+                }}
+              >
+                Close
+              </button>
+            ) : null}
+          </div>
 
-      {disabledMsg ? (
-        <p className="mt-2 text-sm font-bold text-amber">{disabledMsg}. Type the spec in the form instead.</p>
-      ) : null}
+          {disabledMsg ? (
+            <p className="mt-2 text-sm font-bold text-amber">{disabledMsg}. Type the spec in the form instead.</p>
+          ) : null}
 
-      {shots.length ? (
-        <ol className="mt-2 flex gap-2 overflow-x-auto pb-1">
-          {shots.map((s, i) => (
-            <li key={s.id} className="relative shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element -- local blob preview */}
-              <img src={s.url} alt={`Screenshot ${i + 1}`} className="h-20 w-16 rounded border border-white/20 object-cover object-top" />
-              <span className="absolute bottom-0 left-0 rounded-tr bg-black/70 px-1 text-xs">{i + 1}</span>
-              {!draft ? (
+          {shots.length ? (
+            <ol className="mt-2 flex gap-2 overflow-x-auto pb-1">
+              {shots.map((s, i) => (
+                <li key={s.id} className="relative shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- local blob preview */}
+                  <img
+                    src={s.url}
+                    alt={`Screenshot ${i + 1}`}
+                    className="h-20 w-16 rounded border border-white/20 object-cover object-top"
+                  />
+                  <span className="absolute bottom-0 left-0 rounded-tr bg-black/70 px-1 text-xs">{i + 1}</span>
+                  {!draft ? (
+                    <button
+                      type="button"
+                      aria-label={`Remove screenshot ${i + 1}`}
+                      className="absolute -right-1 -top-1 h-6 w-6 rounded-full bg-black text-sm leading-6 text-white"
+                      onClick={() => removeShot(s.id)}
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          ) : null}
+
+          {!draft && !disabledMsg ? (
+            <>
+              <p className="mt-2 text-sm text-muted">
+                Add the O&apos;Reilly Pro screens for viscosity, oil capacity, and drain plug torque. Paste (Ctrl/Cmd+V)
+                or pick them. Nothing saves until you check the values and tap Save as verified.
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  aria-label={`Remove screenshot ${i + 1}`}
-                  className="absolute -right-1 -top-1 h-6 w-6 rounded-full bg-black text-sm leading-6 text-white"
-                  onClick={() => removeShot(s.id)}
+                  className="tap tap-ghost"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={busy === "read" || shots.length >= MAX_IMAGES}
                 >
-                  ×
+                  {shots.length ? "Add more" : "Pick screenshots"}
                 </button>
-              ) : null}
-            </li>
-          ))}
-        </ol>
-      ) : null}
-
-      {!draft && !disabledMsg ? (
-        <>
-          <p className="mt-2 text-sm text-muted">
-            Add the O&apos;Reilly Pro screens for viscosity, oil capacity, and drain plug torque. Paste (Ctrl/Cmd+V) or pick
-            them. Nothing saves until you check the values and tap Save as verified.
-          </p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              className="tap tap-ghost"
-              onClick={() => fileRef.current?.click()}
-              disabled={busy === "read" || shots.length >= MAX_IMAGES}
-            >
-              {shots.length ? "Add more" : "Pick screenshots"}
-            </button>
-            <button type="button" className="tap" onClick={readSpecs} disabled={!shots.length || busy === "read"}>
-              {busy === "read" ? "Reading…" : "Read specs"}
-            </button>
-          </div>
-        </>
-      ) : null}
-
-      {draft && found ? (
-        <div
-          className="mt-3"
-          onKeyDown={(e) => {
-            // This card can sit inside the create-job form: Enter must not submit that form.
-            if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") e.preventDefault();
-          }}
-        >
-          <p className="font-bold">{vehicleText || "This vehicle"}</p>
-          {ROWS.map(({ k, label, mode }) => {
-            const src = found[k];
-            const unchanged = src && draft[k].trim() === String(src.value);
-            return (
-              <div key={k}>
-                <label className="lbl">{label}</label>
-                <input
-                  className="field"
-                  value={draft[k]}
-                  onChange={(e) => setDraft((d) => (d ? { ...d, [k]: e.target.value } : d))}
-                  inputMode={mode}
-                  autoCapitalize={k === "viscosity" ? "characters" : undefined}
-                  placeholder="Not found in screenshots"
-                  autoComplete="off"
-                />
-                {src && unchanged ? <p className="mt-1 text-xs text-muted">from image {src.image}</p> : null}
-                {k === "qtWithFilter" && capNoFilter && !draft[k].trim() ? (
-                  <p className="mt-1 text-xs text-muted">Only capacity with filter is saved</p>
-                ) : null}
+                <button type="button" className="tap" onClick={readSpecs} disabled={!shots.length || busy === "read"}>
+                  {busy === "read" ? "Reading…" : "Read specs"}
+                </button>
               </div>
-            );
-          })}
-          <button className="tap mt-4" type="button" onClick={save} disabled={busy === "save" || !hasAny}>
-            {busy === "save" ? "Saving…" : "Save as verified"}
-          </button>
-          <button
-            type="button"
-            className="tap tap-ghost mt-2"
-            onClick={() => {
-              reset();
-              setOpen(false);
-            }}
-          >
-            Cancel
-          </button>
-          <p className="mt-2 text-xs text-muted">Blank fields keep anything already saved for this vehicle.</p>
-        </div>
-      ) : null}
+            </>
+          ) : null}
 
-      {error ? <p className="mt-2 text-sm font-bold text-red">{error}</p> : null}
+          {draft && found ? (
+            <div
+              className="mt-3"
+              onKeyDown={(e) => {
+                // This card can sit inside the create-job form: Enter must not submit that form.
+                if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") e.preventDefault();
+              }}
+            >
+              <p className="font-bold">{vehicleText || "This vehicle"}</p>
+              {ROWS.map(({ k, label, mode }) => {
+                const src = found[k];
+                const unchanged = src && draft[k].trim() === String(src.value);
+                return (
+                  <div key={k}>
+                    <label className="lbl">{label}</label>
+                    <input
+                      className="field"
+                      value={draft[k]}
+                      onChange={(e) => setDraft((d) => (d ? { ...d, [k]: e.target.value } : d))}
+                      inputMode={mode}
+                      autoCapitalize={k === "viscosity" ? "characters" : undefined}
+                      placeholder="Not found in screenshots"
+                      autoComplete="off"
+                    />
+                    {src && unchanged ? <p className="mt-1 text-xs text-muted">from image {src.image}</p> : null}
+                    {k === "qtWithFilter" && capNoFilter && !draft[k].trim() ? (
+                      <p className="mt-1 text-xs text-muted">Only capacity with filter is saved</p>
+                    ) : null}
+                  </div>
+                );
+              })}
+              <button className="tap mt-4" type="button" onClick={save} disabled={busy === "save" || !hasAny}>
+                {busy === "save" ? "Saving…" : "Save as verified"}
+              </button>
+              <button
+                type="button"
+                className="tap tap-ghost mt-2"
+                onClick={() => {
+                  reset();
+                  setOpen(false);
+                }}
+              >
+                Cancel
+              </button>
+              <p className="mt-2 text-xs text-muted">Blank fields keep anything already saved for this vehicle.</p>
+            </div>
+          ) : null}
+
+          {error ? <p className="mt-2 text-sm font-bold text-red">{error}</p> : null}
+        </div>
+      )}
     </div>
   );
 }
