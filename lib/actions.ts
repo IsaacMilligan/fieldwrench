@@ -5,10 +5,12 @@ import { revalidatePath } from "next/cache";
 import { putPrivateBlob, delPrivateBlob, blobConfigured, blobUserMessage } from "./blob";
 import { DEMO, clearSession, createSession, requireSession, verifyLogin } from "./auth";
 import { getCustomerUser } from "./supabase/server";
-import { db, ensureInvoice, bookableServiceInUse, getJobBundle, getSettings } from "./db/queries";
+import { db, ensureInvoice, bookableServiceInUse, getJobBundle, getSettings, getShopSpec } from "./db/queries";
 import { seedDemo } from "./db/seed";
 import { getSql } from "./db/index";
 import { parseMoney, parseNumber, vinOk, money } from "./format";
+import { decodeVin, isVinDecodeFailure } from "./vin-decode";
+import { lookupOilVehicleFinder } from "./vehicle-finder";
 import type { JobStatus, PayMethod } from "./status";
 import { JOB_STATUSES, PAY_METHODS } from "./status";
 import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "./services";
@@ -1364,23 +1366,69 @@ export async function decodeVinOnVehicle(vinRaw: string) {
   await requireSession();
   const vin = vinRaw.trim().toUpperCase();
   if (!vinOk(vin)) return { error: "VIN must be 17 characters (no I, O, or Q)." };
-  const url = `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${encodeURIComponent(vin)}?format=json`;
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) return { error: "NHTSA vPIC did not respond. Try again." };
-  const json = (await res.json()) as { Results?: Array<Record<string, string>> };
-  const row = json.Results?.[0];
-  if (!row) return { error: "No decode result." };
-  const errorCode = row.ErrorCode ?? "";
-  const year = row.ModelYear && row.ModelYear !== "" ? Number(row.ModelYear) : null;
-  const make = row.Make || "";
-  const model = row.Model || "";
-  if (!make && !model && errorCode && errorCode !== "0") {
-    return { error: row.ErrorText || "Invalid VIN — NHTSA could not decode it." };
+  const decoded = await decodeVin(vin);
+  if (isVinDecodeFailure(decoded)) {
+    return { error: decoded.error };
   }
-  if (!make && !model) {
-    return { error: "Invalid VIN — NHTSA returned no year/make/model." };
+
+  const { year, make, model, engine, trim, bev, vehicleId, source } = decoded;
+  const spec = await getShopSpec({ year, make, model, engine }).catch(() => null);
+  const shopVis = (spec?.oil_viscosity ?? "").trim();
+  const shopQt = spec?.oil_qt ?? null;
+  const shopDrain = spec?.oil_drain_tq ?? null;
+  const shopSocket = (spec?.oil_socket ?? "").trim();
+  const shopHasVisOrQt = Boolean(shopVis || shopQt != null);
+
+  let viscosity = shopVis;
+  let qtWithFilter = shopQt;
+  let qtWithoutFilter: number | null = null;
+  let oilSource: "shop" | "vehicle-finder" | undefined;
+
+  if (shopHasVisOrQt) {
+    oilSource = "shop";
+  } else if (!bev) {
+    const vfOil = await lookupOilVehicleFinder({
+      vehicleId,
+      year,
+      make,
+      model,
+      engine,
+      trim,
+    }).catch(() => null);
+    if (vfOil && (vfOil.viscosity || vfOil.qtWithFilter != null)) {
+      viscosity = vfOil.viscosity;
+      qtWithFilter = vfOil.qtWithFilter;
+      qtWithoutFilter = vfOil.qtWithoutFilter;
+      oilSource = "vehicle-finder";
+    }
   }
-  return { vin, year, make, model, error: null as string | null };
+
+  const oil =
+    viscosity || qtWithFilter != null || shopDrain != null || shopSocket
+      ? {
+          qtWithFilter,
+          viscosity,
+          drainTq: shopDrain,
+          socket: shopSocket,
+          ...(qtWithoutFilter != null ? { qtWithoutFilter } : {}),
+        }
+      : null;
+
+  return {
+    vin: decoded.vin,
+    year,
+    make,
+    model,
+    engine,
+    trim,
+    body: decoded.body,
+    drive: decoded.drive,
+    bev,
+    oil,
+    source,
+    ...(oilSource ? { oilSource } : {}),
+    error: null as string | null,
+  };
 }
 
 
