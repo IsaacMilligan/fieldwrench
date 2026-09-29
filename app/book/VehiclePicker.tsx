@@ -1,11 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { COMMON_MAKES, commonMakeValue, ELECTRIC_ENGINE, isKnownBev } from "@/lib/vpic";
+import { COMMON_MAKES, commonMakeValue, ELECTRIC_ENGINE, isElectricEngine, isKnownBev } from "@/lib/vpic";
 import { ScanVinButton, VIN_PAIR_BTN } from "@/components/ScanVinButton";
 import { vinOk } from "@/lib/format";
+import { formatQt } from "@/lib/oil-specs";
+import type { VehicleFinderOil, YmmOilOption } from "@/lib/vehicle-finder";
 
 type Saved = { year: number | null; make: string; model: string; engine?: string };
+
+type OilView =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "same"; oil: VehicleFinderOil; source: "shop" | "vehicle-finder" }
+  | { status: "ambiguous"; options: YmmOilOption[] }
+  | { status: "none" };
 
 async function load(kind: string, q: Record<string, string | number>) {
   const p = new URLSearchParams({
@@ -23,12 +32,16 @@ export function VehiclePicker({
   initial,
   onYmme,
   withVin = false,
+  showOil,
 }: {
   saved?: Saved[];
   initial?: { year?: number | null; make?: string; model?: string; engine?: string };
   onYmme?: (v: { year: string; make: string; model: string; engine: string }) => void;
   withVin?: boolean;
+  /** Authenticated YMM/VIN oil hint. Defaults on when withVin (create-job / add-vehicle). */
+  showOil?: boolean;
 }) {
+  const oilEnabled = showOil ?? withVin;
   const years = useMemo(() => {
     const top = new Date().getFullYear() + 1;
     const list: number[] = [];
@@ -53,12 +66,69 @@ export function VehiclePicker({
   const [vinBusy, setVinBusy] = useState(false);
   const [vinError, setVinError] = useState<string | null>(null);
   const seedRef = useRef<{ year: string; make: string; model: string; engine: string } | null>(null);
+  const skipOilKeyRef = useRef<string | null>(null);
+  const [oilView, setOilView] = useState<OilView>({ status: "idle" });
+  const [oilPick, setOilPick] = useState("");
 
   const make = brand === "Other" ? otherMake.trim() : brand;
+  const bevNow = isElectricEngine(engine) || (make && model ? isKnownBev(make, model) : false);
 
   useEffect(() => {
     onYmme?.({ year, make, model, engine });
   }, [year, make, model, engine, onYmme]);
+
+  useEffect(() => {
+    if (!oilEnabled) {
+      setOilView({ status: "idle" });
+      setOilPick("");
+      return;
+    }
+    if (!year || !make || !model) {
+      setOilView({ status: "idle" });
+      setOilPick("");
+      return;
+    }
+    if (bevNow) {
+      setOilView({ status: "none" });
+      setOilPick("");
+      return;
+    }
+
+    const key = `${year}|${make}|${model}|${engine}`;
+    if (skipOilKeyRef.current === key) {
+      skipOilKeyRef.current = null;
+      return;
+    }
+
+    let live = true;
+    setOilView({ status: "loading" });
+    setOilPick("");
+    const params = new URLSearchParams({ year, make, model });
+    if (engine && engine !== "__unsure__") params.set("engine", engine);
+    fetch(`/api/oil?${params.toString()}`, { cache: "no-store" })
+      .then(async (res) => {
+        if (!live) return;
+        if (res.status === 401) {
+          setOilView({ status: "none" });
+          return;
+        }
+        const json = (await res.json()) as OilView & { error?: string };
+        if (!live) return;
+        if (json.status === "same" && json.oil) {
+          setOilView({ status: "same", oil: json.oil, source: json.source === "shop" ? "shop" : "vehicle-finder" });
+        } else if (json.status === "ambiguous" && Array.isArray(json.options) && json.options.length) {
+          setOilView({ status: "ambiguous", options: json.options });
+        } else {
+          setOilView({ status: "none" });
+        }
+      })
+      .catch(() => {
+        if (live) setOilView({ status: "none" });
+      });
+    return () => {
+      live = false;
+    };
+  }, [oilEnabled, year, make, model, engine, bevNow]);
 
   const otherHits = useMemo(() => {
     const q = otherMake.trim().toLowerCase();
@@ -219,6 +289,12 @@ export function VehiclePicker({
         model?: string;
         engine?: string;
         bev?: boolean;
+        oil?: {
+          viscosity?: string;
+          qtWithFilter?: number | null;
+          qtWithoutFilter?: number | null;
+        } | null;
+        oilSource?: "shop" | "vehicle-finder";
       };
       if (json.error) {
         setVinError(json.error);
@@ -228,12 +304,33 @@ export function VehiclePicker({
         setVinError("Couldn’t decode that VIN — check the characters.");
         return;
       }
+      const filledEngine = json.engine || (json.bev ? ELECTRIC_ENGINE : "");
       applyFill({
         year: json.year,
         make: json.make ?? "",
         model: json.model ?? "",
-        engine: json.engine || (json.bev ? ELECTRIC_ENGINE : ""),
+        engine: filledEngine,
       });
+      if (oilEnabled) {
+        if (json.bev || isElectricEngine(filledEngine)) {
+          setOilView({ status: "none" });
+          setOilPick("");
+        } else if (json.oil && (json.oil.viscosity || json.oil.qtWithFilter != null)) {
+          const y = String(json.year);
+          const mk = commonMakeValue(json.make ?? "") ?? (json.make ?? "");
+          skipOilKeyRef.current = `${y}|${mk}|${json.model}|${filledEngine}`;
+          setOilView({
+            status: "same",
+            oil: {
+              viscosity: json.oil.viscosity ?? "",
+              qtWithFilter: json.oil.qtWithFilter ?? null,
+              qtWithoutFilter: json.oil.qtWithoutFilter ?? null,
+            },
+            source: json.oilSource === "shop" ? "shop" : "vehicle-finder",
+          });
+          setOilPick("");
+        }
+      }
     } catch {
       setVinError("Couldn’t decode that VIN. Year / Make / Model still work.");
     } finally {
@@ -299,6 +396,27 @@ export function VehiclePicker({
         .finally(() => setBusy(null));
     }
   };
+
+  function pickAmbiguous(value: string) {
+    setOilPick(value);
+    if (!value || oilView.status !== "ambiguous") return;
+    const opt = oilView.options.find((o) => String(o.vehicleId) === value);
+    if (!opt) return;
+    if (opt.engine) setEngine(opt.engine);
+    const y = year;
+    const mk = make;
+    const mo = model;
+    const eng = opt.engine || engine;
+    skipOilKeyRef.current = `${y}|${mk}|${mo}|${eng}`;
+    setOilView({ status: "same", oil: opt.oil, source: "vehicle-finder" });
+  }
+
+  const oilLabel =
+    oilView.status === "same"
+      ? oilView.source === "shop"
+        ? "Shop"
+        : "From YMM"
+      : "";
 
   return (
     <div>
@@ -535,6 +653,65 @@ export function VehiclePicker({
           ))}
         </select>
       )}
+
+      {oilEnabled && year && make && model && !bevNow ? (
+        <div className="mt-3">
+          {oilView.status === "loading" ? (
+            <p className="text-sm text-muted">Looking up oil…</p>
+          ) : null}
+          {oilView.status === "ambiguous" ? (
+            <>
+              <label className="lbl" htmlFor="ymm_oil_pick">
+                Engine / trim
+              </label>
+              <select
+                className="field"
+                id="ymm_oil_pick"
+                value={oilPick}
+                onChange={(e) => pickAmbiguous(e.target.value)}
+              >
+                <option value="">Pick engine / trim for oil</option>
+                {oilView.options.map((o) => {
+                  const label = [o.engine, o.trim].filter(Boolean).join(" · ") || `Vehicle ${o.vehicleId}`;
+                  const hint = [
+                    o.oil.viscosity,
+                    o.oil.qtWithFilter != null ? formatQt(o.oil.qtWithFilter) : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ");
+                  return (
+                    <option key={o.vehicleId} value={String(o.vehicleId)}>
+                      {hint ? `${label} — ${hint}` : label}
+                    </option>
+                  );
+                })}
+              </select>
+            </>
+          ) : null}
+          {oilView.status === "same" ? (
+            <>
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="lbl mb-0 mt-0">Engine oil</p>
+                <span className="text-xs font-bold uppercase tracking-widest text-muted">{oilLabel}</span>
+              </div>
+              <div className="num mt-1 text-2xl text-amber">
+                {[
+                  oilView.oil.viscosity || null,
+                  oilView.oil.qtWithFilter != null ? formatQt(oilView.oil.qtWithFilter) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "—"}
+              </div>
+              <input type="hidden" name="oil_viscosity" value={oilView.oil.viscosity || ""} />
+              <input
+                type="hidden"
+                name="oil_qt"
+                value={oilView.oil.qtWithFilter != null ? String(oilView.oil.qtWithFilter) : ""}
+              />
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
       {error ? (
         <div className="mt-3">

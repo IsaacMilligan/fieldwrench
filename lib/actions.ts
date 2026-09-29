@@ -452,9 +452,12 @@ export async function createVehicleAction(form: FormData) {
   const customerId = str(form, "customer_id");
   const ymm = ymmFrom(form);
   const mileage = parseNumber(str(form, "mileage")) || null;
-  await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, plate, vin, mileage, history_notes, shop_id) VALUES (
+  const oilQt = parseNumber(str(form, "oil_qt")) || null;
+  const oilVis = str(form, "oil_viscosity");
+  await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, plate, vin, mileage, history_notes, oil_qt, oil_viscosity, shop_id) VALUES (
     ${id}, ${customerId}, ${ymm.year}, ${ymm.make}, ${ymm.model}, ${ymm.engine},
-    ${str(form, "plate")}, ${ymm.vin || str(form, "vin").toUpperCase()}, ${mileage}, ${str(form, "history_notes")}, ${s.shopId}
+    ${str(form, "plate")}, ${ymm.vin || str(form, "vin").toUpperCase()}, ${mileage}, ${str(form, "history_notes")},
+    ${oilQt}, ${oilVis}, ${s.shopId}
   )`;
   revalidatePath(`/customers/${customerId}`);
   redirect(`/vehicles/${id}`);
@@ -705,16 +708,20 @@ export async function createJobAction(form: FormData) {
     await sql`INSERT INTO customers (id, name, phone, email, shop_id) VALUES (
       ${customerId}, ${name}, ${phone}, ${str(form, "email")}, ${s.shopId}
     )`;
-    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, shop_id) VALUES (
-      ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}, ${s.shopId}
+    const oilQt = parseNumber(str(form, "oil_qt")) || null;
+    const oilVis = str(form, "oil_viscosity");
+    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, oil_qt, oil_viscosity, shop_id) VALUES (
+      ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}, ${oilQt}, ${oilVis}, ${s.shopId}
     )`;
   } else {
     if (!customerId) redirect("/jobs?new=1");
     if (!vehicleId) {
       if (!year || !make || !model) redirect("/jobs?new=1");
       vehicleId = crypto.randomUUID();
-      await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, shop_id) VALUES (
-        ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}, ${s.shopId}
+      const oilQt = parseNumber(str(form, "oil_qt")) || null;
+      const oilVis = str(form, "oil_viscosity");
+      await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, oil_qt, oil_viscosity, shop_id) VALUES (
+        ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}, ${oilQt}, ${oilVis}, ${s.shopId}
       )`;
     } else {
       const [veh] = await sql<{ customer_id: string }[]>`SELECT customer_id FROM vehicles WHERE id = ${vehicleId}`;
