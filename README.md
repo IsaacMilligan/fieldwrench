@@ -14,7 +14,7 @@ Production host is Vercel. After `npx vercel login` (this machine is not logged 
 npx vercel --prod --yes
 ```
 
-Set `DATABASE_URL` and `SESSION_SECRET` on the project. Optional: `BLOB_READ_WRITE_TOKEN`, `VEHICLE_FINDER_API_KEY` (Vehicle Finder Free VIN → year/make/model; Starter oil viscosity/capacity via same key; NHTSA fallback when unset).
+Set `DATABASE_URL` and `SESSION_SECRET` on the project. Optional: `BLOB_READ_WRITE_TOKEN`, `VEHICLE_FINDER_API_KEY` (Vehicle Finder Free VIN → year/make/model; Starter oil viscosity/capacity via same key on VIN decode + create-job YMM; NHTSA fallback when unset).
 Customer login: `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (public app key only).
 
 Local: `http://localhost:3000`

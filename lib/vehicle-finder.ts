@@ -280,3 +280,146 @@ export async function lookupOilVehicleFinder(q: {
     return null;
   }
 }
+
+const OIL_MATCH_CAP = 8;
+
+export type YmmOilOption = {
+  vehicleId: number;
+  engine: string;
+  trim: string;
+  oil: VehicleFinderOil;
+};
+
+export type YmmOilLookup =
+  | { status: "same"; oil: VehicleFinderOil; source: "vehicle-finder" }
+  | { status: "ambiguous"; options: YmmOilOption[] }
+  | { status: "none" };
+
+function oilKey(oil: VehicleFinderOil): string {
+  return `${oil.viscosity.trim().toUpperCase()}|${oil.qtWithFilter ?? ""}`;
+}
+
+function hasOil(oil: VehicleFinderOil | null | undefined): oil is VehicleFinderOil {
+  return Boolean(oil && (oil.viscosity.trim() || oil.qtWithFilter != null));
+}
+
+async function fetchOilById(id: number): Promise<VehicleFinderOil | null> {
+  const res = await vfFetch(`/vehicles/${id}/oil-change`);
+  if (!res || !res.ok) return null;
+  try {
+    const json = (await res.json()) as { data?: unknown };
+    return parseOilPayload(json.data);
+  } catch {
+    return null;
+  }
+}
+
+async function listVehicleMatches(q: {
+  year: number;
+  make: string;
+  model: string;
+}): Promise<Array<VfVehicleMatch & { id: number }>> {
+  const params = new URLSearchParams({
+    year: String(q.year),
+    make: q.make,
+    model: q.model,
+  });
+  const res = await vfFetch(`/vehicles?${params}`);
+  if (!res || !res.ok) return [];
+  try {
+    const json = (await res.json()) as { data?: VfVehicleMatch[] | null };
+    const matches = Array.isArray(json.data) ? json.data : [];
+    return matches
+      .map((m) => ({ ...m, id: asId(m.id) }))
+      .filter((m): m is VfVehicleMatch & { id: number } => m.id != null)
+      .slice(0, OIL_MATCH_CAP);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * YMM → oil for create-job: same / ambiguous / none.
+ * Does not apply shop preference — caller checks getShopSpec first.
+ * Soft-fails to none when key missing or API errors.
+ */
+export async function lookupOilByYmm(q: {
+  year?: number | null;
+  make?: string | null;
+  model?: string | null;
+  engine?: string | null;
+  trim?: string | null;
+  vehicleId?: number | null;
+}): Promise<YmmOilLookup> {
+  if (!apiKey()) return { status: "none" };
+
+  const year = q.year != null && Number.isFinite(q.year) ? Number(q.year) : null;
+  const make = clean(q.make);
+  const model = clean(q.model);
+  if (!year || !make || !model) return { status: "none" };
+
+  // Narrow path: known vehicle id or engine/trim that resolves to one id.
+  if (q.vehicleId && q.vehicleId > 0) {
+    const oil = await fetchOilById(q.vehicleId).catch(() => null);
+    if (!hasOil(oil)) return { status: "none" };
+    return { status: "same", oil, source: "vehicle-finder" };
+  }
+
+  const matches = await listVehicleMatches({ year, make, model });
+  if (!matches.length) return { status: "none" };
+
+  const engN = norm(q.engine ?? "");
+  const trimN = norm(q.trim ?? "");
+  let candidates = matches;
+  if (engN || trimN) {
+    const scored = matches
+      .map((m) => {
+        let score = 0;
+        const mEng = norm(clean(m.engine));
+        const mTrim = norm(clean(m.trim));
+        if (engN && mEng && (mEng.includes(engN) || engN.includes(mEng))) score += 2;
+        if (trimN && mTrim && (mTrim.includes(trimN) || trimN.includes(mTrim))) score += 1;
+        return { m, score };
+      })
+      .filter((s) => s.score > 0)
+      .sort((a, b) => b.score - a.score);
+    if (scored.length === 1 || (scored.length > 1 && scored[0].score > scored[1].score)) {
+      const oil = await fetchOilById(scored[0].m.id).catch(() => null);
+      if (!hasOil(oil)) return { status: "none" };
+      return { status: "same", oil, source: "vehicle-finder" };
+    }
+    if (scored.length > 1) candidates = scored.map((s) => s.m);
+  }
+
+  // Single catalog hit → one oil fetch.
+  if (candidates.length === 1) {
+    const oil = await fetchOilById(candidates[0].id).catch(() => null);
+    if (!hasOil(oil)) return { status: "none" };
+    return { status: "same", oil, source: "vehicle-finder" };
+  }
+
+  // Multiple hits: fetch oil per candidate (capped), never first-match when oils differ.
+  const settled = await Promise.all(
+    candidates.map(async (m) => {
+      const oil = await fetchOilById(m.id).catch(() => null);
+      return { m, oil };
+    }),
+  );
+  const withOil: YmmOilOption[] = settled
+    .filter((r): r is { m: VfVehicleMatch & { id: number }; oil: VehicleFinderOil } => hasOil(r.oil))
+    .map((r) => ({
+      vehicleId: r.m.id,
+      engine: clean(r.m.engine),
+      trim: clean(r.m.trim),
+      oil: r.oil,
+    }));
+
+  if (!withOil.length) return { status: "none" };
+
+  const keys = new Set(withOil.map((o) => oilKey(o.oil)));
+  if (keys.size === 1) {
+    return { status: "same", oil: withOil[0].oil, source: "vehicle-finder" };
+  }
+
+  return { status: "ambiguous", options: withOil };
+}
