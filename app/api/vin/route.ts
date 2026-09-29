@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { readSession } from "@/lib/auth";
 import { getShopSpec } from "@/lib/db/queries";
 import { vinOk } from "@/lib/format";
+import { lookupOilVehicleFinder } from "@/lib/vehicle-finder";
 import { decodeVin, isVinDecodeFailure } from "@/lib/vin-decode";
 
 export async function POST(req: Request) {
@@ -23,15 +24,47 @@ export async function POST(req: Request) {
     });
   }
 
-  const { year, make, model, engine, trim, body: bodyClass, drive, bev } = decoded;
+  const { year, make, model, engine, trim, body: bodyClass, drive, bev, vehicleId } = decoded;
   const spec = await getShopSpec({ year, make, model, engine }).catch(() => null);
+
+  const shopVis = (spec?.oil_viscosity ?? "").trim();
+  const shopQt = spec?.oil_qt ?? null;
+  const shopDrain = spec?.oil_drain_tq ?? null;
+  const shopSocket = (spec?.oil_socket ?? "").trim();
+  const shopHasVisOrQt = Boolean(shopVis || shopQt != null);
+
+  let viscosity = shopVis;
+  let qtWithFilter = shopQt;
+  let qtWithoutFilter: number | null = null;
+  let oilSource: "shop" | "vehicle-finder" | undefined;
+
+  if (shopHasVisOrQt) {
+    oilSource = "shop";
+  } else if (!bev) {
+    const vfOil = await lookupOilVehicleFinder({
+      vehicleId,
+      year,
+      make,
+      model,
+      engine,
+      trim,
+    }).catch(() => null);
+    if (vfOil && (vfOil.viscosity || vfOil.qtWithFilter != null)) {
+      viscosity = vfOil.viscosity;
+      qtWithFilter = vfOil.qtWithFilter;
+      qtWithoutFilter = vfOil.qtWithoutFilter;
+      oilSource = "vehicle-finder";
+    }
+  }
+
   const oil =
-    spec && (spec.oil_qt || spec.oil_viscosity || spec.oil_drain_tq || spec.oil_socket)
+    viscosity || qtWithFilter != null || shopDrain != null || shopSocket
       ? {
-          qtWithFilter: spec.oil_qt,
-          viscosity: spec.oil_viscosity,
-          drainTq: spec.oil_drain_tq,
-          socket: spec.oil_socket,
+          qtWithFilter,
+          viscosity,
+          drainTq: shopDrain,
+          socket: shopSocket,
+          ...(qtWithoutFilter != null ? { qtWithoutFilter } : {}),
         }
       : null;
 
@@ -47,5 +80,6 @@ export async function POST(req: Request) {
     oil,
     bev,
     source: decoded.source,
+    ...(oilSource ? { oilSource } : {}),
   });
 }

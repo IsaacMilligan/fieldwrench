@@ -18,6 +18,8 @@ export type VinDecodeResult = {
   drive: string;
   bev: boolean;
   source: "vehicle-finder" | "nhtsa";
+  /** VF catalog id when decode came from Vehicle Finder; server-only. */
+  vehicleId?: number | null;
 };
 
 export type VinDecodeFailure = {
@@ -58,6 +60,7 @@ async function decodeVinNhtsa(vin: string): Promise<VinDecodeResult | VinDecodeF
     drive: formatVpicDrive(row),
     bev,
     source: "nhtsa",
+    vehicleId: null,
   };
 }
 
@@ -79,6 +82,7 @@ export async function decodeVin(vin: string): Promise<VinDecodeResult | VinDecod
       drive: vf.drive,
       bev: vf.bev,
       source: "vehicle-finder",
+      vehicleId: vf.vehicleId,
     };
   }
   return decodeVinNhtsa(vin);

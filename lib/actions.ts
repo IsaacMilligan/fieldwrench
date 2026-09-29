@@ -5,11 +5,12 @@ import { revalidatePath } from "next/cache";
 import { putPrivateBlob, delPrivateBlob, blobConfigured, blobUserMessage } from "./blob";
 import { DEMO, clearSession, createSession, requireSession, verifyLogin } from "./auth";
 import { getCustomerUser } from "./supabase/server";
-import { db, ensureInvoice, bookableServiceInUse, getJobBundle, getSettings } from "./db/queries";
+import { db, ensureInvoice, bookableServiceInUse, getJobBundle, getSettings, getShopSpec } from "./db/queries";
 import { seedDemo } from "./db/seed";
 import { getSql } from "./db/index";
 import { parseMoney, parseNumber, vinOk, money } from "./format";
 import { decodeVin, isVinDecodeFailure } from "./vin-decode";
+import { lookupOilVehicleFinder } from "./vehicle-finder";
 import type { JobStatus, PayMethod } from "./status";
 import { JOB_STATUSES, PAY_METHODS } from "./status";
 import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "./services";
@@ -1369,11 +1370,63 @@ export async function decodeVinOnVehicle(vinRaw: string) {
   if (isVinDecodeFailure(decoded)) {
     return { error: decoded.error };
   }
+
+  const { year, make, model, engine, trim, bev, vehicleId, source } = decoded;
+  const spec = await getShopSpec({ year, make, model, engine }).catch(() => null);
+  const shopVis = (spec?.oil_viscosity ?? "").trim();
+  const shopQt = spec?.oil_qt ?? null;
+  const shopDrain = spec?.oil_drain_tq ?? null;
+  const shopSocket = (spec?.oil_socket ?? "").trim();
+  const shopHasVisOrQt = Boolean(shopVis || shopQt != null);
+
+  let viscosity = shopVis;
+  let qtWithFilter = shopQt;
+  let qtWithoutFilter: number | null = null;
+  let oilSource: "shop" | "vehicle-finder" | undefined;
+
+  if (shopHasVisOrQt) {
+    oilSource = "shop";
+  } else if (!bev) {
+    const vfOil = await lookupOilVehicleFinder({
+      vehicleId,
+      year,
+      make,
+      model,
+      engine,
+      trim,
+    }).catch(() => null);
+    if (vfOil && (vfOil.viscosity || vfOil.qtWithFilter != null)) {
+      viscosity = vfOil.viscosity;
+      qtWithFilter = vfOil.qtWithFilter;
+      qtWithoutFilter = vfOil.qtWithoutFilter;
+      oilSource = "vehicle-finder";
+    }
+  }
+
+  const oil =
+    viscosity || qtWithFilter != null || shopDrain != null || shopSocket
+      ? {
+          qtWithFilter,
+          viscosity,
+          drainTq: shopDrain,
+          socket: shopSocket,
+          ...(qtWithoutFilter != null ? { qtWithoutFilter } : {}),
+        }
+      : null;
+
   return {
     vin: decoded.vin,
-    year: decoded.year,
-    make: decoded.make,
-    model: decoded.model,
+    year,
+    make,
+    model,
+    engine,
+    trim,
+    body: decoded.body,
+    drive: decoded.drive,
+    bev,
+    oil,
+    source,
+    ...(oilSource ? { oilSource } : {}),
     error: null as string | null,
   };
 }
