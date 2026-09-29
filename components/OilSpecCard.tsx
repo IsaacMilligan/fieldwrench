@@ -1,34 +1,30 @@
-import { formatQt } from "@/lib/oil-specs";
+import { formatNum, formatQt, oilSpecComplete, oilSpecHasAny, type OilSpecValues } from "@/lib/oil-specs";
 import { isElectricEngine } from "@/lib/vpic";
+import { OReillyProButton } from "@/components/OReillyProButton";
 
+/**
+ * Engine oil card for job / vehicle / shop-spec screens.
+ * Auto-fills ONLY from a verified shop spec (exact year/make/model/engine). No spec → blank.
+ * Saving writes a verified shop spec for that vehicle.
+ */
 export function OilSpecCard({
   vehicleId,
-  savedQt,
-  savedViscosity,
-  savedTq,
-  savedSocket,
-  shopQt,
-  shopViscosity,
-  shopTq,
-  shopSocket,
+  specId,
+  spec,
+  verified = true,
   compact = false,
   next,
   engine,
-  specId,
 }: {
   vehicleId?: string;
-  savedQt?: number | null;
-  savedViscosity?: string | null;
-  savedTq?: number | null;
-  savedSocket?: string | null;
-  shopQt?: number | null;
-  shopViscosity?: string | null;
-  shopTq?: number | null;
-  shopSocket?: string | null;
+  specId?: string;
+  /** Verified shop spec values (or the spec row being edited on /specs). */
+  spec?: OilSpecValues | null;
+  /** Only relevant on /specs: an older row that nobody has verified yet. */
+  verified?: boolean;
   compact?: boolean;
   next?: string;
   engine?: string | null;
-  specId?: string;
 }) {
   if (isElectricEngine(engine)) {
     return (
@@ -42,108 +38,106 @@ export function OilSpecCard({
     );
   }
 
-  const vehicleSaved = Boolean(
-    (savedQt && savedQt > 0) ||
-      (savedViscosity && savedViscosity.trim()) ||
-      (savedTq && savedTq > 0) ||
-      (savedSocket && savedSocket.trim()),
-  );
-  const shopSaved = Boolean(
-    (shopQt && shopQt > 0) ||
-      (shopViscosity && shopViscosity.trim()) ||
-      (shopTq && shopTq > 0) ||
-      (shopSocket && shopSocket.trim()),
-  );
-
-  const source = vehicleSaved ? "Saved" : shopSaved ? "Saved for this engine" : "";
-  const primaryQt = vehicleSaved ? savedQt ?? null : shopSaved ? shopQt ?? null : null;
-  const primaryVis = vehicleSaved
-    ? String(savedViscosity ?? "").trim()
-    : shopSaved
-      ? String(shopViscosity ?? "").trim()
-      : "";
-  const primaryTq = vehicleSaved ? savedTq ?? null : shopSaved ? shopTq ?? null : null;
-  const primarySocket = vehicleSaved
-    ? String(savedSocket ?? "").trim()
-    : shopSaved
-      ? String(shopSocket ?? "").trim()
-      : "";
-  const hasPrimary = Boolean(
-    (primaryQt && primaryQt > 0) || primaryVis || (primaryTq && primaryTq > 0) || primarySocket,
-  );
+  const v: OilSpecValues = {
+    viscosity: String(spec?.viscosity ?? "").trim(),
+    qtWithFilter: spec?.qtWithFilter ?? null,
+    drainTq: spec?.drainTq ?? null,
+    socketMm: spec?.socketMm ?? null,
+  };
+  const has = oilSpecHasAny(v);
+  const complete = oilSpecComplete(v);
+  const badge = has ? (verified ? "Verified" : "Not verified") : "";
 
   return (
     <section className={compact ? "mt-3 panel" : "mt-6 panel"}>
       <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
         Engine oil
       </h2>
-      {hasPrimary ? (
+      {has ? (
         <div className="mt-3">
           <div className="flex items-baseline justify-between gap-3">
-            <div className="num text-4xl text-amber">
-              {primaryQt && primaryQt > 0 ? `${formatQt(primaryQt)} with filter` : "—"}
-            </div>
-            <span className="text-xs font-bold uppercase tracking-widest text-muted">{source}</span>
+            <div className="num text-4xl">{v.viscosity || "—"}</div>
+            <span
+              className={`text-xs font-bold uppercase tracking-widest ${verified ? "text-green" : "text-amber"}`}
+            >
+              {badge}
+            </span>
           </div>
-          <div className="num mt-2 text-4xl">{primaryVis || "—"}</div>
-          {(primaryTq && primaryTq > 0) || primarySocket ? (
+          <div className="num mt-2 text-3xl text-amber">
+            {v.qtWithFilter ? `${formatQt(v.qtWithFilter)} with filter` : "—"}
+          </div>
+          {v.drainTq || v.socketMm ? (
             <p className="mt-2 text-sm text-muted">
               Drain plug
-              {primaryTq && primaryTq > 0 ? ` ${primaryTq} ft-lb` : ""}
-              {primarySocket ? ` · ${primarySocket} mm` : ""}
+              {v.drainTq ? ` ${formatNum(v.drainTq)} ft-lb` : ""}
+              {v.socketMm ? ` · ${formatNum(v.socketMm)} mm socket` : ""}
             </p>
           ) : null}
-          <p className="mt-2 text-sm font-bold text-steel">Full synthetic</p>
         </div>
       ) : (
-        <p className="mt-3 text-lg font-bold text-amber">No spec on file</p>
+        <p className="mt-3 text-lg font-bold text-amber">No oil spec on file</p>
       )}
+      {!complete ? (
+        <>
+          <p className="mt-2 text-sm text-muted">
+            {has ? "Spec is missing a value." : "Look it up once, save it here."} Saved specs fill in for every car
+            with this year, make, model, and engine.
+          </p>
+          <OReillyProButton className="mt-3" />
+        </>
+      ) : null}
       {vehicleId || specId ? (
         <form action="/api/shop" method="post" className="mt-4">
           <input type="hidden" name="_op" value="save_oil_spec" />
           {vehicleId ? <input type="hidden" name="id" value={vehicleId} /> : null}
           {specId ? <input type="hidden" name="spec_id" value={specId} /> : null}
           {next ? <input type="hidden" name="next" value={next} /> : null}
-          <label className="lbl">Capacity (qt, with filter)</label>
-          <input
-            className="field"
-            name="oil_qt"
-            inputMode="decimal"
-            defaultValue={hasPrimary && primaryQt && primaryQt > 0 ? String(primaryQt) : ""}
-            placeholder="qt"
-          />
           <label className="lbl">Viscosity</label>
           <input
             className="field"
             name="oil_viscosity"
-            defaultValue={hasPrimary ? primaryVis : ""}
-            placeholder="SAE"
+            defaultValue={v.viscosity}
+            placeholder="0W-20"
+            autoCapitalize="characters"
+            autoComplete="off"
+          />
+          <label className="lbl">Capacity (qt w/ filter)</label>
+          <input
+            className="field"
+            name="oil_qt"
+            inputMode="decimal"
+            defaultValue={formatNum(v.qtWithFilter)}
+            placeholder="qt"
+            autoComplete="off"
           />
           <div className="mt-1 grid grid-cols-2 gap-2">
             <div>
-              <label className="lbl">Drain plug TQ (ft-lb)</label>
+              <label className="lbl">Drain plug torque (ft-lb)</label>
               <input
                 className="field"
                 name="oil_drain_tq"
                 inputMode="decimal"
-                defaultValue={hasPrimary && primaryTq && primaryTq > 0 ? String(primaryTq) : ""}
+                defaultValue={formatNum(v.drainTq)}
                 placeholder="ft-lb"
+                autoComplete="off"
               />
             </div>
             <div>
-              <label className="lbl">Socket (mm)</label>
+              <label className="lbl">Socket (mm, optional)</label>
               <input
                 className="field"
                 name="oil_socket"
-                inputMode="numeric"
-                defaultValue={hasPrimary ? primarySocket : ""}
+                inputMode="decimal"
+                defaultValue={formatNum(v.socketMm)}
                 placeholder="mm"
+                autoComplete="off"
               />
             </div>
           </div>
           <button className="tap mt-3" type="submit">
             Save oil spec
           </button>
+          <p className="mt-2 text-xs text-muted">Saving marks this spec verified for your shop.</p>
         </form>
       ) : null}
     </section>

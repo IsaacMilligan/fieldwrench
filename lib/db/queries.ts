@@ -5,7 +5,7 @@ import {
   partCustomerCents,
 } from "../profit";
 import { denverDateISO } from "../format";
-import { oilYmmeKey } from "../oil-specs";
+import { oilYmmeKey, positiveNum, type OilSpecValues } from "../oil-specs";
 import { computeInvoice, type DiscountInput, type InvoiceMath } from "../invoice";
 import type { JobStatus, PayMethod } from "../status";
 import { bookingShopId, readSession } from "../auth";
@@ -974,10 +974,13 @@ export type ShopSpec = {
   oil_qt: number | null;
   oil_viscosity: string;
   oil_drain_tq: number | null;
+  /** Legacy text column; mirrors socket_mm for older readers. */
   oil_socket: string;
+  socket_mm: number | null;
+  verified: boolean;
 };
 
-function asSpec(row: {
+type ShopSpecRow = {
   id: string;
   year: number;
   make_label?: string | null;
@@ -991,9 +994,17 @@ function asSpec(row: {
   oil_viscosity: string;
   oil_drain_tq: number | null;
   oil_socket: string;
-}): ShopSpec {
-  const qt = row.oil_qt != null ? Number(row.oil_qt) : null;
-  const tq = row.oil_drain_tq != null ? Number(row.oil_drain_tq) : null;
+  socket_size_mm?: number | string | null;
+  verified?: boolean | null;
+};
+
+const SPEC_COLS = `id, year, make_label, model_label, engine_label, trim, body, drive, vin,
+      oil_qt, oil_viscosity, oil_drain_tq, oil_socket, socket_size_mm, verified`;
+
+function asSpec(row: ShopSpecRow): ShopSpec {
+  const qt = positiveNum(row.oil_qt);
+  const tq = positiveNum(row.oil_drain_tq);
+  const socketMm = positiveNum(row.socket_size_mm) ?? positiveNum(row.oil_socket);
   return {
     id: String(row.id),
     year: Number(row.year),
@@ -1004,13 +1015,26 @@ function asSpec(row: {
     body: String(row.body ?? "").trim(),
     drive: String(row.drive ?? "").trim(),
     vin: String(row.vin ?? "").trim(),
-    oil_qt: qt && qt > 0 ? qt : null,
+    oil_qt: qt,
     oil_viscosity: String(row.oil_viscosity ?? "").trim(),
-    oil_drain_tq: tq && tq > 0 ? tq : null,
-    oil_socket: String(row.oil_socket ?? "").trim(),
+    oil_drain_tq: tq,
+    oil_socket: socketMm != null ? String(socketMm) : String(row.oil_socket ?? "").trim(),
+    socket_mm: socketMm,
+    verified: row.verified === true,
   };
 }
 
+export function specValues(spec: ShopSpec | null | undefined): OilSpecValues | null {
+  if (!spec) return null;
+  return {
+    viscosity: spec.oil_viscosity,
+    qtWithFilter: spec.oil_qt,
+    drainTq: spec.oil_drain_tq,
+    socketMm: spec.socket_mm,
+  };
+}
+
+/** Shop spec row for an exact Y/M/M/engine key (verified or not). Used for trim/body/drive facts. */
 export async function getShopSpec(q: {
   year?: number | null;
   make?: string | null;
@@ -1021,38 +1045,41 @@ export async function getShopSpec(q: {
   if (!key) return null;
   const sql = await db();
   const sid = await shopId();
-  const [row] = await sql<Parameters<typeof asSpec>[0][]>`
-    SELECT id, year, make_label, model_label, engine_label, trim, body, drive, vin,
-      oil_qt, oil_viscosity, oil_drain_tq, oil_socket
+  const [row] = await sql.unsafe<ShopSpecRow[]>(
+    `SELECT ${SPEC_COLS}
     FROM oil_defaults
-    WHERE shop_id = ${sid} AND year = ${key.year} AND make_key = ${key.make_key}
-      AND model_key = ${key.model_key} AND engine_key = ${key.engine_key}
-    LIMIT 1
-  `;
+    WHERE shop_id = $1 AND year = $2 AND make_key = $3 AND model_key = $4 AND engine_key = $5
+    LIMIT 1`,
+    [sid, key.year, key.make_key, key.model_key, key.engine_key],
+  );
   return row ? asSpec(row) : null;
 }
 
 export async function getShopSpecById(id: string): Promise<ShopSpec | null> {
   const sql = await db();
   const sid = await shopId();
-  const [row] = await sql<Parameters<typeof asSpec>[0][]>`
-    SELECT id, year, make_label, model_label, engine_label, trim, body, drive, vin,
-      oil_qt, oil_viscosity, oil_drain_tq, oil_socket
-    FROM oil_defaults
-    WHERE id = ${id} AND shop_id = ${sid}
-    LIMIT 1
-  `;
+  const [row] = await sql.unsafe<ShopSpecRow[]>(
+    `SELECT ${SPEC_COLS} FROM oil_defaults WHERE id = $1 AND shop_id = $2 LIMIT 1`,
+    [id, sid],
+  );
   return row ? asSpec(row) : null;
 }
 
+/**
+ * Verified shop oil spec for this exact vehicle key, or null. This is the only oil source
+ * for auto-fill (job, vehicle, create-job, VIN decode). No fallback, no guessing.
+ */
 export async function getShopOilDefault(q: {
   year?: number | null;
   make?: string | null;
   model?: string | null;
   engine?: string | null;
 }): Promise<ShopSpec | null> {
-  return getShopSpec(q);
+  const spec = await getShopSpec(q);
+  return spec && spec.verified ? spec : null;
 }
+
+export const getVerifiedOilSpec = getShopOilDefault;
 
 export async function getJobBundle(jobId: string) {
   const sql = await db();

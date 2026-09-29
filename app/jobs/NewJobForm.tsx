@@ -9,6 +9,7 @@ import { AddressField } from "@/components/AddressField";
 import { JobTemplatePicker } from "./JobTemplatePicker";
 import { serviceIdForTemplate, type JobTemplate } from "@/lib/job-templates";
 import { isElectricEngine } from "@/lib/vpic";
+import { ShopOilHint } from "@/components/ShopOilHint";
 
 export type JobCustomer = { id: string; name: string; phone: string; email: string };
 export type JobVehicle = {
@@ -146,6 +147,14 @@ export function NewJobForm({
       )}
 
       {showYmme ? <VehiclePicker withVin showOil /> : null}
+      {!showYmme && pickedVeh && !hideOil ? (
+        <ShopOilHint
+          year={pickedVeh.year}
+          make={pickedVeh.make}
+          model={pickedVeh.model}
+          engine={pickedVeh.engine}
+        />
+      ) : null}
 
       <label className="lbl">Status</label>
       <select className="field" name="status" defaultValue="scheduled">

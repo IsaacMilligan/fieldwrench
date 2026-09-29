@@ -17,7 +17,7 @@ type Decode = {
     qtWithFilter?: number | null;
     viscosity?: string;
     drainTq?: number | null;
-    socket?: string;
+    socketMm?: number | null;
   } | null;
   bev?: boolean;
 };
@@ -132,13 +132,13 @@ export function VinTool({
             </div>
           ) : result.oil && (result.oil.qtWithFilter || result.oil.viscosity || result.oil.drainTq) ? (
             <p className="mt-3 text-sm text-muted">
-              Saved for this engine
+              Verified shop spec
               {result.oil.qtWithFilter ? ` · ${result.oil.qtWithFilter} qt` : ""}
               {result.oil.viscosity ? ` ${result.oil.viscosity}` : ""}
               {result.oil.drainTq ? ` · ${result.oil.drainTq} ft-lb` : ""}
             </p>
           ) : (
-            <p className="mt-3 text-sm text-muted">No spec on file</p>
+            <p className="mt-3 text-sm text-muted">No oil spec on file</p>
           )}
           <form action="/api/shop" method="post" className="mt-4">
             <input type="hidden" name="_op" value="save_shop_spec" />
