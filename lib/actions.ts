@@ -16,6 +16,7 @@ import { JOB_STATUSES, PAY_METHODS } from "./status";
 import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "./services";
 import { ELECTRIC_ENGINE, isElectricEngine } from "./vpic";
 import { oilYmmeKey, positiveNum } from "./oil-specs";
+import { upsertVerifiedOilSpec } from "./oil-spec-store";
 import { oilChargeCents } from "./oil-cost";
 import { catalogTag, categoryForTag, catalogLaborMode } from "./catalog";
 import { geocodeAddress } from "./geocode";
@@ -531,40 +532,6 @@ export async function saveOilSpecAction(form: FormData) {
   revalidatePath("/tools");
   revalidatePath("/jobs");
   redirect(next);
-}
-
-/** Saving oil on a job/vehicle writes a VERIFIED shop spec for that exact Y/M/M/engine. */
-async function upsertVerifiedOilSpec(
-  shop: string,
-  veh: { year: number | null; make: string; model: string; engine: string },
-  v: { vis: string; qt: number | null; tq: number | null; socketMm: number | null },
-) {
-  const key = oilYmmeKey(veh.year, veh.make, veh.model, veh.engine);
-  if (!key) return;
-  const sql = await db();
-  const socketText = v.socketMm != null ? String(v.socketMm) : "";
-  await sql`
-    INSERT INTO oil_defaults (
-      id, year, make_key, model_key, engine_key, shop_id, make_label, model_label, engine_label,
-      oil_qt, oil_viscosity, oil_drain_tq, oil_socket, socket_size_mm, verified, created_at, updated_at
-    ) VALUES (
-      ${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${shop},
-      ${veh.make || ""}, ${veh.model || ""}, ${veh.engine || ""},
-      ${v.qt}, ${v.vis}, ${v.tq}, ${socketText}, ${v.socketMm}, TRUE, NOW(), NOW()
-    )
-    ON CONFLICT (shop_id, year, make_key, model_key, engine_key)
-    DO UPDATE SET
-      oil_qt = EXCLUDED.oil_qt,
-      oil_viscosity = EXCLUDED.oil_viscosity,
-      oil_drain_tq = EXCLUDED.oil_drain_tq,
-      oil_socket = EXCLUDED.oil_socket,
-      socket_size_mm = EXCLUDED.socket_size_mm,
-      verified = TRUE,
-      make_label = EXCLUDED.make_label,
-      model_label = EXCLUDED.model_label,
-      engine_label = EXCLUDED.engine_label,
-      updated_at = NOW()
-  `;
 }
 
 export async function saveShopSpecAction(form: FormData) {

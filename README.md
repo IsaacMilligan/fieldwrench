@@ -14,7 +14,7 @@ Production host is Vercel. After `npx vercel login` (this machine is not logged 
 npx vercel --prod --yes
 ```
 
-Set `DATABASE_URL` and `SESSION_SECRET` on the project. Optional: `BLOB_READ_WRITE_TOKEN`, `VEHICLE_FINDER_API_KEY` (Vehicle Finder Free VIN → year/make/model only; NHTSA fallback when unset or on any VF error). Oil specs are shop-owned — no oil API key.
+Set `DATABASE_URL` and `SESSION_SECRET` on the project. Optional: `BLOB_READ_WRITE_TOKEN`, `VEHICLE_FINDER_API_KEY` (Vehicle Finder Free VIN → year/make/model only; NHTSA fallback when unset or on any VF error). Oil specs are shop-owned — no oil API key. Optional: `OPENAI_API_KEY` (or `XAI_API_KEY`) for **Add from O'Reilly screenshot**; `OIL_SPECS_READ_TOKEN` + `OIL_SPECS_READ_SHOP_ID` for external read access to `GET /api/oil/specs`.
 Customer login: `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (public app key only).
 
 Local: `http://localhost:3000`
@@ -42,6 +42,8 @@ cp env.example .env.local
 # set SESSION_SECRET to a long random string
 # optional: BLOB_READ_WRITE_TOKEN for Vercel Blob photo uploads
 # optional: VEHICLE_FINDER_API_KEY for Vehicle Finder Free VIN decode (NHTSA fallback without it)
+# optional: OPENAI_API_KEY (or XAI_API_KEY) for O'Reilly screenshot → oil spec import
+# optional: OIL_SPECS_READ_TOKEN + OIL_SPECS_READ_SHOP_ID for external reads of /api/oil/specs
 npm run dev
 ```
 
@@ -96,6 +98,8 @@ IRS mileage default: **76 cents** (business rate from July 1, 2026). Editable in
 
 - VIN: server route `POST /api/vin` → Vehicle Finder Free (`VEHICLE_FINDER_API_KEY`) for year/make/model when set; soft-fails to NHTSA vPIC `DecodeVinValues` otherwise. No oil from Vehicle Finder or any other API.
 - Oil specs: shop-owned table `oil_defaults` in the shop Postgres DB (`DATABASE_URL`, not Supabase), created/extended by `ensureReady()` in `lib/db/index.ts`. Unique on shop + year + normalized make/model/engine. Columns: `oil_viscosity`, `oil_qt` (capacity w/ filter), `oil_drain_tq` (ft-lb), `socket_size_mm` (optional), `verified`, `created_at`, `updated_at`. **Save oil spec** on a job or vehicle upserts a verified row for that exact Y/M/M/engine; job, vehicle, create-job, and VIN decode auto-fill only from verified rows (exact key, no fallback). Missing/incomplete spec shows a **Look up in O'Reilly Pro** button (opens https://www.oreillypro.com/ — the pro site is login-gated with no public vehicle deep link).
+- O'Reilly screenshot import: **Add from O'Reilly screenshot** on the job, vehicle, shop-spec, and create-job / add-vehicle oil cards. Paste (Ctrl/Cmd+V) or pick/take a screenshot → `POST /api/oil/extract` (session auth; images only, 8 MB cap, decoded with sharp; HEIC converted) sends it to a vision model with a strict JSON schema and a never-guess prompt, then validates ranges server-side (unreadable/implausible → null). **The extract endpoint never writes to the DB.** The editable confirm card prefills from the screenshot (blank = not read), defaults year/make/model/engine to the current vehicle when the screenshot omits them, and warns when they conflict. Only **Save verified spec** writes, via `POST /api/oil/import` → the same `upsertVerifiedOilSpec` used by **Save oil spec** (blank fields keep values already on a verified row). Provider: OpenAI `gpt-4.1-mini` when `OPENAI_API_KEY` is set, else xAI when `XAI_API_KEY` is set (`OIL_VISION_PROVIDER` / `OIL_VISION_MODEL` override). No key → "Screenshot import needs OPENAI_API_KEY set"; manual entry unaffected.
+- Oil spec read API: `GET /api/oil/specs?year=&make=&model=&engine=` — read-only, verified rows only, exact normalized key (same as `oil_defaults`, via `lookupShopOil`, which Tools VIN decode also uses). 200 with the spec, 404 `{"status":"none"}` when nothing verified matches, 400 on missing params. Auth: the app session cookie, or `Authorization: Bearer $OIL_SPECS_READ_TOKEN` scoped to the shop in `OIL_SPECS_READ_SHOP_ID` (`live` or `demo`; token auth is off unless both are set). Call it server-side only — never ship the token to a browser.
 - DTC: bundled generic OBD-II list (150+ P/B/C/U codes), no paid API
 
 ## Stack

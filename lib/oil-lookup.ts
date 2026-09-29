@@ -1,15 +1,17 @@
-import { getShopOilDefault, specValues } from "@/lib/db/queries";
+import { getShopOilDefault, specValues, type ShopSpec } from "@/lib/db/queries";
 import { oilSpecHasAny, type OilSpecValues } from "@/lib/oil-specs";
 import { isElectricEngine, isKnownBev } from "@/lib/vpic";
 
 export type ShopOilLookup =
-  | { status: "verified"; oil: OilSpecValues; source: "shop" }
+  | { status: "verified"; oil: OilSpecValues; source: "shop"; spec: ShopSpec }
   | { status: "none" }
   | { status: "bev" };
 
 /**
  * Verified shop oil spec for an exact Y/M/M/engine, or none. Shop Postgres only —
  * no Vehicle Finder, no external fallback, no engine/first-match guessing.
+ * Shared by /api/oil, /api/oil/specs (external read), /api/vin (Tools VIN decode) and applyVin.
+ * `shopId` overrides the session shop (bearer-token callers).
  */
 export async function lookupShopOil(q: {
   year?: number | null;
@@ -17,6 +19,9 @@ export async function lookupShopOil(q: {
   model?: string | null;
   engine?: string | null;
   bev?: boolean | null;
+  shopId?: string | null;
+  /** Throw on DB errors instead of reporting "none" (external API: 500, not a misleading 404). */
+  throwOnError?: boolean;
 }): Promise<ShopOilLookup> {
   const make = String(q.make ?? "").trim();
   const model = String(q.model ?? "").trim();
@@ -24,13 +29,15 @@ export async function lookupShopOil(q: {
   if (q.bev || isElectricEngine(engine) || (make && model && isKnownBev(make, model))) {
     return { status: "bev" };
   }
-  const spec = await getShopOilDefault({
+  const pending = getShopOilDefault({
     year: q.year ?? null,
     make,
     model,
     engine: engine === "__unsure__" ? "" : engine,
-  }).catch(() => null);
+    shopId: q.shopId ?? null,
+  });
+  const spec = q.throwOnError ? await pending : await pending.catch(() => null);
   const oil = specValues(spec);
-  if (!oil || !oilSpecHasAny(oil)) return { status: "none" };
-  return { status: "verified", oil, source: "shop" };
+  if (!spec || !oil || !oilSpecHasAny(oil)) return { status: "none" };
+  return { status: "verified", oil, source: "shop", spec };
 }

@@ -38,6 +38,7 @@ export default async function SpecPage({ params }: { params: Promise<{ id: strin
         engine={spec.engine_label}
         spec={specValues(spec)}
         verified={spec.verified}
+        vehicle={{ year: spec.year, make: spec.make_label, model: spec.model_label, engine: spec.engine_label }}
       />
     </Shell>
   );

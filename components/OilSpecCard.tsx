@@ -1,6 +1,7 @@
 import { formatNum, formatQt, oilSpecComplete, oilSpecHasAny, type OilSpecValues } from "@/lib/oil-specs";
 import { isElectricEngine } from "@/lib/vpic";
 import { OReillyProButton } from "@/components/OReillyProButton";
+import { OilScreenshotImport } from "@/components/OilScreenshotImport";
 
 /**
  * Engine oil card for job / vehicle / shop-spec screens.
@@ -15,6 +16,7 @@ export function OilSpecCard({
   compact = false,
   next,
   engine,
+  vehicle,
 }: {
   vehicleId?: string;
   specId?: string;
@@ -25,6 +27,8 @@ export function OilSpecCard({
   compact?: boolean;
   next?: string;
   engine?: string | null;
+  /** Year/make/model/engine this card is for; enables "Add from O'Reilly screenshot". */
+  vehicle?: { year?: number | null; make?: string | null; model?: string | null; engine?: string | null } | null;
 }) {
   if (isElectricEngine(engine)) {
     return (
@@ -85,6 +89,15 @@ export function OilSpecCard({
           </p>
           <OReillyProButton className="mt-3" />
         </>
+      ) : null}
+      {vehicle && (vehicleId || specId) ? (
+        <OilScreenshotImport
+          className="mt-3"
+          year={vehicle.year}
+          make={vehicle.make}
+          model={vehicle.model}
+          engine={vehicle.engine}
+        />
       ) : null}
       {vehicleId || specId ? (
         <form action="/api/shop" method="post" className="mt-4">

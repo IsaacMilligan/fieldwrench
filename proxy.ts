@@ -10,6 +10,8 @@ const PUBLIC = [
   /^\/api\/places/,
   /^\/api\/vpic/,
   /^\/api\/session/,
+  // Does its own auth (session cookie or scoped bearer token) so external callers get JSON, not a login redirect.
+  /^\/api\/oil\/specs$/,
   /^\/customer/,
   /^\/auth\//,
 ];

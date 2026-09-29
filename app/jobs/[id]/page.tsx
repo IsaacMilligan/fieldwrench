@@ -125,6 +125,7 @@ export default async function JobDetailPage({
           next={`/jobs/${job.id}`}
           spec={specValues(shop)}
           engine={vehicle.engine}
+          vehicle={vehicle}
         />
       ) : null}
 

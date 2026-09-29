@@ -136,6 +136,7 @@ export function VinTool({
               {result.oil.qtWithFilter ? ` · ${result.oil.qtWithFilter} qt` : ""}
               {result.oil.viscosity ? ` ${result.oil.viscosity}` : ""}
               {result.oil.drainTq ? ` · ${result.oil.drainTq} ft-lb` : ""}
+              {result.oil.socketMm ? ` · ${result.oil.socketMm} mm socket` : ""}
             </p>
           ) : (
             <p className="mt-3 text-sm text-muted">No oil spec on file</p>

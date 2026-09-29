@@ -978,6 +978,7 @@ export type ShopSpec = {
   oil_socket: string;
   socket_mm: number | null;
   verified: boolean;
+  updated_at: string | null;
 };
 
 type ShopSpecRow = {
@@ -996,10 +997,11 @@ type ShopSpecRow = {
   oil_socket: string;
   socket_size_mm?: number | string | null;
   verified?: boolean | null;
+  updated_at?: Date | string | null;
 };
 
 const SPEC_COLS = `id, year, make_label, model_label, engine_label, trim, body, drive, vin,
-      oil_qt, oil_viscosity, oil_drain_tq, oil_socket, socket_size_mm, verified`;
+      oil_qt, oil_viscosity, oil_drain_tq, oil_socket, socket_size_mm, verified, updated_at`;
 
 function asSpec(row: ShopSpecRow): ShopSpec {
   const qt = positiveNum(row.oil_qt);
@@ -1021,6 +1023,7 @@ function asSpec(row: ShopSpecRow): ShopSpec {
     oil_socket: socketMm != null ? String(socketMm) : String(row.oil_socket ?? "").trim(),
     socket_mm: socketMm,
     verified: row.verified === true,
+    updated_at: row.updated_at ? new Date(row.updated_at).toISOString() : null,
   };
 }
 
@@ -1034,17 +1037,21 @@ export function specValues(spec: ShopSpec | null | undefined): OilSpecValues | n
   };
 }
 
-/** Shop spec row for an exact Y/M/M/engine key (verified or not). Used for trim/body/drive facts. */
+/**
+ * Shop spec row for an exact Y/M/M/engine key (verified or not). Used for trim/body/drive facts.
+ * `shopId` overrides the session shop (bearer-token reads from /api/oil/specs).
+ */
 export async function getShopSpec(q: {
   year?: number | null;
   make?: string | null;
   model?: string | null;
   engine?: string | null;
+  shopId?: string | null;
 }): Promise<ShopSpec | null> {
   const key = oilYmmeKey(q.year, q.make, q.model, q.engine);
   if (!key) return null;
   const sql = await db();
-  const sid = await shopId();
+  const sid = q.shopId || (await shopId());
   const [row] = await sql.unsafe<ShopSpecRow[]>(
     `SELECT ${SPEC_COLS}
     FROM oil_defaults
@@ -1074,6 +1081,7 @@ export async function getShopOilDefault(q: {
   make?: string | null;
   model?: string | null;
   engine?: string | null;
+  shopId?: string | null;
 }): Promise<ShopSpec | null> {
   const spec = await getShopSpec(q);
   return spec && spec.verified ? spec : null;

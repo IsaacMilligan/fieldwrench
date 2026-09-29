@@ -20,6 +20,9 @@ export async function GET(req: NextRequest) {
       engine: sp.get("engine"),
       bev: sp.get("bev") === "1",
     });
+    if (result.status === "verified") {
+      return NextResponse.json({ status: result.status, oil: result.oil, source: result.source });
+    }
     return NextResponse.json(result);
   } catch {
     return NextResponse.json({ status: "none" });

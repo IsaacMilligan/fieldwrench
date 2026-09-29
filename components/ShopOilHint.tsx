@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatNum, formatQt, oilSpecComplete, type OilSpecValues } from "@/lib/oil-specs";
 import { OReillyProButton } from "@/components/OReillyProButton";
+import { OIL_SAVED_EVENT, OilScreenshotImport } from "@/components/OilScreenshotImport";
 
 type View = { key: string; status: "verified"; oil: OilSpecValues } | { key: string; status: "none" };
 
@@ -25,6 +26,14 @@ export function ShopOilHint({
   const key = `${year ?? ""}|${make}|${model}|${eng}`;
   const ready = Boolean(year && make && model);
   const [view, setView] = useState<View | null>(null);
+  const [nonce, setNonce] = useState(0);
+
+  // Refetch after a screenshot import saves a spec.
+  useEffect(() => {
+    const bump = () => setNonce((n) => n + 1);
+    window.addEventListener(OIL_SAVED_EVENT, bump);
+    return () => window.removeEventListener(OIL_SAVED_EVENT, bump);
+  }, []);
 
   useEffect(() => {
     if (!ready) return;
@@ -44,7 +53,7 @@ export function ShopOilHint({
     return () => {
       live = false;
     };
-  }, [ready, key, year, make, model, eng]);
+  }, [ready, key, year, make, model, eng, nonce]);
 
   if (!ready) return null;
   const current = view && view.key === key ? view : null;
@@ -84,6 +93,9 @@ export function ShopOilHint({
           </p>
           <OReillyProButton className="mt-2" />
         </>
+      ) : null}
+      {current ? (
+        <OilScreenshotImport key={key} className="mt-2" year={year} make={make} model={model} engine={eng} />
       ) : null}
     </div>
   );
