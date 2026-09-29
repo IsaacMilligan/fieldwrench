@@ -83,7 +83,7 @@ export default async function VehiclePage({
           Save vehicle
         </button>
       </form>
-      <OilSpecCard vehicleId={vehicle.id} spec={oil} engine={vehicle.engine} vehicle={vehicle} />
+      <OilSpecCard vehicleId={vehicle.id} spec={oil} engine={vehicle.engine} vehicle={{ ...vehicle, trim: String(vehicle.trim || shop?.trim || "") }} />
       <Link href={`/tools?vehicle=${vehicle.id}&vin=${vehicle.vin}`} className="tap tap-ghost mt-3 flex items-center justify-center">
         Decode VIN
       </Link>

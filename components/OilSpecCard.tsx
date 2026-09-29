@@ -28,7 +28,13 @@ export function OilSpecCard({
   next?: string;
   engine?: string | null;
   /** Year/make/model/engine this card is for; enables "Add from O'Reilly screenshot". */
-  vehicle?: { year?: number | null; make?: string | null; model?: string | null; engine?: string | null } | null;
+  vehicle?: {
+    year?: number | null;
+    make?: string | null;
+    model?: string | null;
+    engine?: string | null;
+    trim?: string | null;
+  } | null;
 }) {
   if (isElectricEngine(engine)) {
     return (
@@ -93,6 +99,9 @@ export function OilSpecCard({
       {vehicle && (vehicleId || specId) ? (
         <OilScreenshotImport
           className="mt-3"
+          vehicleId={vehicleId}
+          specId={vehicleId ? undefined : specId}
+          trim={vehicle.trim}
           year={vehicle.year}
           make={vehicle.make}
           model={vehicle.model}
