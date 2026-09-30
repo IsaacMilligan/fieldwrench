@@ -43,7 +43,7 @@ export default async function JobDetailPage({
   const scheduled = job.scheduled_at
     ? new Date(job.scheduled_at).toISOString().slice(0, 16)
     : "";
-  // Oil auto-fills only from a verified shop spec for this exact Y/M/M/engine.
+  // Oil auto-fills only from a verified shop spec (exact key, or the single same-displacement row).
   const shop = vehicle?.id
     ? await getShopOilDefault({
         year: vehicle.year,

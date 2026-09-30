@@ -40,8 +40,9 @@ async function resolveShop(req: NextRequest): Promise<{ shopId: string } | { err
 
 /**
  * GET /api/oil/specs?year=&make=&model=&engine=
- * Read-only. Verified shop oil spec for the EXACT normalized year/make/model/engine
- * (same key as oil_defaults), or 404. Never guesses, never falls back to another engine.
+ * Read-only. Verified shop oil spec: exact normalized key first (match "exact"); else the ONE
+ * verified row for that year/make/model with the same engine displacement (match
+ * "displacement"); otherwise 404. Never picks between several engines.
  */
 export async function GET(req: NextRequest) {
   const who = await resolveShop(req);
@@ -66,6 +67,7 @@ export async function GET(req: NextRequest) {
       {
         status: "verified",
         source: "shop",
+        match: r.match,
         vehicle: {
           year: r.spec.year,
           make: r.spec.make_label,

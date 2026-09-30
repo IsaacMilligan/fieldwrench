@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
-import { getShopSpec, getVehicle, specValues } from "@/lib/db/queries";
+import { getShopOilDefault, getShopSpec, getVehicle, specValues } from "@/lib/db/queries";
 import { vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
 import { VehiclePicker } from "@/app/book/VehiclePicker";
@@ -28,7 +28,16 @@ export default async function VehiclePage({
     model: vehicle.model,
     engine: vehicle.engine,
   }).catch(() => null);
-  const oil = shop?.verified ? specValues(shop) : null;
+  const oil = shop?.verified
+    ? specValues(shop)
+    : specValues(
+        await getShopOilDefault({
+          year: vehicle.year,
+          make: vehicle.make,
+          model: vehicle.model,
+          engine: vehicle.engine,
+        }).catch(() => null),
+      );
   return (
     <Shell title="Vehicle">
       <p className="text-muted">

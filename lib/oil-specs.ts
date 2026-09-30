@@ -67,3 +67,21 @@ export function oilYmmeKey(
     engine_key: str(engine).toLowerCase().replace(/[^a-z0-9.]/g, ""),
   };
 }
+
+/**
+ * Engine displacement in liters, rounded to 1 decimal, or null when the text does not START
+ * with one. Accepts a leading number plus an optional "L": "3.7L", "3.7 L V6 gasoline",
+ * "5.7L HEMI V8", "3.7", and normalized keys like "3.7lv6". No unit conversion: "370 cu in",
+ * "V6", "EV", "Electric" and blank → null (no displacement fallback for those).
+ */
+export function engineDisplacement(engine: unknown): number | null {
+  const t = String(engine ?? "").trim();
+  const m = t.match(/^(\d{1,4}(?:\.\d+)?)\s*(l(?=$|[^a-z]|[vih]\d))?\s*(.*)$/i);
+  if (!m) return null;
+  const hasL = Boolean(m[2]);
+  const rest = m[3].trim();
+  if (!hasL && rest) return null; // "370 cu in", "2 door" … bare number only when nothing follows
+  const n = Number(m[1]);
+  if (!Number.isFinite(n) || n < 0.5 || n > 10) return null;
+  return Math.round(n * 10) / 10;
+}

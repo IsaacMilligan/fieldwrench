@@ -1,15 +1,16 @@
-import { getShopOilDefault, specValues, type ShopSpec } from "@/lib/db/queries";
+import { getShopOilDefault, specValues, type OilSpecMatch, type ShopSpec } from "@/lib/db/queries";
 import { oilSpecHasAny, type OilSpecValues } from "@/lib/oil-specs";
 import { isElectricEngine, isKnownBev } from "@/lib/vpic";
 
 export type ShopOilLookup =
-  | { status: "verified"; oil: OilSpecValues; source: "shop"; spec: ShopSpec }
+  | { status: "verified"; oil: OilSpecValues; source: "shop"; spec: ShopSpec; match: OilSpecMatch }
   | { status: "none" }
   | { status: "bev" };
 
 /**
- * Verified shop oil spec for an exact Y/M/M/engine, or none. Shop Postgres only —
- * no Vehicle Finder, no external fallback, no engine/first-match guessing.
+ * Verified shop oil spec for a Y/M/M/engine, or none: exact key first, then a single
+ * same-displacement verified row (see getShopOilDefault). Shop Postgres only — no Vehicle
+ * Finder, no external fallback, never picks between several engines.
  * Shared by /api/oil, /api/oil/specs (external read), /api/vin (Tools VIN decode) and applyVin.
  * `shopId` overrides the session shop (bearer-token callers).
  */
@@ -39,5 +40,5 @@ export async function lookupShopOil(q: {
   const spec = q.throwOnError ? await pending : await pending.catch(() => null);
   const oil = specValues(spec);
   if (!spec || !oil || !oilSpecHasAny(oil)) return { status: "none" };
-  return { status: "verified", oil, source: "shop", spec };
+  return { status: "verified", oil, source: "shop", spec, match: spec.match };
 }
