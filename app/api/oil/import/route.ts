@@ -56,7 +56,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Nothing to save. Fill in at least one oil value." }, { status: 400 });
   }
   try {
-    const id = await upsertVerifiedOilSpec(session.shopId, veh, { vis, qt, tq, socketMm }, { keepExisting: true });
+    const saved = await upsertVerifiedOilSpec(session.shopId, veh, { vis, qt, tq, socketMm }, { keepExisting: true });
+    const id = saved?.id;
     if (!id) return NextResponse.json({ error: "Could not save that spec." }, { status: 400 });
     revalidatePath("/tools");
     revalidatePath("/jobs");
