@@ -4,7 +4,7 @@ import { Shell } from "@/components/Shell";
 import { ProfitPanel } from "@/components/ProfitPanel";
 import { StatusBadge } from "@/components/Mark";
 import { requireSession } from "@/lib/auth";
-import { getJobBundle, getSettings, getShopOilDefault, listCatalogItems, listDiscountPresets, listJobTemplates } from "@/lib/db/queries";
+import { getJobBundle, getSettings, getShopOilDefault, listCatalogItems, specValues, listDiscountPresets, listJobTemplates } from "@/lib/db/queries";
 import { formatDateTime, money, vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
 import { JOB_STATUSES, STATUS_LABEL, STATUS_TONE } from "@/lib/status";
@@ -43,16 +43,15 @@ export default async function JobDetailPage({
   const scheduled = job.scheduled_at
     ? new Date(job.scheduled_at).toISOString().slice(0, 16)
     : "";
-  const saved = vehicle ? Number(vehicle.oil_saved) === 1 : false;
-  const shop =
-    vehicle?.id && !saved
-      ? await getShopOilDefault({
-          year: vehicle.year,
-          make: vehicle.make,
-          model: vehicle.model,
-          engine: vehicle.engine,
-        }).catch(() => null)
-      : null;
+  // Oil auto-fills only from a verified shop spec (exact key, or the single same-displacement row).
+  const shop = vehicle?.id
+    ? await getShopOilDefault({
+        year: vehicle.year,
+        make: vehicle.make,
+        model: vehicle.model,
+        engine: vehicle.engine,
+      }).catch(() => null)
+    : null;
 
   const laborTotal = labor.reduce(
     (s, l) =>
@@ -94,7 +93,7 @@ export default async function JobDetailPage({
         <StatusBadge tone={STATUS_TONE[job.status]}>{STATUS_LABEL[job.status]}</StatusBadge>
       </div>
       {q.oil === "need" ? (
-        <p className="mt-3 text-sm font-bold text-amber">Set oil specs on the vehicle to bill quarts from the jug.</p>
+        <p className="mt-3 text-sm font-bold text-amber">Save the oil spec below to bill quarts from the jug.</p>
       ) : null}
       {q.e === "bev" ? (
         <p className="mt-3 text-sm font-bold text-amber">Oil change is N/A on a BEV.</p>
@@ -124,15 +123,9 @@ export default async function JobDetailPage({
           compact
           vehicleId={vehicle.id}
           next={`/jobs/${job.id}`}
-          savedQt={saved ? Number(vehicle.oil_qt) || null : null}
-          savedViscosity={saved ? String(vehicle.oil_viscosity ?? "") : ""}
-          savedTq={saved ? Number(vehicle.oil_drain_tq) || null : null}
-          savedSocket={saved ? String(vehicle.oil_socket ?? "") : ""}
-          shopQt={shop?.oil_qt ?? null}
-          shopViscosity={shop?.oil_viscosity ?? ""}
-          shopTq={shop?.oil_drain_tq ?? null}
-          shopSocket={shop?.oil_socket ?? ""}
+          spec={specValues(shop)}
           engine={vehicle.engine}
+          vehicle={{ ...vehicle, trim: String(vehicle.trim || shop?.trim || "") }}
         />
       ) : null}
 
@@ -323,18 +316,8 @@ export default async function JobDetailPage({
         jobId={job.id}
         items={catalog}
         hideOil={!vehicle?.id || isElectricEngine(vehicle.engine)}
-        quarts={
-          saved
-            ? Number(vehicle?.oil_qt) || null
-            : shop?.oil_qt && Number(shop.oil_qt) > 0
-              ? Number(shop.oil_qt)
-              : null
-        }
-        viscosity={
-          saved
-            ? String(vehicle?.oil_viscosity ?? "")
-            : String(shop?.oil_viscosity ?? "")
-        }
+        quarts={shop?.oil_qt && Number(shop.oil_qt) > 0 ? Number(shop.oil_qt) : null}
+        viscosity={String(shop?.oil_viscosity ?? "")}
         laborRateCents={Number(settings.labor_rate_cents) || 0}
         section="items"
       />

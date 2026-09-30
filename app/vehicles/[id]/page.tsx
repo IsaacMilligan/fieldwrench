@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
-import { getShopOilDefault, getVehicle } from "@/lib/db/queries";
+import { getShopOilDefault, getShopSpec, getVehicle, specValues } from "@/lib/db/queries";
 import { vehicleLabel } from "@/lib/format";
 import { OilSpecCard } from "@/components/OilSpecCard";
 import { VehiclePicker } from "@/app/book/VehiclePicker";
@@ -21,13 +21,23 @@ export default async function VehiclePage({
   const data = await getVehicle(id);
   if (!data) notFound();
   const { vehicle, customer, jobs } = data;
-  const saved = Number(vehicle.oil_saved) === 1;
-  const shop = await getShopOilDefault({
+  // Shop spec row for trim/body/drive facts; oil auto-fills only when that row is verified.
+  const shop = await getShopSpec({
     year: vehicle.year,
     make: vehicle.make,
     model: vehicle.model,
     engine: vehicle.engine,
   }).catch(() => null);
+  const oil = shop?.verified
+    ? specValues(shop)
+    : specValues(
+        await getShopOilDefault({
+          year: vehicle.year,
+          make: vehicle.make,
+          model: vehicle.model,
+          engine: vehicle.engine,
+        }).catch(() => null),
+      );
   return (
     <Shell title="Vehicle">
       <p className="text-muted">
@@ -82,18 +92,7 @@ export default async function VehiclePage({
           Save vehicle
         </button>
       </form>
-      <OilSpecCard
-        vehicleId={vehicle.id}
-        savedQt={saved ? Number(vehicle.oil_qt) || null : null}
-        savedViscosity={saved ? String(vehicle.oil_viscosity ?? "") : ""}
-        savedTq={saved ? Number(vehicle.oil_drain_tq) || null : null}
-        savedSocket={saved ? String(vehicle.oil_socket ?? "") : ""}
-        shopQt={shop?.oil_qt ?? null}
-        shopViscosity={shop?.oil_viscosity ?? ""}
-        shopTq={shop?.oil_drain_tq ?? null}
-        shopSocket={shop?.oil_socket ?? ""}
-        engine={vehicle.engine}
-      />
+      <OilSpecCard vehicleId={vehicle.id} spec={oil} engine={vehicle.engine} vehicle={{ ...vehicle, trim: String(vehicle.trim || shop?.trim || "") }} />
       <Link href={`/tools?vehicle=${vehicle.id}&vin=${vehicle.vin}`} className="tap tap-ghost mt-3 flex items-center justify-center">
         Decode VIN
       </Link>

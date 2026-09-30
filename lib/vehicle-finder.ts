@@ -1,4 +1,7 @@
-/** Vehicle Finder VIN decode (Free) + oil-change (Starter). Soft-fails → null. */
+/**
+ * Vehicle Finder Free VIN decode only (GET /v1/vin/{vin}). Soft-fails → null so callers
+ * fall back to NHTSA vPIC. No oil lookups here: oil specs are shop-owned (see lib/oil-specs.ts).
+ */
 
 import { ELECTRIC_ENGINE } from "@/lib/vpic";
 
@@ -11,14 +14,6 @@ export type VehicleFinderDecode = {
   body: string;
   drive: string;
   bev: boolean;
-  /** VF catalog id from VIN decode; server-only for oil-change. */
-  vehicleId: number | null;
-};
-
-export type VehicleFinderOil = {
-  viscosity: string;
-  qtWithFilter: number | null;
-  qtWithoutFilter: number | null;
 };
 
 type VfVinData = {
@@ -34,23 +29,6 @@ type VfVinData = {
   cylinders?: number | string | null;
   engine_config?: string | null;
   vehicle_type?: string | null;
-  vehicle_id?: number | string | null;
-};
-
-type VfOilSpec = {
-  viscosity?: string | null;
-  oil_type?: string | null;
-  capacity_with_filter?: number | string | null;
-  capacity_without_filter?: number | string | null;
-};
-
-type VfVehicleMatch = {
-  id?: number | string | null;
-  year?: number | string | null;
-  make?: string | null;
-  model?: string | null;
-  trim?: string | null;
-  engine?: string | null;
 };
 
 function clean(raw: unknown): string {
@@ -113,22 +91,6 @@ function apiKey(): string | null {
   return process.env.VEHICLE_FINDER_API_KEY?.trim() || null;
 }
 
-function asId(raw: unknown): number | null {
-  if (raw == null || raw === "") return null;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function asQt(raw: unknown): number | null {
-  if (raw == null || raw === "") return null;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function norm(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
 async function vfFetch(path: string): Promise<Response | null> {
   const key = apiKey();
   if (!key) return null;
@@ -169,257 +131,8 @@ export async function decodeVinVehicleFinder(vin: string): Promise<VehicleFinder
       body: clean(data.body_class),
       drive: formatDrive(clean(data.drive_type)),
       bev,
-      vehicleId: asId(data.vehicle_id),
     };
   } catch {
     return null;
   }
-}
-
-function pickVehicleId(
-  matches: VfVehicleMatch[],
-  engine?: string | null,
-  trim?: string | null,
-): number | null {
-  const withId = matches
-    .map((m) => ({ ...m, id: asId(m.id) }))
-    .filter((m): m is VfVehicleMatch & { id: number } => m.id != null);
-  if (!withId.length) return null;
-
-  const engN = norm(engine ?? "");
-  const trimN = norm(trim ?? "");
-  if (engN || trimN) {
-    const scored = withId
-      .map((m) => {
-        let score = 0;
-        const mEng = norm(clean(m.engine));
-        const mTrim = norm(clean(m.trim));
-        if (engN && mEng && (mEng.includes(engN) || engN.includes(mEng))) score += 2;
-        if (trimN && mTrim && (mTrim.includes(trimN) || trimN.includes(mTrim))) score += 1;
-        return { id: m.id, score };
-      })
-      .filter((s) => s.score > 0)
-      .sort((a, b) => b.score - a.score);
-    if (scored[0]) return scored[0].id;
-  }
-  return withId[0].id;
-}
-
-async function resolveVehicleId(q: {
-  vehicleId?: number | null;
-  year?: number | null;
-  make?: string | null;
-  model?: string | null;
-  engine?: string | null;
-  trim?: string | null;
-}): Promise<number | null> {
-  if (q.vehicleId && q.vehicleId > 0) return q.vehicleId;
-  const year = q.year != null && Number.isFinite(q.year) ? Number(q.year) : null;
-  const make = clean(q.make);
-  const model = clean(q.model);
-  if (!year || !make || !model) return null;
-
-  const params = new URLSearchParams({
-    year: String(year),
-    make,
-    model,
-  });
-  const res = await vfFetch(`/vehicles?${params}`);
-  if (!res || !res.ok) return null;
-  try {
-    const json = (await res.json()) as { data?: VfVehicleMatch[] | null };
-    const matches = Array.isArray(json.data) ? json.data : [];
-    return pickVehicleId(matches, q.engine, q.trim);
-  } catch {
-    return null;
-  }
-}
-
-function parseOilPayload(data: unknown): VehicleFinderOil | null {
-  if (!data || typeof data !== "object") return null;
-  const obj = data as {
-    oil_spec?: VfOilSpec | null;
-    oil_specs?: VfOilSpec[] | null;
-  };
-  const spec =
-    obj.oil_spec && typeof obj.oil_spec === "object"
-      ? obj.oil_spec
-      : Array.isArray(obj.oil_specs) && obj.oil_specs[0] && typeof obj.oil_specs[0] === "object"
-        ? obj.oil_specs[0]
-        : null;
-  if (!spec) return null;
-  const viscosity = clean(spec.viscosity);
-  const qtWithFilter = asQt(spec.capacity_with_filter);
-  const qtWithoutFilter = asQt(spec.capacity_without_filter);
-  if (!viscosity && qtWithFilter == null && qtWithoutFilter == null) return null;
-  return { viscosity, qtWithFilter, qtWithoutFilter };
-}
-
-/**
- * Starter oil-change: viscosity + capacity only.
- * Soft-fails on missing key, 401/403/404/429, network, or empty payload.
- */
-export async function lookupOilVehicleFinder(q: {
-  vehicleId?: number | null;
-  year?: number | null;
-  make?: string | null;
-  model?: string | null;
-  engine?: string | null;
-  trim?: string | null;
-}): Promise<VehicleFinderOil | null> {
-  if (!apiKey()) return null;
-  const id = await resolveVehicleId(q);
-  if (!id) return null;
-
-  const res = await vfFetch(`/vehicles/${id}/oil-change`);
-  if (!res || !res.ok) return null;
-  try {
-    const json = (await res.json()) as { data?: unknown };
-    return parseOilPayload(json.data);
-  } catch {
-    return null;
-  }
-}
-
-const OIL_MATCH_CAP = 8;
-
-export type YmmOilOption = {
-  vehicleId: number;
-  engine: string;
-  trim: string;
-  oil: VehicleFinderOil;
-};
-
-export type YmmOilLookup =
-  | { status: "same"; oil: VehicleFinderOil; source: "vehicle-finder" }
-  | { status: "ambiguous"; options: YmmOilOption[] }
-  | { status: "none" };
-
-function oilKey(oil: VehicleFinderOil): string {
-  return `${oil.viscosity.trim().toUpperCase()}|${oil.qtWithFilter ?? ""}`;
-}
-
-function hasOil(oil: VehicleFinderOil | null | undefined): oil is VehicleFinderOil {
-  return Boolean(oil && (oil.viscosity.trim() || oil.qtWithFilter != null));
-}
-
-async function fetchOilById(id: number): Promise<VehicleFinderOil | null> {
-  const res = await vfFetch(`/vehicles/${id}/oil-change`);
-  if (!res || !res.ok) return null;
-  try {
-    const json = (await res.json()) as { data?: unknown };
-    return parseOilPayload(json.data);
-  } catch {
-    return null;
-  }
-}
-
-async function listVehicleMatches(q: {
-  year: number;
-  make: string;
-  model: string;
-}): Promise<Array<VfVehicleMatch & { id: number }>> {
-  const params = new URLSearchParams({
-    year: String(q.year),
-    make: q.make,
-    model: q.model,
-  });
-  const res = await vfFetch(`/vehicles?${params}`);
-  if (!res || !res.ok) return [];
-  try {
-    const json = (await res.json()) as { data?: VfVehicleMatch[] | null };
-    const matches = Array.isArray(json.data) ? json.data : [];
-    return matches
-      .map((m) => ({ ...m, id: asId(m.id) }))
-      .filter((m): m is VfVehicleMatch & { id: number } => m.id != null)
-      .slice(0, OIL_MATCH_CAP);
-  } catch {
-    return [];
-  }
-}
-
-/**
- * YMM → oil for create-job: same / ambiguous / none.
- * Does not apply shop preference — caller checks getShopSpec first.
- * Soft-fails to none when key missing or API errors.
- */
-export async function lookupOilByYmm(q: {
-  year?: number | null;
-  make?: string | null;
-  model?: string | null;
-  engine?: string | null;
-  trim?: string | null;
-  vehicleId?: number | null;
-}): Promise<YmmOilLookup> {
-  if (!apiKey()) return { status: "none" };
-
-  const year = q.year != null && Number.isFinite(q.year) ? Number(q.year) : null;
-  const make = clean(q.make);
-  const model = clean(q.model);
-  if (!year || !make || !model) return { status: "none" };
-
-  // Narrow path: known vehicle id or engine/trim that resolves to one id.
-  if (q.vehicleId && q.vehicleId > 0) {
-    const oil = await fetchOilById(q.vehicleId).catch(() => null);
-    if (!hasOil(oil)) return { status: "none" };
-    return { status: "same", oil, source: "vehicle-finder" };
-  }
-
-  const matches = await listVehicleMatches({ year, make, model });
-  if (!matches.length) return { status: "none" };
-
-  const engN = norm(q.engine ?? "");
-  const trimN = norm(q.trim ?? "");
-  let candidates = matches;
-  if (engN || trimN) {
-    const scored = matches
-      .map((m) => {
-        let score = 0;
-        const mEng = norm(clean(m.engine));
-        const mTrim = norm(clean(m.trim));
-        if (engN && mEng && (mEng.includes(engN) || engN.includes(mEng))) score += 2;
-        if (trimN && mTrim && (mTrim.includes(trimN) || trimN.includes(mTrim))) score += 1;
-        return { m, score };
-      })
-      .filter((s) => s.score > 0)
-      .sort((a, b) => b.score - a.score);
-    if (scored.length === 1 || (scored.length > 1 && scored[0].score > scored[1].score)) {
-      const oil = await fetchOilById(scored[0].m.id).catch(() => null);
-      if (!hasOil(oil)) return { status: "none" };
-      return { status: "same", oil, source: "vehicle-finder" };
-    }
-    if (scored.length > 1) candidates = scored.map((s) => s.m);
-  }
-
-  // Single catalog hit → one oil fetch.
-  if (candidates.length === 1) {
-    const oil = await fetchOilById(candidates[0].id).catch(() => null);
-    if (!hasOil(oil)) return { status: "none" };
-    return { status: "same", oil, source: "vehicle-finder" };
-  }
-
-  // Multiple hits: fetch oil per candidate (capped), never first-match when oils differ.
-  const settled = await Promise.all(
-    candidates.map(async (m) => {
-      const oil = await fetchOilById(m.id).catch(() => null);
-      return { m, oil };
-    }),
-  );
-  const withOil: YmmOilOption[] = settled
-    .filter((r): r is { m: VfVehicleMatch & { id: number }; oil: VehicleFinderOil } => hasOil(r.oil))
-    .map((r) => ({
-      vehicleId: r.m.id,
-      engine: clean(r.m.engine),
-      trim: clean(r.m.trim),
-      oil: r.oil,
-    }));
-
-  if (!withOil.length) return { status: "none" };
-
-  const keys = new Set(withOil.map((o) => oilKey(o.oil)));
-  if (keys.size === 1) {
-    return { status: "same", oil: withOil[0].oil, source: "vehicle-finder" };
-  }
-
-  return { status: "ambiguous", options: withOil };
 }

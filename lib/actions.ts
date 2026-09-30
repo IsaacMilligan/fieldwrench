@@ -5,17 +5,18 @@ import { revalidatePath } from "next/cache";
 import { putPrivateBlob, delPrivateBlob, blobConfigured, blobUserMessage } from "./blob";
 import { DEMO, clearSession, createSession, requireSession, verifyLogin } from "./auth";
 import { getCustomerUser } from "./supabase/server";
-import { db, ensureInvoice, bookableServiceInUse, getJobBundle, getSettings, getShopSpec } from "./db/queries";
+import { db, ensureInvoice, bookableServiceInUse, getJobBundle, getSettings } from "./db/queries";
 import { seedDemo } from "./db/seed";
 import { getSql } from "./db/index";
 import { parseMoney, parseNumber, vinOk, money } from "./format";
 import { decodeVin, isVinDecodeFailure } from "./vin-decode";
-import { lookupOilVehicleFinder } from "./vehicle-finder";
+import { lookupShopOil } from "./oil-lookup";
 import type { JobStatus, PayMethod } from "./status";
 import { JOB_STATUSES, PAY_METHODS } from "./status";
 import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "./services";
 import { ELECTRIC_ENGINE, isElectricEngine } from "./vpic";
-import { oilYmmeKey } from "./oil-specs";
+import { oilYmmeKey, positiveNum } from "./oil-specs";
+import { upsertVerifiedOilSpec } from "./oil-spec-store";
 import { oilChargeCents } from "./oil-cost";
 import { catalogTag, categoryForTag, catalogLaborMode } from "./catalog";
 import { geocodeAddress } from "./geocode";
@@ -452,12 +453,10 @@ export async function createVehicleAction(form: FormData) {
   const customerId = str(form, "customer_id");
   const ymm = ymmFrom(form);
   const mileage = parseNumber(str(form, "mileage")) || null;
-  const oilQt = parseNumber(str(form, "oil_qt")) || null;
-  const oilVis = str(form, "oil_viscosity");
-  await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, plate, vin, mileage, history_notes, oil_qt, oil_viscosity, shop_id) VALUES (
+  await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, plate, vin, mileage, history_notes, shop_id) VALUES (
     ${id}, ${customerId}, ${ymm.year}, ${ymm.make}, ${ymm.model}, ${ymm.engine},
     ${str(form, "plate")}, ${ymm.vin || str(form, "vin").toUpperCase()}, ${mileage}, ${str(form, "history_notes")},
-    ${oilQt}, ${oilVis}, ${s.shopId}
+    ${s.shopId}
   )`;
   revalidatePath(`/customers/${customerId}`);
   redirect(`/vehicles/${id}`);
@@ -488,63 +487,50 @@ export async function saveOilSpecAction(form: FormData) {
   const sql = await db();
   const specId = str(form, "spec_id");
   const id = str(form, "id");
-  const qt = parseNumber(str(form, "oil_qt"));
-  const vis = str(form, "oil_viscosity");
-  const tq = parseNumber(str(form, "oil_drain_tq"));
-  const socket = str(form, "oil_socket");
+  const qt = positiveNum(str(form, "oil_qt"));
+  const vis = str(form, "oil_viscosity").replace(/\s+/g, " ");
+  const tq = positiveNum(str(form, "oil_drain_tq"));
+  const socketMm = positiveNum(str(form, "oil_socket"));
+  const socketText = socketMm != null ? String(socketMm) : "";
   if (specId) {
     const [row] = await sql<{ id: string; engine_label: string }[]>`
       SELECT id, engine_label FROM oil_defaults WHERE id = ${specId} AND shop_id = ${s.shopId}
     `;
     if (!row) redirect("/tools");
     if (isElectricEngine(row.engine_label)) redirect(`/specs/${specId}`);
+    // A person typed and saved this spec: it is verified shop data.
     await sql`UPDATE oil_defaults SET
-      oil_qt = ${qt || null},
+      oil_qt = ${qt},
       oil_viscosity = ${vis},
-      oil_drain_tq = ${tq || null},
-      oil_socket = ${socket},
+      oil_drain_tq = ${tq},
+      oil_socket = ${socketText},
+      socket_size_mm = ${socketMm},
+      verified = TRUE,
       updated_at = NOW()
       WHERE id = ${specId} AND shop_id = ${s.shopId}`;
     revalidatePath(`/specs/${specId}`);
     revalidatePath("/tools");
     redirect(`/specs/${specId}`);
   }
-  if (!id || (!qt && !vis && !tq && !socket)) redirect(`/vehicles/${id || ""}`);
+  const next = str(form, "next") || `/vehicles/${id}`;
+  if (!id || (!qt && !vis && !tq && !socketMm)) redirect(id ? next : "/customers");
   const [veh] = await sql<{ year: number | null; make: string; model: string; engine: string }[]>`
-    SELECT year, make, model, engine FROM vehicles WHERE id = ${id}
+    SELECT year, make, model, engine FROM vehicles WHERE id = ${id} AND shop_id = ${s.shopId}
   `;
-  if (isElectricEngine(veh?.engine)) {
-    const next = str(form, "next") || `/vehicles/${id}`;
-    redirect(next);
-  }
+  if (!veh) redirect("/customers");
+  if (isElectricEngine(veh.engine)) redirect(next);
+  // Legacy per-vehicle mirror (not read for auto-fill any more).
   await sql`UPDATE vehicles SET
-    oil_qt = ${qt || null},
+    oil_qt = ${qt},
     oil_viscosity = ${vis},
-    oil_drain_tq = ${tq || null},
-    oil_socket = ${socket},
+    oil_drain_tq = ${tq},
+    oil_socket = ${socketText},
     oil_saved = 1
-    WHERE id = ${id}`;
-  const key = oilYmmeKey(veh?.year, veh?.make, veh?.model, veh?.engine);
-  if (key) {
-    await sql`
-      INSERT INTO oil_defaults (id, year, make_key, model_key, engine_key, oil_qt, oil_viscosity, oil_drain_tq, oil_socket, shop_id, make_label, model_label, engine_label, updated_at)
-      VALUES (${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${qt || null}, ${vis}, ${tq || null}, ${socket}, ${s.shopId}, ${veh?.make || ""}, ${veh?.model || ""}, ${veh?.engine || ""}, NOW())
-      ON CONFLICT (shop_id, year, make_key, model_key, engine_key)
-      DO UPDATE SET
-        oil_qt = EXCLUDED.oil_qt,
-        oil_viscosity = EXCLUDED.oil_viscosity,
-        oil_drain_tq = EXCLUDED.oil_drain_tq,
-        oil_socket = EXCLUDED.oil_socket,
-        make_label = EXCLUDED.make_label,
-        model_label = EXCLUDED.model_label,
-        engine_label = EXCLUDED.engine_label,
-        updated_at = NOW()
-    `;
-  }
+    WHERE id = ${id} AND shop_id = ${s.shopId}`;
+  await upsertVerifiedOilSpec(s.shopId, veh, { vis, qt, tq, socketMm });
   revalidatePath(`/vehicles/${id}`);
   revalidatePath("/tools");
   revalidatePath("/jobs");
-  const next = str(form, "next") || `/vehicles/${id}`;
   redirect(next);
 }
 
@@ -560,21 +546,24 @@ export async function saveShopSpecAction(form: FormData) {
   const trim = str(form, "trim");
   const body = str(form, "body");
   const drive = str(form, "drive");
-  const qt = parseNumber(str(form, "oil_qt"));
-  const vis = str(form, "oil_viscosity");
-  const tq = parseNumber(str(form, "oil_drain_tq"));
-  const socket = str(form, "oil_socket");
+  const qt = positiveNum(str(form, "oil_qt"));
+  const vis = str(form, "oil_viscosity").replace(/\s+/g, " ");
+  const tq = positiveNum(str(form, "oil_drain_tq"));
+  const socketMm = positiveNum(str(form, "oil_socket"));
+  const socket = socketMm != null ? String(socketMm) : "";
+  // Only a typed oil value marks the spec verified; VIN/trim-only saves leave it as-is.
+  const typedOil = Boolean(qt || vis || tq || socketMm);
   const key = oilYmmeKey(year, make, model, engine);
   if (!key) redirect("/tools");
   const [row] = await sql<{ id: string }[]>`
     INSERT INTO oil_defaults (
       id, year, make_key, model_key, engine_key, shop_id,
       make_label, model_label, engine_label, trim, body, drive, vin,
-      oil_qt, oil_viscosity, oil_drain_tq, oil_socket, updated_at
+      oil_qt, oil_viscosity, oil_drain_tq, oil_socket, socket_size_mm, verified, created_at, updated_at
     ) VALUES (
       ${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${s.shopId},
       ${make}, ${model}, ${engine}, ${trim}, ${body}, ${drive}, ${vin},
-      ${qt || null}, ${vis}, ${tq || null}, ${socket}, NOW()
+      ${qt}, ${vis}, ${tq}, ${socket}, ${socketMm}, ${typedOil}, NOW(), NOW()
     )
     ON CONFLICT (shop_id, year, make_key, model_key, engine_key)
     DO UPDATE SET
@@ -589,6 +578,8 @@ export async function saveShopSpecAction(form: FormData) {
       oil_viscosity = CASE WHEN EXCLUDED.oil_viscosity = '' THEN oil_defaults.oil_viscosity ELSE EXCLUDED.oil_viscosity END,
       oil_drain_tq = COALESCE(EXCLUDED.oil_drain_tq, oil_defaults.oil_drain_tq),
       oil_socket = CASE WHEN EXCLUDED.oil_socket = '' THEN oil_defaults.oil_socket ELSE EXCLUDED.oil_socket END,
+      socket_size_mm = COALESCE(EXCLUDED.socket_size_mm, oil_defaults.socket_size_mm),
+      verified = oil_defaults.verified OR EXCLUDED.verified,
       updated_at = NOW()
     RETURNING id
   `;
@@ -610,9 +601,6 @@ export async function applyVinAction(form: FormData) {
   const trim = str(form, "trim");
   const body = str(form, "body");
   const drive = str(form, "drive");
-  const qt = parseNumber(str(form, "oil_qt"));
-  const vis = str(form, "oil_viscosity");
-
   if (id === "__new__") {
     const name = str(form, "name");
     const phone = str(form, "phone");
@@ -638,32 +626,16 @@ export async function applyVinAction(form: FormData) {
   `;
   if (!owned) redirect("/tools");
 
-  if (qt || vis) {
-    await sql`UPDATE vehicles SET
-      year = ${year},
-      make = ${make},
-      model = ${model},
-      vin = ${vin},
-      engine = ${engine},
-      trim = ${trim},
-      body = ${body},
-      drive = ${drive},
-      oil_qt = ${qt || null},
-      oil_viscosity = ${vis},
-      oil_saved = 1
-      WHERE id = ${id} AND shop_id = ${s.shopId}`;
-  } else {
-    await sql`UPDATE vehicles SET
-      year = ${year},
-      make = ${make},
-      model = ${model},
-      vin = ${vin},
-      engine = ${engine},
-      trim = ${trim},
-      body = ${body},
-      drive = ${drive}
-      WHERE id = ${id} AND shop_id = ${s.shopId}`;
-  }
+  await sql`UPDATE vehicles SET
+    year = ${year},
+    make = ${make},
+    model = ${model},
+    vin = ${vin},
+    engine = ${engine},
+    trim = ${trim},
+    body = ${body},
+    drive = ${drive}
+    WHERE id = ${id} AND shop_id = ${s.shopId}`;
   revalidatePath(`/vehicles/${id}`);
   redirect(`/vehicles/${id}`);
 }
@@ -708,20 +680,16 @@ export async function createJobAction(form: FormData) {
     await sql`INSERT INTO customers (id, name, phone, email, shop_id) VALUES (
       ${customerId}, ${name}, ${phone}, ${str(form, "email")}, ${s.shopId}
     )`;
-    const oilQt = parseNumber(str(form, "oil_qt")) || null;
-    const oilVis = str(form, "oil_viscosity");
-    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, oil_qt, oil_viscosity, shop_id) VALUES (
-      ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}, ${oilQt}, ${oilVis}, ${s.shopId}
+    await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, shop_id) VALUES (
+      ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}, ${s.shopId}
     )`;
   } else {
     if (!customerId) redirect("/jobs?new=1");
     if (!vehicleId) {
       if (!year || !make || !model) redirect("/jobs?new=1");
       vehicleId = crypto.randomUUID();
-      const oilQt = parseNumber(str(form, "oil_qt")) || null;
-      const oilVis = str(form, "oil_viscosity");
-      await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, oil_qt, oil_viscosity, shop_id) VALUES (
-        ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}, ${oilQt}, ${oilVis}, ${s.shopId}
+      await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, vin, shop_id) VALUES (
+        ${vehicleId}, ${customerId}, ${year}, ${make}, ${model}, ${engine}, ${vin}, ${s.shopId}
       )`;
     } else {
       const [veh] = await sql<{ customer_id: string }[]>`SELECT customer_id FROM vehicles WHERE id = ${vehicleId}`;
@@ -1378,48 +1346,10 @@ export async function decodeVinOnVehicle(vinRaw: string) {
     return { error: decoded.error };
   }
 
-  const { year, make, model, engine, trim, bev, vehicleId, source } = decoded;
-  const spec = await getShopSpec({ year, make, model, engine }).catch(() => null);
-  const shopVis = (spec?.oil_viscosity ?? "").trim();
-  const shopQt = spec?.oil_qt ?? null;
-  const shopDrain = spec?.oil_drain_tq ?? null;
-  const shopSocket = (spec?.oil_socket ?? "").trim();
-  const shopHasVisOrQt = Boolean(shopVis || shopQt != null);
-
-  let viscosity = shopVis;
-  let qtWithFilter = shopQt;
-  let qtWithoutFilter: number | null = null;
-  let oilSource: "shop" | "vehicle-finder" | undefined;
-
-  if (shopHasVisOrQt) {
-    oilSource = "shop";
-  } else if (!bev) {
-    const vfOil = await lookupOilVehicleFinder({
-      vehicleId,
-      year,
-      make,
-      model,
-      engine,
-      trim,
-    }).catch(() => null);
-    if (vfOil && (vfOil.viscosity || vfOil.qtWithFilter != null)) {
-      viscosity = vfOil.viscosity;
-      qtWithFilter = vfOil.qtWithFilter;
-      qtWithoutFilter = vfOil.qtWithoutFilter;
-      oilSource = "vehicle-finder";
-    }
-  }
-
-  const oil =
-    viscosity || qtWithFilter != null || shopDrain != null || shopSocket
-      ? {
-          qtWithFilter,
-          viscosity,
-          drainTq: shopDrain,
-          socket: shopSocket,
-          ...(qtWithoutFilter != null ? { qtWithoutFilter } : {}),
-        }
-      : null;
+  const { year, make, model, engine, trim, bev, source } = decoded;
+  // Oil comes only from a verified shop spec for this exact vehicle. No third-party oil.
+  const shopOil = await lookupShopOil({ year, make, model, engine, bev }).catch(() => null);
+  const oil = shopOil?.status === "verified" ? shopOil.oil : null;
 
   return {
     vin: decoded.vin,
@@ -1433,9 +1363,7 @@ export async function decodeVinOnVehicle(vinRaw: string) {
     bev,
     oil,
     source,
-    ...(oilSource ? { oilSource } : {}),
+    ...(oil ? { oilSource: "shop" as const } : {}),
     error: null as string | null,
   };
 }
-
-

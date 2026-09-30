@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { requireSession } from "@/lib/auth";
-import { getShopSpecById } from "@/lib/db/queries";
+import { getShopSpecById, specValues } from "@/lib/db/queries";
 import { OilSpecCard } from "@/components/OilSpecCard";
 
 export const dynamic = "force-dynamic";
@@ -36,10 +36,9 @@ export default async function SpecPage({ params }: { params: Promise<{ id: strin
       <OilSpecCard
         specId={spec.id}
         engine={spec.engine_label}
-        savedQt={spec.oil_qt}
-        savedViscosity={spec.oil_viscosity}
-        savedTq={spec.oil_drain_tq}
-        savedSocket={spec.oil_socket}
+        spec={specValues(spec)}
+        verified={spec.verified}
+        vehicle={{ year: spec.year, make: spec.make_label, model: spec.model_label, engine: spec.engine_label, trim: spec.trim }}
       />
     </Shell>
   );

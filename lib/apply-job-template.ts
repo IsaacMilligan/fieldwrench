@@ -44,10 +44,10 @@ export async function applyJobTemplateToJob(opts: {
 
   const catalog = await listCatalogItems();
   const byId = new Map(catalog.map((c) => [c.id, c]));
+  // Quarts/viscosity only from a verified shop spec for this exact vehicle. Never guess.
   let quarts: number | null = null;
-  if (vehicle && Number(vehicle.oil_saved) === 1 && Number(vehicle.oil_qt) > 0) {
-    quarts = Number(vehicle.oil_qt);
-  } else if (vehicle) {
+  let vis = "";
+  if (vehicle) {
     const shop = await getShopOilDefault({
       year: vehicle.year,
       make: vehicle.make,
@@ -55,9 +55,8 @@ export async function applyJobTemplateToJob(opts: {
       engine: vehicle.engine,
     }).catch(() => null);
     if (shop?.oil_qt && Number(shop.oil_qt) > 0) quarts = Number(shop.oil_qt);
+    vis = shop?.oil_viscosity ?? "";
   }
-  const vis =
-    vehicle && Number(vehicle.oil_saved) === 1 ? String(vehicle.oil_viscosity || "") : "";
 
   let oilNeed = false;
   for (const ln of tmpl.lines) {

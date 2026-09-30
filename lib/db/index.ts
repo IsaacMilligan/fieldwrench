@@ -408,6 +408,11 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(
           `CREATE UNIQUE INDEX IF NOT EXISTS oil_defaults_shop_ymme ON oil_defaults (shop_id, year, make_key, model_key, engine_key)`,
         );
+        // Shop-owned oil spec table (replaces Vehicle Finder Starter oil). Additive only:
+        // existing rows stay unverified until someone saves the spec from a job/vehicle.
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT FALSE`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS socket_size_mm NUMERIC`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
         await sql.unsafe(`UPDATE users SET is_demo = 1, shop_id = 'demo' WHERE email = 'wrench@fieldwrench.local'`);
         await sql.unsafe(`UPDATE users SET shop_id = 'live', is_demo = 0 WHERE email <> 'wrench@fieldwrench.local'`);
         await sql.unsafe(`
