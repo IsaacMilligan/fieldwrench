@@ -370,7 +370,7 @@ function ScanVinOverlay({
         </p>
         <button
           type="button"
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border-2 border-accent text-2xl leading-none text-accent"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border-2 border-accent text-2xl leading-none text-accent!"
           aria-label="Cancel"
           onClick={cancel}
         >
@@ -419,7 +419,7 @@ function ScanVinOverlay({
       <div className="relative z-[10000] mt-3 flex shrink-0 flex-col gap-2 bg-[#0A1320] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
         <button
           type="button"
-          className={`${CTRL} border-accent bg-accent text-[var(--accent-ink)]`}
+          className={`${CTRL} border-accent bg-accent text-[var(--accent-ink)]!`}
           disabled={!valid}
           onClick={() => {
             if (!valid || !candidate) return;
@@ -431,7 +431,7 @@ function ScanVinOverlay({
         </button>
         <button
           type="button"
-          className={`${CTRL} border-accent text-accent`}
+          className={`${CTRL} border-accent text-accent!`}
           disabled={!candidate && !denied}
           onClick={() => {
             if (candidate) scanAgain();
@@ -440,7 +440,7 @@ function ScanVinOverlay({
         >
           {photoBusy ? "Reading…" : candidate ? "Scan again" : "Take photo"}
         </button>
-        <button type="button" className={`${CTRL} border-line text-white`} onClick={cancel}>
+        <button type="button" className={`${CTRL} border-line text-white!`} onClick={cancel}>
           Cancel
         </button>
       </div>

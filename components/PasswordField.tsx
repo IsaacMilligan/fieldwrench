@@ -63,7 +63,7 @@ export function PasswordField({
       />
       <button
         type="button"
-        className="absolute top-0 right-0 flex h-14 w-14 items-center justify-center text-steel"
+        className="absolute top-0 right-0 flex h-14 w-14 items-center justify-center text-steel!"
         aria-label={label}
         aria-pressed={show}
         tabIndex={0}

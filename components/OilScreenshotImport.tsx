@@ -322,7 +322,7 @@ export function OilScreenshotImport({
                     <button
                       type="button"
                       aria-label={`Remove screenshot ${i + 1}`}
-                      className="absolute -right-1 -top-1 h-6 w-6 rounded-full bg-black text-sm leading-6 text-white"
+                      className="absolute -right-1 -top-1 h-6 w-6 rounded-full bg-black text-sm leading-6 text-white!"
                       onClick={() => removeShot(s.id)}
                     >
                       ×

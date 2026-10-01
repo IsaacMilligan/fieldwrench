@@ -147,7 +147,7 @@ export function CalendarMonth({
                 type="button"
                 onClick={() => setSelected(c.iso)}
                 className={`flex min-h-12 flex-col items-center justify-center rounded-full text-base font-bold ${
-                  isSel ? "bg-amber text-[var(--tap-ink)]" : isToday ? "text-amber" : "text-ink"
+                  isSel ? "bg-amber text-[var(--tap-ink)]!" : isToday ? "text-amber!" : "text-ink"
                 } ${isToday && !isSel ? "ring-2 ring-amber" : ""}`}
               >
                 {c.day}
