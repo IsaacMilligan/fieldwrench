@@ -1,39 +1,47 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f3f1ea;
-  --panel: #ffffff;
-  --panel-2: #ebe8df;
-  --line: #cfcabe;
-  --ink: #1a1c14;
-  --muted: #5c6154;
-  --amber: #e8a317;
-  --amber-2: #c4840a;
-  --green: #1f8a38;
-  --red: #c42b1c;
-  --steel: #3f4338;
-  --field: #ffffff;
-  --nav: #ffffff;
-  --tap-ink: #120e04;
-  --shadow: 0 0 0 2px #e8a317;
+  --bg: #F4F6F9;
+  --panel: #FFFFFF;
+  --panel-2: #E6EBF2;
+  --line: #C5CEDB;
+  --ink: #0F1B2D;
+  --muted: #4A5568;
+  --amber: #0F1B2D; /* primary/action colour (name kept; Shop Navy = navy in light) */
+  --amber-2: #1E3354;
+  --green: #1B7A3D;
+  --green-ink: #FFFFFF;
+  --red: #C2261B;
+  --steel: #1E3354;
+  --field: #FFFFFF;
+  --nav: #FFFFFF;
+  --tap-ink: #FFFFFF;
+  --shadow: 0 0 0 2px #FF6A13;
+  --warning: #A35200;
+  --accent: #FF6A13; /* fills/accents only: never text on light backgrounds */
+  --accent-ink: #0F1B2D;
 }
 
 html[data-theme="dark"] {
-  --bg: #070806;
-  --panel: #121410;
-  --panel-2: #1b1e17;
-  --line: #32382a;
-  --ink: #f4f1e6;
-  --muted: #9aa08c;
-  --amber: #e8a317;
-  --amber-2: #ffc14a;
-  --green: #4ee06a;
-  --red: #ff5340;
-  --steel: #c6ccb8;
-  --field: #0c0d0a;
-  --nav: #0c0d0a;
-  --tap-ink: #120e04;
-  --shadow: 0 0 0 2px #e8a317;
+  --bg: #0A1320;
+  --panel: #132238;
+  --panel-2: #1B2D47;
+  --line: #2E4463;
+  --ink: #EEF2F8;
+  --muted: #A3B1C6;
+  --amber: #FF6A13; /* primary/action colour: safety orange in dark */
+  --amber-2: #FF8A45;
+  --green: #4ADE80;
+  --green-ink: #07140a;
+  --red: #FF7B70;
+  --steel: #C3CEDD;
+  --field: #0E1A2C;
+  --nav: #0F1B2D;
+  --tap-ink: #0F1B2D;
+  --shadow: 0 0 0 2px #FF6A13;
+  --warning: #FFC24D;
+  --accent: #FF6A13;
+  --accent-ink: #0F1B2D;
 }
 
 @theme inline {
@@ -48,6 +56,8 @@ html[data-theme="dark"] {
   --color-green: var(--green);
   --color-red: var(--red);
   --color-steel: var(--steel);
+  --color-warning: var(--warning);
+  --color-accent: var(--accent);
   --font-sans: var(--font-body);
   --font-display: var(--font-display);
   --font-mono: var(--font-mono);
@@ -110,7 +120,7 @@ button, input, select, textarea {
 .tap-green {
   background: var(--green);
   border-color: var(--green);
-  color: #07140a;
+  color: var(--green-ink);
 }
 
 .field {
@@ -184,12 +194,12 @@ label.lbl {
   text-transform: uppercase;
 }
 
-.badge-amber { background: #f4e4b8; color: #7a4e00; }
-.badge-green { background: #d7f0dc; color: #145c28; }
-.badge-red { background: #f8d4cf; color: #8a1c12; }
-.badge-steel { background: #e4e1d6; color: #3f4338; }
+.badge-amber { background: #FFE3D1; color: #8A3300; }
+.badge-green { background: #D9F0E0; color: #145C2E; }
+.badge-red { background: #FADAD7; color: #8F1A12; }
+.badge-steel { background: #E1E8F2; color: #1E3354; }
 
-html[data-theme="dark"] .badge-amber { background: #3a2a08; color: var(--amber-2); }
-html[data-theme="dark"] .badge-green { background: #0d2a16; color: var(--green); }
-html[data-theme="dark"] .badge-red { background: #3a1010; color: var(--red); }
-html[data-theme="dark"] .badge-steel { background: #22251c; color: var(--steel); }
+html[data-theme="dark"] .badge-amber { background: #3D200C; color: #FFA36B; }
+html[data-theme="dark"] .badge-green { background: #0E3322; color: #6EE7A0; }
+html[data-theme="dark"] .badge-red { background: #421818; color: #FF968C; }
+html[data-theme="dark"] .badge-steel { background: #22344F; color: #C9D4E3; }

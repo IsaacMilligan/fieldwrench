@@ -363,14 +363,14 @@ function ScanVinOverlay({
   const valid = candidate !== null && vinCheckDigitOk(candidate);
 
   const ui = (
-    <div className="fixed inset-0 z-[9999] flex h-[100dvh] flex-col bg-[#070806] pointer-events-auto">
+    <div className="fixed inset-0 z-[9999] flex h-[100dvh] flex-col bg-[#0A1320] pointer-events-auto">
       <header className="relative z-[10000] flex shrink-0 items-start justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <p className="flex-1 pt-2 text-sm font-bold leading-snug text-white">
           Point at the VIN barcode or the square 2D code on the door sticker.
         </p>
         <button
           type="button"
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border-2 border-amber text-2xl leading-none text-amber"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border-2 border-accent text-2xl leading-none text-accent!"
           aria-label="Cancel"
           onClick={cancel}
         >
@@ -399,7 +399,7 @@ function ScanVinOverlay({
         <canvas ref={canvasRef} className="hidden" />
       </div>
 
-      <p className="relative z-[10000] px-4 pt-2 text-center text-sm font-bold text-amber" aria-live="polite">
+      <p className="relative z-[10000] px-4 pt-2 text-center text-sm font-bold text-accent" aria-live="polite">
         {status}
       </p>
 
@@ -416,10 +416,10 @@ function ScanVinOverlay({
         }}
       />
 
-      <div className="relative z-[10000] mt-3 flex shrink-0 flex-col gap-2 bg-[#070806] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="relative z-[10000] mt-3 flex shrink-0 flex-col gap-2 bg-[#0A1320] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
         <button
           type="button"
-          className={`${CTRL} border-amber bg-amber text-[#120e04]`}
+          className={`${CTRL} border-accent bg-accent text-[var(--accent-ink)]!`}
           disabled={!valid}
           onClick={() => {
             if (!valid || !candidate) return;
@@ -431,7 +431,7 @@ function ScanVinOverlay({
         </button>
         <button
           type="button"
-          className={`${CTRL} border-amber text-amber`}
+          className={`${CTRL} border-accent text-accent!`}
           disabled={!candidate && !denied}
           onClick={() => {
             if (candidate) scanAgain();
@@ -440,7 +440,7 @@ function ScanVinOverlay({
         >
           {photoBusy ? "Reading…" : candidate ? "Scan again" : "Take photo"}
         </button>
-        <button type="button" className={`${CTRL} border-line text-white`} onClick={cancel}>
+        <button type="button" className={`${CTRL} border-line text-white!`} onClick={cancel}>
           Cancel
         </button>
       </div>

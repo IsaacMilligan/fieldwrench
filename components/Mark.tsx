@@ -4,9 +4,9 @@ export function Mark({ big = false }: { big?: boolean }) {
   return (
     <Link href="/" className="flex items-center gap-3">
       <svg width={big ? 48 : 36} height={big ? 48 : 36} viewBox="0 0 48 48" aria-hidden>
-        <rect x="2" y="2" width="44" height="44" rx="4" fill="#121410" stroke="#e8a317" strokeWidth="3" />
-        <path d="M14 18h8l2 4 6-10 4 2-8 14h-8l-2-4-4 4-2-2 4-8z" fill="#e8a317" />
-        <path d="M10 34h28" stroke="#c6ccb8" strokeWidth="3" />
+        <rect x="2" y="2" width="44" height="44" rx="4" fill="#1E3354" stroke="#FF6A13" strokeWidth="3" />
+        <path d="M14 18h8l2 4 6-10 4 2-8 14h-8l-2-4-4 4-2-2 4-8z" fill="#FF6A13" />
+        <path d="M10 34h28" stroke="#C3CEDD" strokeWidth="3" />
       </svg>
       <span className="leading-none">
         <span

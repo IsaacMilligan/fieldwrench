@@ -29,7 +29,7 @@ export function BookableServicesPanel({
                 </span>
                 <span
                   className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide ${
-                    svc.active ? "bg-amber/20 text-amber" : "bg-panel2 text-muted"
+                    svc.active ? "bg-amber/10 text-amber" : "bg-panel2 text-muted"
                   }`}
                 >
                   {svc.active ? "On" : "Hidden"}
