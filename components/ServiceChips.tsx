@@ -45,11 +45,11 @@ export function ServiceChips({
           const on = picked.includes(s.id);
           const dur = s.durationMin != null ? formatDurationLabel(s.durationMin) : "";
           return (
-            <li key={s.id} className={on ? "bg-amber text-[#120e04]" : "bg-panel2"}>
+            <li key={s.id} className={on ? "bg-amber text-[var(--tap-ink)]" : "bg-panel2"}>
               <div className="flex items-stretch">
                 <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 px-3 py-1">
                   <input
-                    className="h-5 w-5 shrink-0 accent-[#e8a317]"
+                    className="h-5 w-5 shrink-0 accent-[var(--amber)]"
                     type="checkbox"
                     name="service"
                     value={s.id}
@@ -76,7 +76,7 @@ export function ServiceChips({
                 ) : null}
               </div>
               {openBlurb === s.id && s.blurb ? (
-                <p className={`px-3 pb-2 text-xs font-semibold ${on ? "text-[#120e04]/70" : "text-muted"}`}>{s.blurb}</p>
+                <p className={`px-3 pb-2 text-xs font-semibold ${on ? "text-[var(--tap-ink)]/85" : "text-muted"}`}>{s.blurb}</p>
               ) : null}
             </li>
           );
@@ -93,7 +93,7 @@ export function ServiceChips({
           <label
             key={s.id}
             className={`flex min-h-14 cursor-pointer flex-col items-center justify-center rounded-xl border-2 px-2 py-2 text-center text-sm font-extrabold leading-tight ${
-              on ? "border-amber bg-amber text-[#120e04]" : "border-line bg-panel2"
+              on ? "border-amber bg-amber text-[var(--tap-ink)]" : "border-line bg-panel2"
             }`}
           >
             <input

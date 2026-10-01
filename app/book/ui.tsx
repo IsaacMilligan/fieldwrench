@@ -377,7 +377,7 @@ export function BookForm({
                   key={t}
                   type="button"
                   className={`flex min-h-14 items-center justify-center rounded-xl border-2 px-2 py-2 text-center text-sm font-extrabold ${
-                    on ? "border-amber bg-amber text-[#120e04]" : "border-line bg-panel2"
+                    on ? "border-amber bg-amber text-[var(--tap-ink)]" : "border-line bg-panel2"
                   }`}
                   onClick={() => {
                     setStartTime(t);

@@ -15,7 +15,7 @@ export function InvoiceSheet({
 }) {
   const { job, customer, vehicle, labor, parts, profit } = bundle;
   return (
-    <article className="panel bg-[#0e100c] print:bg-white print:text-black">
+    <article className="panel bg-panel print:bg-white print:text-black">
       <header className="flex items-start justify-between border-b-2 border-amber pb-3">
         <div>
           <div className="font-[family-name:var(--font-display)] text-3xl font-extrabold tracking-[0.18em] text-amber">

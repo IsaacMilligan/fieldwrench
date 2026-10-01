@@ -25,7 +25,7 @@ export default async function PublicInvoice({
   return (
     <div className="mx-auto min-h-dvh max-w-lg px-4 py-8">
       <Mark />
-      <div className={`panel mt-6 ${paid ? "" : ""}`} style={{ borderWidth: 2, borderColor: paid ? "#4ee06a" : "#ff5340" }}>
+      <div className={`panel mt-6 ${paid ? "" : ""}`} style={{ borderWidth: 2, borderColor: paid ? "var(--green)" : "var(--red)" }}>
         <div className={`num text-5xl ${paid ? "text-green" : "text-red"}`}>{paid ? "PAID" : "UNPAID"}</div>
         <div className="num mt-1 text-3xl">{money(bundle.profit.invoicedTotal)}</div>
         {paid && invoice.paid_method ? (

@@ -43,7 +43,7 @@ export function CatalogList({ items }: { items: CatalogItem[] }) {
               href={`/more/catalog/${item.id}`}
               className="flex min-h-[52px] items-center gap-3 px-1"
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-steel/15 text-[11px] font-extrabold uppercase tracking-wide text-amber">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-amber/15 text-[11px] font-extrabold uppercase tracking-wide text-amber">
                 {catalogInitials(item.name)}
               </span>
               <span className="min-w-0 flex-1 truncate font-bold">{item.name}</span>

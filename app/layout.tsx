@@ -40,7 +40,7 @@ export const metadata: Metadata = {
 export async function generateViewport(): Promise<Viewport> {
   const theme = await getShopTheme();
   return {
-    themeColor: theme === "dark" ? "#070806" : "#f3f1ea",
+    themeColor: theme === "dark" ? "#0F1B2D" : "#F4F6F9",
     width: "device-width",
     initialScale: 1,
     maximumScale: 1,

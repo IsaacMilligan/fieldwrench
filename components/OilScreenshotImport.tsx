@@ -317,7 +317,7 @@ export function OilScreenshotImport({
                     alt={`Screenshot ${i + 1}`}
                     className="h-20 w-16 rounded border border-white/20 object-cover object-top"
                   />
-                  <span className="absolute bottom-0 left-0 rounded-tr bg-black/70 px-1 text-xs">{i + 1}</span>
+                  <span className="absolute bottom-0 left-0 rounded-tr bg-black/70 px-1 text-xs text-white">{i + 1}</span>
                   {!draft ? (
                     <button
                       type="button"

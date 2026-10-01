@@ -147,14 +147,14 @@ export function CalendarMonth({
                 type="button"
                 onClick={() => setSelected(c.iso)}
                 className={`flex min-h-12 flex-col items-center justify-center rounded-full text-base font-bold ${
-                  isSel ? "bg-amber text-[#120e04]" : isToday ? "text-amber" : "text-ink"
+                  isSel ? "bg-amber text-[var(--tap-ink)]" : isToday ? "text-amber" : "text-ink"
                 } ${isToday && !isSel ? "ring-2 ring-amber" : ""}`}
               >
                 {c.day}
                 {count > 1 ? (
-                  <span className={`mt-0.5 text-[10px] leading-none ${isSel ? "text-[#120e04]" : "text-amber"}`}>{count}</span>
+                  <span className={`mt-0.5 text-[10px] leading-none ${isSel ? "text-[var(--tap-ink)]" : "text-amber"}`}>{count}</span>
                 ) : (
-                  <span className={`mt-0.5 h-1.5 w-1.5 rounded-full ${count ? (isSel ? "bg-[#120e04]" : mark?.tone ?? "bg-amber") : "bg-transparent"}`} />
+                  <span className={`mt-0.5 h-1.5 w-1.5 rounded-full ${count ? (isSel ? "bg-[var(--tap-ink)]" : mark?.tone ?? "bg-amber") : "bg-transparent"}`} />
                 )}
               </button>
             );
