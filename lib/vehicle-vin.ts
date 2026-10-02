@@ -1,8 +1,8 @@
 export const DUPLICATE_VIN_MSG = "This vehicle is already on this customer";
 
-/** Trimmed, uppercased VIN for comparison ("" when blank/missing). */
+/** VIN with all whitespace removed, uppercased ("" when blank/missing). */
 export function normalizeVin(vin: string | null | undefined): string {
-  return String(vin ?? "").trim().toUpperCase();
+  return String(vin ?? "").replace(/\s+/g, "").toUpperCase();
 }
 
 /** True when a non-blank VIN already appears among a customer's vehicle VINs. Blank VINs never match. */

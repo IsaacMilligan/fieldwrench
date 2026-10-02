@@ -52,7 +52,7 @@ export default async function CustomerDetail({
       <AddVehicleForm error={sp.e === "dup_vin" ? DUPLICATE_VIN_MSG : undefined}>
             <input type="hidden" name="_op" value="create_vehicle" />
         <input type="hidden" name="customer_id" value={id} />
-        <VehiclePicker withVin />
+        <VehiclePicker withVin looseVin />
         <label className="lbl">Plate</label>
         <input className="field" name="plate" />
         <label className="lbl">Mileage</label>

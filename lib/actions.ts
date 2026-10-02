@@ -454,7 +454,7 @@ export async function createVehicleAction(form: FormData) {
   const customerId = str(form, "customer_id");
   const ymm = ymmFrom(form);
   const mileage = parseNumber(str(form, "mileage")) || null;
-  const vin = ymm.vin || normalizeVin(str(form, "vin"));
+  const vin = normalizeVin(str(form, "vin"));
   if (vin) {
     const rows = await sql<{ vin: string | null }[]>`
       SELECT vin FROM vehicles WHERE customer_id = ${customerId} AND shop_id = ${s.shopId}

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { COMMON_MAKES, commonMakeValue, ELECTRIC_ENGINE, isElectricEngine, isKnownBev } from "@/lib/vpic";
 import { ScanVinButton, VIN_PAIR_BTN } from "@/components/ScanVinButton";
 import { vinOk } from "@/lib/format";
+import { normalizeVin } from "@/lib/vehicle-vin";
 import { ShopOilHint } from "@/components/ShopOilHint";
 
 type Saved = { year: number | null; make: string; model: string; engine?: string };
@@ -24,12 +25,15 @@ export function VehiclePicker({
   initial,
   onYmme,
   withVin = false,
+  looseVin = false,
   showOil,
 }: {
   saved?: Saved[];
   initial?: { year?: number | null; make?: string; model?: string; engine?: string };
   onYmme?: (v: { year: string; make: string; model: string; engine: string }) => void;
   withVin?: boolean;
+  /** Add Vehicle: no maxLength (it would cut pasted VINs before spaces are stripped); strip whitespace + uppercase as typed. */
+  looseVin?: boolean;
   /** Verified shop oil spec for the picked Y/M/M/engine. Defaults on when withVin (create-job / add-vehicle). */
   showOil?: boolean;
 }) {
@@ -319,11 +323,11 @@ export function VehiclePicker({
             className="field font-mono uppercase"
             name="vin"
             value={vin}
-            maxLength={17}
+            maxLength={looseVin ? undefined : 17}
             autoComplete="off"
             placeholder="Optional — 17 characters"
             onChange={(e) => {
-              setVin(e.target.value.toUpperCase());
+              setVin(looseVin ? normalizeVin(e.target.value) : e.target.value.toUpperCase());
               setVinError(null);
             }}
           />
