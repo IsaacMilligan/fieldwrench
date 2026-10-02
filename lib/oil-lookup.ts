@@ -8,8 +8,8 @@ export type ShopOilLookup =
   | { status: "bev" };
 
 /**
- * Verified shop oil spec for a Y/M/M/engine, or none: exact key first, then a single
- * same-displacement verified row (see getShopOilDefault). Shop Postgres only — no Vehicle
+ * Verified shop oil spec for a Y/M/M/engine, or none: exact key first, then a single (or
+ * identical) same-displacement verified spec; "X Hybrid" retries base model X (see getShopOilDefault). Shop Postgres only — no Vehicle
  * Finder, no external fallback, never picks between several engines.
  * Shared by /api/oil, /api/oil/specs (external read), /api/vin (Tools VIN decode) and applyVin.
  * `shopId` overrides the session shop (bearer-token callers).

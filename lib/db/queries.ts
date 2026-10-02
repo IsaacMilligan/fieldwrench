@@ -5,7 +5,7 @@ import {
   partCustomerCents,
 } from "../profit";
 import { denverDateISO } from "../format";
-import { engineDisplacement, oilYmmeKey, positiveNum, type OilSpecValues } from "../oil-specs";
+import { oilBaseModel, oilYmmeKey, pickVerifiedOilRow, positiveNum, type OilSpecValues } from "../oil-specs";
 import { computeInvoice, type DiscountInput, type InvoiceMath } from "../invoice";
 import type { JobStatus, PayMethod } from "../status";
 import { bookingShopId, readSession } from "../auth";
@@ -1076,12 +1076,11 @@ export type OilSpecMatch = "exact" | "displacement";
 
 /**
  * THE verified shop oil spec lookup (job/vehicle/create-job fill, /api/oil, /api/oil/specs,
- * Tools VIN decode, job-template oil billing). No external source, no guessing:
- * 1. Exact normalized key (shop + year + make_key + model_key + engine_key), verified → match "exact".
- * 2. Otherwise, only if the requested engine starts with a displacement (engineDisplacement):
- *    verified rows for the same shop + year + make_key + model_key whose engine has the SAME
- *    displacement (1 decimal). Exactly one → match "displacement". Zero or 2+ → null.
- * A blank engine never falls back (only an exact blank-engine row matches).
+ * Tools VIN decode, job-template oil billing). No external source, no guessing.
+ * Loads VERIFIED rows for shop + year + make_key + (model_key or base model_key, e.g.
+ * "Corolla Hybrid" → "Corolla") and picks with pickVerifiedOilRow: exact engine key first
+ * ("exact"), else same displacement when exactly one row or all such rows share the same
+ * viscosity/qt/torque ("displacement"). Given model wins before the base model.
  */
 export async function getShopOilDefault(q: {
   year?: number | null;
@@ -1090,22 +1089,20 @@ export async function getShopOilDefault(q: {
   engine?: string | null;
   shopId?: string | null;
 }): Promise<(ShopSpec & { match: OilSpecMatch }) | null> {
-  const spec = await getShopSpec(q);
-  if (spec && spec.verified) return { ...spec, match: "exact" };
-  const disp = engineDisplacement(q.engine);
-  if (disp == null) return null;
   const key = oilYmmeKey(q.year, q.make, q.model, q.engine);
   if (!key) return null;
+  const baseKey = oilYmmeKey(q.year, q.make, oilBaseModel(q.model), q.engine);
   const sql = await db();
   const sid = q.shopId || (await shopId());
-  const rows = await sql.unsafe<(ShopSpecRow & { engine_key: string })[]>(
-    `SELECT ${SPEC_COLS}, engine_key
+  const rows = await sql.unsafe<(ShopSpecRow & { model_key: string; engine_key: string })[]>(
+    `SELECT ${SPEC_COLS}, model_key, engine_key
     FROM oil_defaults
-    WHERE shop_id = $1 AND year = $2 AND make_key = $3 AND model_key = $4 AND verified = TRUE`,
-    [sid, key.year, key.make_key, key.model_key],
+    WHERE shop_id = $1 AND year = $2 AND make_key = $3 AND model_key IN ($4, $5) AND verified = TRUE
+    ORDER BY engine_key, id`,
+    [sid, key.year, key.make_key, key.model_key, baseKey?.model_key ?? key.model_key],
   );
-  const hits = rows.filter((r) => engineDisplacement(r.engine_label || r.engine_key) === disp);
-  return hits.length === 1 ? { ...asSpec(hits[0]), match: "displacement" } : null;
+  const pick = pickVerifiedOilRow(rows, q);
+  return pick ? { ...asSpec(pick.row), match: pick.match } : null;
 }
 
 export const getVerifiedOilSpec = getShopOilDefault;
