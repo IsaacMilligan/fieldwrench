@@ -7,17 +7,22 @@ import { vehicleLabel } from "@/lib/format";
 import { VehiclePicker } from "@/app/book/VehiclePicker";
 import { AddressField } from "@/components/AddressField";
 import { CustomerDelete } from "../CustomerDelete";
+import { AddVehicleForm } from "./AddVehicleForm";
+import { DUPLICATE_VIN_MSG } from "@/lib/vehicle-vin";
 import { STATUS_LABEL, type JobStatus } from "@/lib/status";
 
 export const dynamic = "force-dynamic";
 
 export default async function CustomerDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ e?: string }>;
 }) {
   await requireSession();
   const { id } = await params;
+  const sp = await searchParams;
   const data = await getCustomer(id);
   if (!data) notFound();
   const { customer, vehicles, jobs, unpaidInvoices } = data;
@@ -44,7 +49,7 @@ export default async function CustomerDetail({
       <h2 className="mt-10 font-[family-name:var(--font-display)] text-2xl font-bold uppercase tracking-widest">
         Vehicles
       </h2>
-      <form action="/api/shop" method="post" className="mt-3 panel">
+      <AddVehicleForm error={sp.e === "dup_vin" ? DUPLICATE_VIN_MSG : undefined}>
             <input type="hidden" name="_op" value="create_vehicle" />
         <input type="hidden" name="customer_id" value={id} />
         <VehiclePicker withVin />
@@ -54,10 +59,7 @@ export default async function CustomerDetail({
         <input className="field" name="mileage" inputMode="numeric" />
         <label className="lbl">Vehicle history notes</label>
         <textarea className="field min-h-24" name="history_notes" placeholder="Shop notes only — not Carfax." />
-        <button className="tap mt-4" type="submit">
-          Add vehicle
-        </button>
-      </form>
+      </AddVehicleForm>
       <ul className="mt-3 space-y-3">
         {vehicles.map((v) => (
           <li key={v.id}>
