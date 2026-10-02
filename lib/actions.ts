@@ -18,6 +18,7 @@ import { ELECTRIC_ENGINE, isElectricEngine } from "./vpic";
 import { oilYmmeKey, positiveNum } from "./oil-specs";
 import { upsertVerifiedOilSpec } from "./oil-spec-store";
 import { oilChargeCents } from "./oil-cost";
+import { hasDuplicateVin, normalizeVin } from "./vehicle-vin";
 import { catalogTag, categoryForTag, catalogLaborMode } from "./catalog";
 import { geocodeAddress } from "./geocode";
 import { applyJobTemplateToJob } from "./apply-job-template";
@@ -453,9 +454,16 @@ export async function createVehicleAction(form: FormData) {
   const customerId = str(form, "customer_id");
   const ymm = ymmFrom(form);
   const mileage = parseNumber(str(form, "mileage")) || null;
+  const vin = normalizeVin(str(form, "vin"));
+  if (vin) {
+    const rows = await sql<{ vin: string | null }[]>`
+      SELECT vin FROM vehicles WHERE customer_id = ${customerId} AND shop_id = ${s.shopId}
+    `;
+    if (hasDuplicateVin(vin, rows.map((r) => r.vin))) redirect(`/customers/${customerId}?e=dup_vin#add-vehicle`);
+  }
   await sql`INSERT INTO vehicles (id, customer_id, year, make, model, engine, plate, vin, mileage, history_notes, shop_id) VALUES (
     ${id}, ${customerId}, ${ymm.year}, ${ymm.make}, ${ymm.model}, ${ymm.engine},
-    ${str(form, "plate")}, ${ymm.vin || str(form, "vin").toUpperCase()}, ${mileage}, ${str(form, "history_notes")},
+    ${str(form, "plate")}, ${vin}, ${mileage}, ${str(form, "history_notes")},
     ${s.shopId}
   )`;
   revalidatePath(`/customers/${customerId}`);
