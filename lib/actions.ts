@@ -470,6 +470,32 @@ export async function createVehicleAction(form: FormData) {
   redirect(`/vehicles/${id}`);
 }
 
+export async function deleteVehicleAction(form: FormData) {
+  const s = await requireSession();
+  const sql = await db();
+  const id = str(form, "id");
+  const [v] = id
+    ? await sql<{ customer_id: string }[]>`
+        SELECT v.customer_id FROM vehicles v JOIN customers c ON c.id = v.customer_id
+        WHERE v.id = ${id} AND v.shop_id = ${s.shopId} AND c.shop_id = ${s.shopId}
+      `
+    : [];
+  if (!v) redirect(`/customers?e=${encodeURIComponent("Vehicle not found in this shop.")}`);
+  const back = `/customers/${v.customer_id}`;
+  // Only delete when no job references it (atomic with the delete); never orphan jobs.
+  const gone = await sql<{ id: string }[]>`
+    DELETE FROM vehicles WHERE id = ${id} AND shop_id = ${s.shopId}
+      AND NOT EXISTS (SELECT 1 FROM jobs WHERE vehicle_id = ${id})
+    RETURNING id
+  `;
+  if (!gone.length) {
+    const [{ n }] = await sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM jobs WHERE vehicle_id = ${id}`;
+    if (n > 0) redirect(`${back}?e=vehicle_jobs&n=${n}#vehicles`);
+  }
+  revalidatePath(back);
+  redirect(back);
+}
+
 export async function updateVehicleAction(form: FormData) {
   await requireSession();
   const sql = await db();
