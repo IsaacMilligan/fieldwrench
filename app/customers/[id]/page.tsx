@@ -9,6 +9,8 @@ import { AddressField } from "@/components/AddressField";
 import { CustomerDelete } from "../CustomerDelete";
 import { AddVehicleForm } from "./AddVehicleForm";
 import { DUPLICATE_VIN_MSG } from "@/lib/vehicle-vin";
+import { VehicleDelete } from "./VehicleDelete";
+import { vehicleOnJobsMessage } from "@/lib/vehicle-delete";
 import { STATUS_LABEL, type JobStatus } from "@/lib/status";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +20,7 @@ export default async function CustomerDetail({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ e?: string }>;
+  searchParams: Promise<{ e?: string; n?: string }>;
 }) {
   await requireSession();
   const { id } = await params;
@@ -60,6 +62,9 @@ export default async function CustomerDetail({
         <label className="lbl">Vehicle history notes</label>
         <textarea className="field min-h-24" name="history_notes" placeholder="Shop notes only — not Carfax." />
       </AddVehicleForm>
+      {sp.e === "vehicle_jobs" ? (
+        <p id="vehicles" className="mt-3 text-sm font-bold text-red">{vehicleOnJobsMessage(Number(sp.n) || 0)}</p>
+      ) : null}
       <ul className="mt-3 space-y-3">
         {vehicles.map((v) => (
           <li key={v.id}>
@@ -69,6 +74,7 @@ export default async function CustomerDetail({
                 {v.plate || "No plate"} {v.vin ? `· ${v.vin}` : ""}
               </div>
             </Link>
+            <VehicleDelete vehicle={v} />
           </li>
         ))}
       </ul>
