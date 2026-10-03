@@ -58,6 +58,20 @@ export function parseDrainTqNoteInput(v: unknown): { note: string | null | undef
   return { note };
 }
 
+/**
+ * "Save oil spec" form fields (job / vehicle / spec screens). A submitted blank note is null
+ * (= clear); only a form WITHOUT the note field gives undefined (= keep). `blank` = every field empty.
+ */
+export function oilSpecFormInput(form: { get(name: string): unknown; has(name: string): boolean }) {
+  const s = (k: string) => String(form.get(k) ?? "").trim();
+  const vis = s("oil_viscosity").replace(/\s+/g, " ");
+  const qt = positiveNum(s("oil_qt"));
+  const tq = positiveNum(s("oil_drain_tq"));
+  const socketMm = positiveNum(s("oil_socket"));
+  const tqNote = form.has("oil_drain_tq_note") ? cleanDrainTqNote(s("oil_drain_tq_note").slice(0, DRAIN_TQ_NOTE_MAX)) : undefined;
+  return { vis, qt, tq, tqNote, socketMm, blank: !vis && qt == null && tq == null && !tqNote && socketMm == null };
+}
+
 /** Drain plug torque for display: the note when present, else "N ft-lb", else "". */
 export function drainTqText(v: Pick<OilSpecValues, "drainTq" | "drainTqNote"> | null | undefined): string {
   const note = cleanDrainTqNote(v?.drainTqNote);

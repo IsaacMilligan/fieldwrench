@@ -1,4 +1,4 @@
-import { cleanDrainTqNote, drainTqText, parseDrainTqNoteInput, oilSpecComplete, oilSpecHasAny, oilYmmeKey, pickVerifiedOilRow } from "../lib/oil-specs";
+import { cleanDrainTqNote, drainTqText, oilSpecFormInput, parseDrainTqNoteInput, oilSpecComplete, oilSpecHasAny, oilYmmeKey, pickVerifiedOilRow } from "../lib/oil-specs";
 
 let failed = 0;
 function check(name: string, got: unknown, want: unknown) {
@@ -36,6 +36,27 @@ check("input null clears", note(null), null);
 check("input empty clears", note(""), null);
 check("input spaces clears", note("   "), null);
 check("input string cleaned", note(`  ${NOTE}  `), NOTE);
+
+// "Save oil spec" form (vehicle / job / specs pages): a blank note must CLEAR (null), never keep (undefined).
+const fd = (o: Record<string, string>) => {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(o)) f.set(k, v);
+  return f;
+};
+const full = { oil_viscosity: "0W-20", oil_qt: "4.4", oil_drain_tq: "", oil_socket: "", oil_drain_tq_note: NOTE };
+check("form note saved", oilSpecFormInput(fd(full)).tqNote, NOTE);
+check("form blank note → null (clear)", oilSpecFormInput(fd({ ...full, oil_drain_tq_note: "" })).tqNote, null);
+check("form spaces note → null (clear)", oilSpecFormInput(fd({ ...full, oil_drain_tq_note: "   " })).tqNote, null);
+const noNoteField: Record<string, string> = { ...full };
+delete noNoteField.oil_drain_tq_note;
+check("form without note field → undefined (keep)", oilSpecFormInput(fd(noNoteField)).tqNote, undefined);
+check("form blank tq → null", oilSpecFormInput(fd(full)).tq, null);
+check("form not blank with vis/qt", oilSpecFormInput(fd({ ...full, oil_drain_tq_note: "" })).blank, false);
+const allBlank = oilSpecFormInput(fd({ oil_viscosity: "", oil_qt: "", oil_drain_tq: "", oil_socket: "", oil_drain_tq_note: "" }));
+check("form all blank flagged (note-only spec cleared → still saves)", allBlank.blank, true);
+check("form all blank note is null", allBlank.tqNote, null);
+check("form note-only not blank", oilSpecFormInput(fd({ oil_viscosity: "", oil_qt: "", oil_drain_tq: "", oil_socket: "", oil_drain_tq_note: NOTE })).blank, false);
+check("form vis whitespace collapsed", oilSpecFormInput(fd({ ...full, oil_viscosity: " 0W -  20 " })).vis, "0W - 20");
 
 const base = { viscosity: "15W-40", qtWithFilter: 10, drainTq: null, socketMm: null };
 check("complete with note, no number", oilSpecComplete({ ...base, drainTqNote: NOTE }), true);
