@@ -1,4 +1,4 @@
-import { formatNum, formatQt, oilSpecComplete, oilSpecHasAny, type OilSpecValues } from "@/lib/oil-specs";
+import { DRAIN_TQ_NOTE_MAX, drainTqText, formatNum, formatQt, oilSpecComplete, oilSpecHasAny, type OilSpecValues } from "@/lib/oil-specs";
 import { isElectricEngine } from "@/lib/vpic";
 import { OReillyProButton } from "@/components/OReillyProButton";
 import { OilScreenshotImport } from "@/components/OilScreenshotImport";
@@ -52,6 +52,7 @@ export function OilSpecCard({
     viscosity: String(spec?.viscosity ?? "").trim(),
     qtWithFilter: spec?.qtWithFilter ?? null,
     drainTq: spec?.drainTq ?? null,
+    drainTqNote: spec?.drainTqNote ?? null,
     socketMm: spec?.socketMm ?? null,
   };
   const has = oilSpecHasAny(v);
@@ -76,10 +77,10 @@ export function OilSpecCard({
           <div className="num mt-2 text-3xl text-amber">
             {v.qtWithFilter ? `${formatQt(v.qtWithFilter)} with filter` : "—"}
           </div>
-          {v.drainTq || v.socketMm ? (
+          {drainTqText(v) || v.socketMm ? (
             <p className="mt-2 text-sm text-muted">
               Drain plug
-              {v.drainTq ? ` ${formatNum(v.drainTq)} ft-lb` : ""}
+              {drainTqText(v) ? ` ${drainTqText(v)}` : ""}
               {v.socketMm ? ` · ${formatNum(v.socketMm)} mm socket` : ""}
             </p>
           ) : null}
@@ -156,6 +157,15 @@ export function OilSpecCard({
               />
             </div>
           </div>
+          <label className="lbl">Drain plug torque note (optional)</label>
+          <input
+            className="field"
+            name="oil_drain_tq_note"
+            defaultValue={v.drainTqNote ?? ""}
+            maxLength={DRAIN_TQ_NOTE_MAX}
+            placeholder="Two plugs? e.g. 18 ft-lb (13 mm plug) / 62 ft-lb (16 mm plug)"
+            autoComplete="off"
+          />
           <button className="tap mt-3" type="submit">
             Save oil spec
           </button>

@@ -5,7 +5,7 @@ import {
   partCustomerCents,
 } from "../profit";
 import { denverDateISO } from "../format";
-import { oilBaseModel, oilYmmeKey, pickVerifiedOilRow, positiveNum, type OilSpecValues } from "../oil-specs";
+import { cleanDrainTqNote, oilBaseModel, oilYmmeKey, pickVerifiedOilRow, positiveNum, type OilSpecValues } from "../oil-specs";
 import { computeInvoice, type DiscountInput, type InvoiceMath } from "../invoice";
 import type { JobStatus, PayMethod } from "../status";
 import { bookingShopId, readSession } from "../auth";
@@ -974,6 +974,7 @@ export type ShopSpec = {
   oil_qt: number | null;
   oil_viscosity: string;
   oil_drain_tq: number | null;
+  oil_drain_tq_note: string | null;
   /** Legacy text column; mirrors socket_mm for older readers. */
   oil_socket: string;
   socket_mm: number | null;
@@ -994,6 +995,7 @@ type ShopSpecRow = {
   oil_qt: number | null;
   oil_viscosity: string;
   oil_drain_tq: number | null;
+  oil_drain_tq_note?: string | null;
   oil_socket: string;
   socket_size_mm?: number | string | null;
   verified?: boolean | null;
@@ -1001,7 +1003,7 @@ type ShopSpecRow = {
 };
 
 const SPEC_COLS = `id, year, make_label, model_label, engine_label, trim, body, drive, vin,
-      oil_qt, oil_viscosity, oil_drain_tq, oil_socket, socket_size_mm, verified, updated_at`;
+      oil_qt, oil_viscosity, oil_drain_tq, oil_drain_tq_note, oil_socket, socket_size_mm, verified, updated_at`;
 
 function asSpec(row: ShopSpecRow): ShopSpec {
   const qt = positiveNum(row.oil_qt);
@@ -1020,6 +1022,7 @@ function asSpec(row: ShopSpecRow): ShopSpec {
     oil_qt: qt,
     oil_viscosity: String(row.oil_viscosity ?? "").trim(),
     oil_drain_tq: tq,
+    oil_drain_tq_note: cleanDrainTqNote(row.oil_drain_tq_note),
     oil_socket: socketMm != null ? String(socketMm) : String(row.oil_socket ?? "").trim(),
     socket_mm: socketMm,
     verified: row.verified === true,
@@ -1033,6 +1036,7 @@ export function specValues(spec: ShopSpec | null | undefined): OilSpecValues | n
     viscosity: spec.oil_viscosity,
     qtWithFilter: spec.oil_qt,
     drainTq: spec.oil_drain_tq,
+    drainTqNote: spec.oil_drain_tq_note,
     socketMm: spec.socket_mm,
   };
 }

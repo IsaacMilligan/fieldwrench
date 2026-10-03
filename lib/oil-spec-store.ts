@@ -1,7 +1,8 @@
 import { db } from "@/lib/db/queries";
 import { oilYmmeKey } from "@/lib/oil-specs";
 
-export type OilSpecWrite = { vis: string; qt: number | null; tq: number | null; socketMm: number | null };
+/** tqNote: undefined = leave the saved note as-is (callers that don't know about it); null/"" clears. */
+export type OilSpecWrite = { vis: string; qt: number | null; tq: number | null; tqNote?: string | null; socketMm: number | null };
 export type OilSpecSaved = { id: string; inserted: boolean };
 
 /**
@@ -28,14 +29,16 @@ export async function upsertVerifiedOilSpec(
   const socketText = v.socketMm != null ? String(v.socketMm) : "";
   const keep = Boolean(opts.keepExisting);
   const trim = String(veh.trim ?? "").trim();
+  const noteGiven = v.tqNote !== undefined;
+  const note = v.tqNote ? v.tqNote : null;
   const [row] = await sql<{ id: string; inserted: boolean }[]>`
     INSERT INTO oil_defaults (
       id, year, make_key, model_key, engine_key, shop_id, make_label, model_label, engine_label, trim,
-      oil_qt, oil_viscosity, oil_drain_tq, oil_socket, socket_size_mm, verified, created_at, updated_at
+      oil_qt, oil_viscosity, oil_drain_tq, oil_drain_tq_note, oil_socket, socket_size_mm, verified, created_at, updated_at
     ) VALUES (
       ${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${shop},
       ${veh.make || ""}, ${veh.model || ""}, ${veh.engine || ""}, ${trim},
-      ${v.qt}, ${v.vis}, ${v.tq}, ${socketText}, ${v.socketMm}, TRUE, NOW(), NOW()
+      ${v.qt}, ${v.vis}, ${v.tq}, ${note}, ${socketText}, ${v.socketMm}, TRUE, NOW(), NOW()
     )
     ON CONFLICT (shop_id, year, make_key, model_key, engine_key)
     DO UPDATE SET
@@ -45,6 +48,9 @@ export async function upsertVerifiedOilSpec(
         THEN oil_defaults.oil_viscosity ELSE EXCLUDED.oil_viscosity END,
       oil_drain_tq = CASE WHEN ${keep}::boolean AND oil_defaults.verified AND EXCLUDED.oil_drain_tq IS NULL
         THEN oil_defaults.oil_drain_tq ELSE EXCLUDED.oil_drain_tq END,
+      oil_drain_tq_note = CASE WHEN NOT ${noteGiven}::boolean
+          OR (${keep}::boolean AND oil_defaults.verified AND EXCLUDED.oil_drain_tq_note IS NULL)
+        THEN oil_defaults.oil_drain_tq_note ELSE EXCLUDED.oil_drain_tq_note END,
       oil_socket = CASE WHEN ${keep}::boolean AND oil_defaults.verified AND EXCLUDED.oil_socket = ''
         THEN oil_defaults.oil_socket ELSE EXCLUDED.oil_socket END,
       socket_size_mm = CASE WHEN ${keep}::boolean AND oil_defaults.verified AND EXCLUDED.socket_size_mm IS NULL

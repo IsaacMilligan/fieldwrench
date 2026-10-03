@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatNum, formatQt, oilSpecComplete, type OilSpecValues } from "@/lib/oil-specs";
+import { drainTqText, formatNum, formatQt, oilSpecComplete, type OilSpecValues } from "@/lib/oil-specs";
 import { OReillyProButton } from "@/components/OReillyProButton";
 import { OIL_SAVED_EVENT, OilScreenshotImport } from "@/components/OilScreenshotImport";
 
@@ -75,10 +75,10 @@ export function ShopOilHint({
               .filter(Boolean)
               .join(" · ") || "—"}
           </div>
-          {current.oil.drainTq || current.oil.socketMm ? (
+          {drainTqText(current.oil) || current.oil.socketMm ? (
             <p className="mt-1 text-sm text-muted">
               Drain plug
-              {current.oil.drainTq ? ` ${formatNum(current.oil.drainTq)} ft-lb` : ""}
+              {drainTqText(current.oil) ? ` ${drainTqText(current.oil)}` : ""}
               {current.oil.socketMm ? ` · ${formatNum(current.oil.socketMm)} mm socket` : ""}
             </p>
           ) : null}

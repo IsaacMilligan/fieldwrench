@@ -33,16 +33,32 @@ export type OilSpecValues = {
   viscosity: string;
   qtWithFilter: number | null;
   drainTq: number | null;
+  /** Free-text drain plug torque (e.g. two plugs: "18 ft-lb (13 mm plug) / 62 ft-lb (16 mm plug)"). */
+  drainTqNote?: string | null;
   socketMm: number | null;
 };
 
-export function oilSpecHasAny(v: OilSpecValues | null | undefined): boolean {
-  return Boolean(v && (v.viscosity || v.qtWithFilter || v.drainTq || v.socketMm));
+export const DRAIN_TQ_NOTE_MAX = 200;
+
+/** Drain torque note: whitespace collapsed + trimmed, "" → null. Length is checked by callers. */
+export function cleanDrainTqNote(v: unknown): string | null {
+  return str(v) || null;
 }
 
-/** Complete = viscosity + capacity + drain plug torque. Socket is optional. */
+/** Drain plug torque for display: the note when present, else "N ft-lb", else "". */
+export function drainTqText(v: Pick<OilSpecValues, "drainTq" | "drainTqNote"> | null | undefined): string {
+  const note = cleanDrainTqNote(v?.drainTqNote);
+  if (note) return note;
+  return v?.drainTq ? `${formatNum(v.drainTq)} ft-lb` : "";
+}
+
+export function oilSpecHasAny(v: OilSpecValues | null | undefined): boolean {
+  return Boolean(v && (v.viscosity || v.qtWithFilter || v.drainTq || v.drainTqNote || v.socketMm));
+}
+
+/** Complete = viscosity + capacity + drain plug torque (number or note). Socket is optional. */
 export function oilSpecComplete(v: OilSpecValues | null | undefined): boolean {
-  return Boolean(v && v.viscosity && v.qtWithFilter && v.drainTq);
+  return Boolean(v && v.viscosity && v.qtWithFilter && (v.drainTq || v.drainTqNote));
 }
 
 /**
@@ -105,13 +121,15 @@ export type OilPickRow = {
   oil_viscosity?: string | null;
   oil_qt?: number | string | null;
   oil_drain_tq?: number | string | null;
+  oil_drain_tq_note?: string | null;
 };
 
 function sameOilSpec(a: OilPickRow, b: OilPickRow): boolean {
   return (
     str(a.oil_viscosity).toUpperCase() === str(b.oil_viscosity).toUpperCase() &&
     positiveNum(a.oil_qt) === positiveNum(b.oil_qt) &&
-    positiveNum(a.oil_drain_tq) === positiveNum(b.oil_drain_tq)
+    positiveNum(a.oil_drain_tq) === positiveNum(b.oil_drain_tq) &&
+    cleanDrainTqNote(a.oil_drain_tq_note) === cleanDrainTqNote(b.oil_drain_tq_note)
   );
 }
 

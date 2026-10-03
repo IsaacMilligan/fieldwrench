@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readSession } from "@/lib/auth";
 import { lookupShopOil } from "@/lib/oil-lookup";
 import { getShopSpec } from "@/lib/db/queries";
-import { oilYmmeKey } from "@/lib/oil-specs";
+import { DRAIN_TQ_NOTE_MAX, oilYmmeKey } from "@/lib/oil-specs";
 import { upsertVerifiedOilSpec } from "@/lib/oil-spec-store";
 import { LIVE_SHOP_ID } from "@/lib/shop";
 import { isElectricEngine } from "@/lib/vpic";
@@ -78,6 +78,7 @@ export async function GET(req: NextRequest) {
           viscosity: r.oil.viscosity || null,
           qtWithFilter: r.oil.qtWithFilter,
           drainTqFtLb: r.oil.drainTq,
+          drainTqNote: r.oil.drainTqNote ?? null,
           socketMm: r.oil.socketMm,
         },
         verified: true,
@@ -128,6 +129,8 @@ function isBad(v: unknown): v is Bad {
  * Auth: Authorization: Bearer <OIL_SPEC_BOT_TOKEN> only (session cookies are NOT accepted here).
  * Same normalized key + same upsert as "Save oil spec": posting the same vehicle again updates
  * that row (200); a new vehicle creates one (201). Blank/null oil fields are saved blank.
+ * oil_drain_tq_note (optional string, ≤200): free-text torque for two-plug engines. Omit the key to
+ * keep the saved note; null/"" clears it. oil_drain_tq stays a number (or omitted/null).
  */
 export async function POST(req: NextRequest) {
   if (!botAuthorized(req)) {
@@ -148,9 +151,12 @@ export async function POST(req: NextRequest) {
   const qt = num(body.oil_qt, "oil_qt", 0.5, 20);
   const tq = num(body.oil_drain_tq, "oil_drain_tq", 5, 100);
   const socket = num(body.socket_size_mm, "socket_size_mm", 6, 36);
+  // Optional free-text torque (two drain plugs etc.). Key absent → keep the saved note; null/"" → clear.
+  const noteRaw = "oil_drain_tq_note" in body ? text(body.oil_drain_tq_note, "oil_drain_tq_note", DRAIN_TQ_NOTE_MAX) : undefined;
   const errors: string[] = [];
   if (!Number.isInteger(year) || year < 1980 || year > maxYear) errors.push(`year must be 1980–${maxYear}.`);
-  for (const v of [make, model, engine, trim, visRaw, qt, tq, socket]) if (isBad(v)) errors.push(v.error);
+  for (const v of [make, model, engine, trim, visRaw, qt, tq, socket, noteRaw]) if (isBad(v)) errors.push(v.error);
+  const tqNote = noteRaw === undefined || isBad(noteRaw) ? undefined : noteRaw || null;
   let vis = "";
   if (!isBad(visRaw) && visRaw) {
     const m = visRaw.toUpperCase().replace(/^SAE\s*/, "").match(/^(\d{1,2})\s*W\s*-?\s*(\d{1,2})$/);
@@ -158,8 +164,8 @@ export async function POST(req: NextRequest) {
     else errors.push('oil_viscosity must look like "5W-30".');
   }
   if (!isBad(engine) && isElectricEngine(engine)) errors.push("Electric vehicles have no engine oil.");
-  if (!errors.length && !vis && qt == null && tq == null && socket == null) {
-    errors.push("Send at least one of oil_viscosity, oil_qt, oil_drain_tq, socket_size_mm.");
+  if (!errors.length && !vis && qt == null && tq == null && !tqNote && socket == null) {
+    errors.push("Send at least one of oil_viscosity, oil_qt, oil_drain_tq, oil_drain_tq_note, socket_size_mm.");
   }
   if (errors.length) return NextResponse.json({ error: errors.join(" "), errors }, { status: 400, headers: NO_STORE });
 
@@ -177,6 +183,7 @@ export async function POST(req: NextRequest) {
       vis,
       qt: qt as number | null,
       tq: tq as number | null,
+      tqNote,
       socketMm: socket as number | null,
     });
     const spec = saved ? await getShopSpec({ ...veh, shopId: LIVE_SHOP_ID }) : null;
@@ -196,6 +203,7 @@ export async function POST(req: NextRequest) {
           oil_viscosity: spec.oil_viscosity || null,
           oil_qt: spec.oil_qt,
           oil_drain_tq: spec.oil_drain_tq,
+          oil_drain_tq_note: spec.oil_drain_tq_note,
           socket_size_mm: spec.socket_mm,
           verified: spec.verified,
           updated_at: spec.updated_at,

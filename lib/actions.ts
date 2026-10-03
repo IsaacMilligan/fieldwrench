@@ -15,7 +15,7 @@ import type { JobStatus, PayMethod } from "./status";
 import { JOB_STATUSES, PAY_METHODS } from "./status";
 import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "./services";
 import { ELECTRIC_ENGINE, isElectricEngine } from "./vpic";
-import { oilYmmeKey, positiveNum } from "./oil-specs";
+import { cleanDrainTqNote, DRAIN_TQ_NOTE_MAX, oilYmmeKey, positiveNum } from "./oil-specs";
 import { upsertVerifiedOilSpec } from "./oil-spec-store";
 import { oilChargeCents } from "./oil-cost";
 import { hasDuplicateVin, normalizeVin } from "./vehicle-vin";
@@ -524,6 +524,10 @@ export async function saveOilSpecAction(form: FormData) {
   const qt = positiveNum(str(form, "oil_qt"));
   const vis = str(form, "oil_viscosity").replace(/\s+/g, " ");
   const tq = positiveNum(str(form, "oil_drain_tq"));
+  // undefined when the form has no note field (keeps the saved note); "" clears it.
+  const tqNote = form.has("oil_drain_tq_note")
+    ? cleanDrainTqNote(str(form, "oil_drain_tq_note").slice(0, DRAIN_TQ_NOTE_MAX))
+    : undefined;
   const socketMm = positiveNum(str(form, "oil_socket"));
   const socketText = socketMm != null ? String(socketMm) : "";
   if (specId) {
@@ -537,6 +541,7 @@ export async function saveOilSpecAction(form: FormData) {
       oil_qt = ${qt},
       oil_viscosity = ${vis},
       oil_drain_tq = ${tq},
+      oil_drain_tq_note = ${tqNote === undefined ? sql`oil_drain_tq_note` : tqNote},
       oil_socket = ${socketText},
       socket_size_mm = ${socketMm},
       verified = TRUE,
@@ -547,7 +552,7 @@ export async function saveOilSpecAction(form: FormData) {
     redirect(`/specs/${specId}`);
   }
   const next = str(form, "next") || `/vehicles/${id}`;
-  if (!id || (!qt && !vis && !tq && !socketMm)) redirect(id ? next : "/customers");
+  if (!id || (!qt && !vis && !tq && !tqNote && !socketMm)) redirect(id ? next : "/customers");
   const [veh] = await sql<{ year: number | null; make: string; model: string; engine: string }[]>`
     SELECT year, make, model, engine FROM vehicles WHERE id = ${id} AND shop_id = ${s.shopId}
   `;
@@ -561,7 +566,7 @@ export async function saveOilSpecAction(form: FormData) {
     oil_socket = ${socketText},
     oil_saved = 1
     WHERE id = ${id} AND shop_id = ${s.shopId}`;
-  await upsertVerifiedOilSpec(s.shopId, veh, { vis, qt, tq, socketMm });
+  await upsertVerifiedOilSpec(s.shopId, veh, { vis, qt, tq, tqNote, socketMm });
   revalidatePath(`/vehicles/${id}`);
   revalidatePath("/tools");
   revalidatePath("/jobs");
