@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { putPrivateBlob, delPrivateBlob, blobConfigured, blobUserMessage } from "./blob";
 import { DEMO, clearSession, createSession, requireSession, verifyLogin } from "./auth";
 import { getCustomerUser } from "./supabase/server";
-import { db, ensureInvoice, bookableServiceInUse, getJobBundle, getSettings } from "./db/queries";
+import { db, ensureInvoice, bookableServiceInUse, getJobBundle, getSettings, getShopSpec } from "./db/queries";
 import { seedDemo } from "./db/seed";
 import { getSql } from "./db/index";
 import { parseMoney, parseNumber, vinOk, money } from "./format";
@@ -15,7 +15,7 @@ import type { JobStatus, PayMethod } from "./status";
 import { JOB_STATUSES, PAY_METHODS } from "./status";
 import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "./services";
 import { ELECTRIC_ENGINE, isElectricEngine } from "./vpic";
-import { oilYmmeKey, positiveNum } from "./oil-specs";
+import { oilSpecFormInput, oilYmmeKey, positiveNum } from "./oil-specs";
 import { upsertVerifiedOilSpec } from "./oil-spec-store";
 import { oilChargeCents } from "./oil-cost";
 import { hasDuplicateVin, normalizeVin } from "./vehicle-vin";
@@ -521,10 +521,8 @@ export async function saveOilSpecAction(form: FormData) {
   const sql = await db();
   const specId = str(form, "spec_id");
   const id = str(form, "id");
-  const qt = positiveNum(str(form, "oil_qt"));
-  const vis = str(form, "oil_viscosity").replace(/\s+/g, " ");
-  const tq = positiveNum(str(form, "oil_drain_tq"));
-  const socketMm = positiveNum(str(form, "oil_socket"));
+  // Blank note submitted → null (clear); note field absent → undefined (keep).
+  const { qt, vis, tq, tqNote, socketMm, blank } = oilSpecFormInput(form);
   const socketText = socketMm != null ? String(socketMm) : "";
   if (specId) {
     const [row] = await sql<{ id: string; engine_label: string }[]>`
@@ -537,6 +535,7 @@ export async function saveOilSpecAction(form: FormData) {
       oil_qt = ${qt},
       oil_viscosity = ${vis},
       oil_drain_tq = ${tq},
+      oil_drain_tq_note = ${tqNote === undefined ? sql`oil_drain_tq_note` : tqNote},
       oil_socket = ${socketText},
       socket_size_mm = ${socketMm},
       verified = TRUE,
@@ -547,12 +546,27 @@ export async function saveOilSpecAction(form: FormData) {
     redirect(`/specs/${specId}`);
   }
   const next = str(form, "next") || `/vehicles/${id}`;
-  if (!id || (!qt && !vis && !tq && !socketMm)) redirect(id ? next : "/customers");
+  if (!id) redirect("/customers");
   const [veh] = await sql<{ year: number | null; make: string; model: string; engine: string }[]>`
     SELECT year, make, model, engine FROM vehicles WHERE id = ${id} AND shop_id = ${s.shopId}
   `;
   if (!veh) redirect("/customers");
   if (isElectricEngine(veh.engine)) redirect(next);
+  // An all-blank form clears this vehicle's saved spec row (kept for its trim/body/drive/VIN facts,
+  // un-verified so it no longer fills in or blocks same-displacement picks). No row → write nothing.
+  if (blank) {
+    const spec = await getShopSpec({ ...veh, shopId: s.shopId });
+    if (spec) {
+      await sql`UPDATE oil_defaults SET
+        oil_qt = NULL, oil_viscosity = '', oil_drain_tq = NULL, oil_drain_tq_note = NULL,
+        oil_socket = '', socket_size_mm = NULL, verified = FALSE, updated_at = NOW()
+        WHERE id = ${spec.id} AND shop_id = ${s.shopId}`;
+      revalidatePath(`/vehicles/${id}`);
+      revalidatePath("/tools");
+      revalidatePath("/jobs");
+    }
+    redirect(next);
+  }
   // Legacy per-vehicle mirror (not read for auto-fill any more).
   await sql`UPDATE vehicles SET
     oil_qt = ${qt},
@@ -561,7 +575,7 @@ export async function saveOilSpecAction(form: FormData) {
     oil_socket = ${socketText},
     oil_saved = 1
     WHERE id = ${id} AND shop_id = ${s.shopId}`;
-  await upsertVerifiedOilSpec(s.shopId, veh, { vis, qt, tq, socketMm });
+  await upsertVerifiedOilSpec(s.shopId, veh, { vis, qt, tq, tqNote, socketMm });
   revalidatePath(`/vehicles/${id}`);
   revalidatePath("/tools");
   revalidatePath("/jobs");

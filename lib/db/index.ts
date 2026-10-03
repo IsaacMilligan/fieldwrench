@@ -412,6 +412,7 @@ export function ensureReady(): Promise<void> {
         // existing rows stay unverified until someone saves the spec from a job/vehicle.
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT FALSE`);
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS socket_size_mm NUMERIC`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS oil_drain_tq_note TEXT`);
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
         await sql.unsafe(`UPDATE users SET is_demo = 1, shop_id = 'demo' WHERE email = 'wrench@fieldwrench.local'`);
         await sql.unsafe(`UPDATE users SET shop_id = 'live', is_demo = 0 WHERE email <> 'wrench@fieldwrench.local'`);

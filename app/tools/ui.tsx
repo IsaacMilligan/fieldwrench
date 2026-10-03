@@ -17,6 +17,7 @@ type Decode = {
     qtWithFilter?: number | null;
     viscosity?: string;
     drainTq?: number | null;
+    drainTqNote?: string | null;
     socketMm?: number | null;
   } | null;
   bev?: boolean;
@@ -130,12 +131,12 @@ export function VinTool({
               <div className="num mt-3 text-4xl text-amber">N/A</div>
               <p className="mt-2 text-sm text-muted">No engine oil and no drain plug.</p>
             </div>
-          ) : result.oil && (result.oil.qtWithFilter || result.oil.viscosity || result.oil.drainTq) ? (
+          ) : result.oil && (result.oil.qtWithFilter || result.oil.viscosity || result.oil.drainTq || result.oil.drainTqNote) ? (
             <p className="mt-3 text-sm text-muted">
               Verified shop spec
               {result.oil.qtWithFilter ? ` · ${result.oil.qtWithFilter} qt` : ""}
               {result.oil.viscosity ? ` ${result.oil.viscosity}` : ""}
-              {result.oil.drainTq ? ` · ${result.oil.drainTq} ft-lb` : ""}
+              {result.oil.drainTqNote ? ` · ${result.oil.drainTqNote}` : result.oil.drainTq ? ` · ${result.oil.drainTq} ft-lb` : ""}
               {result.oil.socketMm ? ` · ${result.oil.socketMm} mm socket` : ""}
             </p>
           ) : (
