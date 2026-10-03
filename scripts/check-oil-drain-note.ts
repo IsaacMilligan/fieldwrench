@@ -1,4 +1,4 @@
-import { cleanDrainTqNote, drainTqText, oilSpecComplete, oilSpecHasAny, oilYmmeKey, pickVerifiedOilRow } from "../lib/oil-specs";
+import { cleanDrainTqNote, drainTqText, parseDrainTqNoteInput, oilSpecComplete, oilSpecHasAny, oilYmmeKey, pickVerifiedOilRow } from "../lib/oil-specs";
 
 let failed = 0;
 function check(name: string, got: unknown, want: unknown) {
@@ -18,6 +18,24 @@ check("text: number only", drainTqText({ drainTq: 18, drainTqNote: null }), "18 
 check("text: missing note key", drainTqText({ drainTq: 25.5 }), "25.5 ft-lb");
 check("text: blank note falls back", drainTqText({ drainTq: 18, drainTqNote: " " }), "18 ft-lb");
 check("text: nothing", drainTqText({ drainTq: null, drainTqNote: null }), "");
+
+// API input (POST /api/oil/specs): non-strings → 400.
+const TEXT_ERR = "oil_drain_tq_note must be text.";
+const err = (v: unknown) => { const r = parseDrainTqNoteInput(v); return "error" in r ? r.error : `note=${JSON.stringify(r.note)}`; };
+const note = (v: unknown) => { const r = parseDrainTqNoteInput(v); return "note" in r ? r.note : `error=${r.error}`; };
+check("input number → 400", err(123), TEXT_ERR);
+check("input 0 → 400", err(0), TEXT_ERR);
+check("input boolean → 400", err(true), TEXT_ERR);
+check("input false → 400", err(false), TEXT_ERR);
+check("input object → 400", err({ a: 1 }), TEXT_ERR);
+check("input array → 400", err(["18 ft-lb"]), TEXT_ERR);
+check("input too long → 400", err("x".repeat(201)), "oil_drain_tq_note is too long (max 200).");
+check("input 200 chars ok", note("x".repeat(200)), "x".repeat(200));
+check("input omitted keeps", note(undefined), undefined);
+check("input null clears", note(null), null);
+check("input empty clears", note(""), null);
+check("input spaces clears", note("   "), null);
+check("input string cleaned", note(`  ${NOTE}  `), NOTE);
 
 const base = { viscosity: "15W-40", qtWithFilter: 10, drainTq: null, socketMm: null };
 check("complete with note, no number", oilSpecComplete({ ...base, drainTqNote: NOTE }), true);

@@ -45,6 +45,19 @@ export function cleanDrainTqNote(v: unknown): string | null {
   return str(v) || null;
 }
 
+/**
+ * API input for oil_drain_tq_note: `undefined` (key omitted) → keep the saved note; null/"" → clear (null);
+ * a string → cleaned note; anything else (number, boolean, object, array) or > DRAIN_TQ_NOTE_MAX → error.
+ */
+export function parseDrainTqNoteInput(v: unknown): { note: string | null | undefined } | { error: string } {
+  if (v === undefined) return { note: undefined };
+  if (v === null) return { note: null };
+  if (typeof v !== "string") return { error: "oil_drain_tq_note must be text." };
+  const note = cleanDrainTqNote(v);
+  if (note && note.length > DRAIN_TQ_NOTE_MAX) return { error: `oil_drain_tq_note is too long (max ${DRAIN_TQ_NOTE_MAX}).` };
+  return { note };
+}
+
 /** Drain plug torque for display: the note when present, else "N ft-lb", else "". */
 export function drainTqText(v: Pick<OilSpecValues, "drainTq" | "drainTqNote"> | null | undefined): string {
   const note = cleanDrainTqNote(v?.drainTqNote);

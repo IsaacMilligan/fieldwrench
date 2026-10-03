@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readSession } from "@/lib/auth";
 import { lookupShopOil } from "@/lib/oil-lookup";
 import { getShopSpec } from "@/lib/db/queries";
-import { DRAIN_TQ_NOTE_MAX, oilYmmeKey } from "@/lib/oil-specs";
+import { oilYmmeKey, parseDrainTqNoteInput } from "@/lib/oil-specs";
 import { upsertVerifiedOilSpec } from "@/lib/oil-spec-store";
 import { LIVE_SHOP_ID } from "@/lib/shop";
 import { isElectricEngine } from "@/lib/vpic";
@@ -152,11 +152,11 @@ export async function POST(req: NextRequest) {
   const tq = num(body.oil_drain_tq, "oil_drain_tq", 5, 100);
   const socket = num(body.socket_size_mm, "socket_size_mm", 6, 36);
   // Optional free-text torque (two drain plugs etc.). Key absent → keep the saved note; null/"" → clear.
-  const noteRaw = "oil_drain_tq_note" in body ? text(body.oil_drain_tq_note, "oil_drain_tq_note", DRAIN_TQ_NOTE_MAX) : undefined;
+  const noteIn = parseDrainTqNoteInput("oil_drain_tq_note" in body ? body.oil_drain_tq_note : undefined);
   const errors: string[] = [];
   if (!Number.isInteger(year) || year < 1980 || year > maxYear) errors.push(`year must be 1980–${maxYear}.`);
-  for (const v of [make, model, engine, trim, visRaw, qt, tq, socket, noteRaw]) if (isBad(v)) errors.push(v.error);
-  const tqNote = noteRaw === undefined || isBad(noteRaw) ? undefined : noteRaw || null;
+  for (const v of [make, model, engine, trim, visRaw, qt, tq, socket, noteIn]) if (isBad(v)) errors.push(v.error);
+  const tqNote = "note" in noteIn ? noteIn.note : undefined;
   let vis = "";
   if (!isBad(visRaw) && visRaw) {
     const m = visRaw.toUpperCase().replace(/^SAE\s*/, "").match(/^(\d{1,2})\s*W\s*-?\s*(\d{1,2})$/);
