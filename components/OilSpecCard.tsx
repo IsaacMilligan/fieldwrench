@@ -1,6 +1,5 @@
 import { DRAIN_TQ_NOTE_MAX, drainTqText, formatNum, formatQt, oilSpecComplete, oilSpecHasAny, type OilSpecValues } from "@/lib/oil-specs";
 import { isElectricEngine } from "@/lib/vpic";
-import { OReillyProButton } from "@/components/OReillyProButton";
 import { OilScreenshotImport } from "@/components/OilScreenshotImport";
 
 /**
@@ -94,7 +93,6 @@ export function OilSpecCard({
             {has ? "Spec is missing a value." : "Look it up once, save it here."} Saved specs fill in for every car
             with this year, make, model, and engine.
           </p>
-          <OReillyProButton className="mt-3" />
         </>
       ) : null}
       {vehicle && (vehicleId || specId) ? (
