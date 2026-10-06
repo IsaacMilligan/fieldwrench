@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { drainTqText, formatNum, formatQt, oilSpecComplete, type OilSpecValues } from "@/lib/oil-specs";
-import { OReillyProButton } from "@/components/OReillyProButton";
+import { drainTqText, formatNum, formatQt, type OilSpecValues } from "@/lib/oil-specs";
 import { OIL_SAVED_EVENT, OilScreenshotImport } from "@/components/OilScreenshotImport";
 
 type View = { key: string; status: "verified"; oil: OilSpecValues } | { key: string; status: "none" };
 
 /**
  * Create-job / add-vehicle oil line. Shows the shop's VERIFIED oil spec for this exact
- * year/make/model/engine, or nothing on file + O'Reilly Pro. Never guesses.
+ * year/make/model/engine, or nothing on file. Never guesses.
  */
 export function ShopOilHint({
   year,
@@ -82,7 +81,6 @@ export function ShopOilHint({
               {current.oil.socketMm ? ` · ${formatNum(current.oil.socketMm)} mm socket` : ""}
             </p>
           ) : null}
-          {!oilSpecComplete(current.oil) ? <OReillyProButton className="mt-2" /> : null}
         </>
       ) : null}
       {current?.status === "none" ? (
@@ -91,7 +89,6 @@ export function ShopOilHint({
           <p className="mt-1 text-sm text-muted">
             No oil spec on file for this {eng ? "engine" : "vehicle"}. Save it on the job or vehicle screen.
           </p>
-          <OReillyProButton className="mt-2" />
         </>
       ) : null}
       {current ? (

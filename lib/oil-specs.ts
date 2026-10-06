@@ -4,9 +4,6 @@
  * has not saved a verified spec for a vehicle, the fields stay blank.
  */
 
-/** O'Reilly Pro has no public/documented vehicle deep link (login-gated), so link to the pro home. */
-export const OREILLY_PRO_URL = "https://www.oreillypro.com/";
-
 function str(v: unknown): string {
   return String(v ?? "").replace(/\s+/g, " ").trim();
 }
