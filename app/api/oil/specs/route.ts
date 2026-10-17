@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readSession } from "@/lib/auth";
 import { lookupShopOil } from "@/lib/oil-lookup";
 import { getShopSpec } from "@/lib/db/queries";
-import { oilYmmeKey, parseDrainTqNoteInput } from "@/lib/oil-specs";
+import { oilYmmeKey, parseDrainTqNoteInput, parseViscosityAlternatesInput } from "@/lib/oil-specs";
 import { upsertVerifiedOilSpec } from "@/lib/oil-spec-store";
 import { LIVE_SHOP_ID } from "@/lib/shop";
 import { isElectricEngine } from "@/lib/vpic";
@@ -76,6 +76,7 @@ export async function GET(req: NextRequest) {
         },
         oil: {
           viscosity: r.oil.viscosity || null,
+          oil_viscosity_alternates: r.spec.oil_viscosity_alternates ?? [],
           qtWithFilter: r.oil.qtWithFilter,
           drainTqFtLb: r.oil.drainTq,
           drainTqNote: r.oil.drainTqNote ?? null,
@@ -131,6 +132,9 @@ function isBad(v: unknown): v is Bad {
  * that row (200); a new vehicle creates one (201). Blank/null oil fields are saved blank.
  * oil_drain_tq_note (optional string, ≤200): free-text torque for two-plug engines. Omit the key to
  * keep the saved note; null/"" clears it. oil_drain_tq stays a number (or omitted/null).
+ * oil_viscosity_alternates (optional string[], ≤10 items × ≤20 chars): other acceptable grades. Omit the
+ * key to keep the saved list; null or [] clears it. Trimmed, blanks + case-insensitive dupes dropped,
+ * and a value equal to the saved oil_viscosity is dropped. oil_viscosity stays the preferred grade.
  */
 export async function POST(req: NextRequest) {
   if (!botAuthorized(req)) {
@@ -164,6 +168,10 @@ export async function POST(req: NextRequest) {
     else errors.push('oil_viscosity must look like "5W-30".');
   }
   if (!isBad(engine) && isElectricEngine(engine)) errors.push("Electric vehicles have no engine oil.");
+  // Alternates are checked against the final preferred grade (the posted one; POST saves blank as blank).
+  const altsIn = parseViscosityAlternatesInput("oil_viscosity_alternates" in body ? body.oil_viscosity_alternates : undefined, vis);
+  if (isBad(altsIn)) errors.push(altsIn.error);
+  const visAlternates = "alternates" in altsIn ? altsIn.alternates : undefined;
   if (!errors.length && !vis && qt == null && tq == null && !tqNote && socket == null) {
     errors.push("Send at least one of oil_viscosity, oil_qt, oil_drain_tq, oil_drain_tq_note, socket_size_mm.");
   }
@@ -184,6 +192,7 @@ export async function POST(req: NextRequest) {
       qt: qt as number | null,
       tq: tq as number | null,
       tqNote,
+      visAlternates,
       socketMm: socket as number | null,
     });
     const spec = saved ? await getShopSpec({ ...veh, shopId: LIVE_SHOP_ID }) : null;
@@ -201,6 +210,7 @@ export async function POST(req: NextRequest) {
           engine: spec.engine_label,
           trim: spec.trim,
           oil_viscosity: spec.oil_viscosity || null,
+          oil_viscosity_alternates: spec.oil_viscosity_alternates,
           oil_qt: spec.oil_qt,
           oil_drain_tq: spec.oil_drain_tq,
           oil_drain_tq_note: spec.oil_drain_tq_note,
