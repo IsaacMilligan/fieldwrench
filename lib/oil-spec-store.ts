@@ -40,7 +40,8 @@ export async function upsertVerifiedOilSpec(
   const noteGiven = v.tqNote !== undefined;
   const note = v.tqNote ? v.tqNote : null;
   const altsGiven = v.visAlternates !== undefined;
-  // JSON text param → text[] in SQL (avoids driver array typing; [] works the same).
+  // Sent as TEXT then cast: a bare `$n::jsonb` param makes postgres.js JSON-encode the string again
+  // ("[...]" → a jsonb string scalar → "cannot extract elements from a scalar").
   const altsJson = JSON.stringify(v.visAlternates ?? []);
   const [row] = await sql<{ id: string; inserted: boolean }[]>`
     INSERT INTO oil_defaults (
@@ -51,7 +52,8 @@ export async function upsertVerifiedOilSpec(
       ${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${shop},
       ${veh.make || ""}, ${veh.model || ""}, ${veh.engine || ""}, ${trim},
       ${v.qt}, ${v.vis}, ${v.tq}, ${note},
-      ARRAY(SELECT jsonb_array_elements_text(${altsJson}::jsonb)),
+      ARRAY(SELECT a FROM jsonb_array_elements_text(${altsJson}::text::jsonb) WITH ORDINALITY AS t(a, n)
+        WHERE upper(btrim(a)) <> upper(btrim(${v.vis}::text)) ORDER BY n),
       ${socketText}, ${v.socketMm}, TRUE, NOW(), NOW()
     )
     ON CONFLICT (shop_id, year, make_key, model_key, engine_key)
@@ -65,8 +67,14 @@ export async function upsertVerifiedOilSpec(
       oil_drain_tq_note = CASE WHEN NOT ${noteGiven}::boolean
           OR (${keep}::boolean AND oil_defaults.verified AND EXCLUDED.oil_drain_tq_note IS NULL)
         THEN oil_defaults.oil_drain_tq_note ELSE EXCLUDED.oil_drain_tq_note END,
-      oil_viscosity_alternates = CASE WHEN ${altsGiven}::boolean
-        THEN EXCLUDED.oil_viscosity_alternates ELSE oil_defaults.oil_viscosity_alternates END,
+      -- Given list (or the kept one), minus the row's final preferred grade (same CASE as oil_viscosity).
+      oil_viscosity_alternates = ARRAY(
+        SELECT a FROM unnest(CASE WHEN ${altsGiven}::boolean
+            THEN EXCLUDED.oil_viscosity_alternates ELSE oil_defaults.oil_viscosity_alternates END)
+          WITH ORDINALITY AS t(a, n)
+        WHERE upper(btrim(a)) <> upper(btrim(CASE WHEN ${keep}::boolean AND oil_defaults.verified AND EXCLUDED.oil_viscosity = ''
+          THEN oil_defaults.oil_viscosity ELSE EXCLUDED.oil_viscosity END))
+        ORDER BY n),
       oil_socket = CASE WHEN ${keep}::boolean AND oil_defaults.verified AND EXCLUDED.oil_socket = ''
         THEN oil_defaults.oil_socket ELSE EXCLUDED.oil_socket END,
       socket_size_mm = CASE WHEN ${keep}::boolean AND oil_defaults.verified AND EXCLUDED.socket_size_mm IS NULL
@@ -79,12 +87,5 @@ export async function upsertVerifiedOilSpec(
       updated_at = NOW()
     RETURNING id, (xmax = 0) AS inserted
   `;
-  if (row?.id) {
-    // Alternates never repeat the final preferred grade (it may have changed while the list was kept).
-    await sql`UPDATE oil_defaults SET oil_viscosity_alternates = ARRAY(
-        SELECT a FROM unnest(oil_viscosity_alternates) WITH ORDINALITY AS t(a, n)
-        WHERE upper(btrim(a)) <> upper(btrim(oil_viscosity)) ORDER BY n)
-      WHERE id = ${row.id} AND upper(btrim(oil_viscosity)) = ANY (SELECT upper(btrim(x)) FROM unnest(oil_viscosity_alternates) x)`;
-  }
   return row?.id ? { id: row.id, inserted: row.inserted === true } : null;
 }

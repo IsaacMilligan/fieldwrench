@@ -1006,7 +1006,9 @@ type ShopSpecRow = {
 };
 
 const SPEC_COLS = `id, year, make_label, model_label, engine_label, trim, body, drive, vin,
-      oil_qt, oil_viscosity, oil_drain_tq, oil_drain_tq_note, oil_viscosity_alternates, oil_socket, socket_size_mm, verified, updated_at`;
+      oil_qt, oil_viscosity, oil_drain_tq, oil_drain_tq_note,
+      to_jsonb(oil_viscosity_alternates) AS oil_viscosity_alternates, oil_socket, socket_size_mm, verified, updated_at`;
+// ^ text[] comes back as JSON: the driver runs with fetch_types: false, so a raw text[] would be the string "{...}".
 
 function asSpec(row: ShopSpecRow): ShopSpec {
   const qt = positiveNum(row.oil_qt);
