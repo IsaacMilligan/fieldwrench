@@ -536,6 +536,9 @@ export async function saveOilSpecAction(form: FormData) {
       oil_viscosity = ${vis},
       oil_drain_tq = ${tq},
       oil_drain_tq_note = ${tqNote === undefined ? sql`oil_drain_tq_note` : tqNote},
+      oil_viscosity_alternates = ARRAY(
+        SELECT a FROM unnest(oil_viscosity_alternates) WITH ORDINALITY AS t(a, n)
+        WHERE upper(btrim(a)) <> upper(btrim(${vis}::text)) ORDER BY n),
       oil_socket = ${socketText},
       socket_size_mm = ${socketMm},
       verified = TRUE,
@@ -558,7 +561,7 @@ export async function saveOilSpecAction(form: FormData) {
     const spec = await getShopSpec({ ...veh, shopId: s.shopId });
     if (spec) {
       await sql`UPDATE oil_defaults SET
-        oil_qt = NULL, oil_viscosity = '', oil_drain_tq = NULL, oil_drain_tq_note = NULL,
+        oil_qt = NULL, oil_viscosity = '', oil_drain_tq = NULL, oil_drain_tq_note = NULL, oil_viscosity_alternates = '{}',
         oil_socket = '', socket_size_mm = NULL, verified = FALSE, updated_at = NOW()
         WHERE id = ${spec.id} AND shop_id = ${s.shopId}`;
       revalidatePath(`/vehicles/${id}`);
@@ -624,6 +627,10 @@ export async function saveShopSpecAction(form: FormData) {
       vin = CASE WHEN EXCLUDED.vin = '' THEN oil_defaults.vin ELSE EXCLUDED.vin END,
       oil_qt = COALESCE(EXCLUDED.oil_qt, oil_defaults.oil_qt),
       oil_viscosity = CASE WHEN EXCLUDED.oil_viscosity = '' THEN oil_defaults.oil_viscosity ELSE EXCLUDED.oil_viscosity END,
+      oil_viscosity_alternates = ARRAY(
+        SELECT a FROM unnest(oil_defaults.oil_viscosity_alternates) WITH ORDINALITY AS t(a, n)
+        WHERE upper(btrim(a)) <> upper(btrim(CASE WHEN EXCLUDED.oil_viscosity = '' THEN oil_defaults.oil_viscosity ELSE EXCLUDED.oil_viscosity END))
+        ORDER BY n),
       oil_drain_tq = COALESCE(EXCLUDED.oil_drain_tq, oil_defaults.oil_drain_tq),
       oil_socket = CASE WHEN EXCLUDED.oil_socket = '' THEN oil_defaults.oil_socket ELSE EXCLUDED.oil_socket END,
       socket_size_mm = COALESCE(EXCLUDED.socket_size_mm, oil_defaults.socket_size_mm),

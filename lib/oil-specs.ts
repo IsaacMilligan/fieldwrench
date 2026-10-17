@@ -55,6 +55,57 @@ export function parseDrainTqNoteInput(v: unknown): { note: string | null | undef
   return { note };
 }
 
+export const VISC_ALT_MAX_ITEMS = 10;
+export const VISC_ALT_MAX_LEN = 20;
+
+/**
+ * Viscosity alternates for storage: each trimmed, blanks dropped, case-insensitive duplicates
+ * dropped (first spelling kept), and any value equal to the preferred `oil_viscosity` dropped.
+ */
+export function normalizeViscosityAlternates(list: readonly string[], preferred: string | null | undefined): string[] {
+  const pref = String(preferred ?? "").trim().toUpperCase();
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of list) {
+    const v = String(raw).trim();
+    const k = v.toUpperCase();
+    if (!v || k === pref || seen.has(k)) continue;
+    seen.add(k);
+    out.push(v);
+  }
+  return out;
+}
+
+/**
+ * API input for oil_viscosity_alternates: `undefined` (key omitted) → keep the saved list;
+ * null or [] → clear ([]); an array of strings → normalized list (see normalizeViscosityAlternates).
+ * Anything else, an item over VISC_ALT_MAX_LEN, or more than VISC_ALT_MAX_ITEMS after
+ * normalizing → error.
+ */
+export function parseViscosityAlternatesInput(
+  v: unknown,
+  preferred: string | null | undefined,
+): { alternates: string[] | undefined } | { error: string } {
+  if (v === undefined) return { alternates: undefined };
+  if (v === null) return { alternates: [] };
+  if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) {
+    return { error: "oil_viscosity_alternates must be an array of text." };
+  }
+  if ((v as string[]).some((x) => x.trim().length > VISC_ALT_MAX_LEN)) {
+    return { error: `oil_viscosity_alternates items must be at most ${VISC_ALT_MAX_LEN} characters.` };
+  }
+  const alternates = normalizeViscosityAlternates(v as string[], preferred);
+  if (alternates.length > VISC_ALT_MAX_ITEMS) {
+    return { error: `oil_viscosity_alternates can have at most ${VISC_ALT_MAX_ITEMS} items.` };
+  }
+  return { alternates };
+}
+
+/** Stored text[] → clean string array ([] when missing). */
+export function viscosityAlternatesOf(v: unknown): string[] {
+  return Array.isArray(v) ? v.map((x) => String(x ?? "").trim()).filter(Boolean) : [];
+}
+
 /**
  * "Save oil spec" form fields (job / vehicle / spec screens). A submitted blank note is null
  * (= clear); only a form WITHOUT the note field gives undefined (= keep). `blank` = every field empty.

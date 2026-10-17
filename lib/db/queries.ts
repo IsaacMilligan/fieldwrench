@@ -5,7 +5,7 @@ import {
   partCustomerCents,
 } from "../profit";
 import { denverDateISO } from "../format";
-import { cleanDrainTqNote, oilBaseModel, oilYmmeKey, pickVerifiedOilRow, positiveNum, type OilSpecValues } from "../oil-specs";
+import { cleanDrainTqNote, viscosityAlternatesOf, oilBaseModel, oilYmmeKey, pickVerifiedOilRow, positiveNum, type OilSpecValues } from "../oil-specs";
 import { computeInvoice, type DiscountInput, type InvoiceMath } from "../invoice";
 import type { JobStatus, PayMethod } from "../status";
 import { bookingShopId, readSession } from "../auth";
@@ -975,6 +975,8 @@ export type ShopSpec = {
   oil_viscosity: string;
   oil_drain_tq: number | null;
   oil_drain_tq_note: string | null;
+  /** Other acceptable grades besides oil_viscosity ([] when none). */
+  oil_viscosity_alternates: string[];
   /** Legacy text column; mirrors socket_mm for older readers. */
   oil_socket: string;
   socket_mm: number | null;
@@ -996,6 +998,7 @@ type ShopSpecRow = {
   oil_viscosity: string;
   oil_drain_tq: number | null;
   oil_drain_tq_note?: string | null;
+  oil_viscosity_alternates?: string[] | null;
   oil_socket: string;
   socket_size_mm?: number | string | null;
   verified?: boolean | null;
@@ -1003,7 +1006,9 @@ type ShopSpecRow = {
 };
 
 const SPEC_COLS = `id, year, make_label, model_label, engine_label, trim, body, drive, vin,
-      oil_qt, oil_viscosity, oil_drain_tq, oil_drain_tq_note, oil_socket, socket_size_mm, verified, updated_at`;
+      oil_qt, oil_viscosity, oil_drain_tq, oil_drain_tq_note,
+      to_jsonb(oil_viscosity_alternates) AS oil_viscosity_alternates, oil_socket, socket_size_mm, verified, updated_at`;
+// ^ text[] comes back as JSON: the driver runs with fetch_types: false, so a raw text[] would be the string "{...}".
 
 function asSpec(row: ShopSpecRow): ShopSpec {
   const qt = positiveNum(row.oil_qt);
@@ -1023,6 +1028,7 @@ function asSpec(row: ShopSpecRow): ShopSpec {
     oil_viscosity: String(row.oil_viscosity ?? "").trim(),
     oil_drain_tq: tq,
     oil_drain_tq_note: cleanDrainTqNote(row.oil_drain_tq_note),
+    oil_viscosity_alternates: viscosityAlternatesOf(row.oil_viscosity_alternates),
     oil_socket: socketMm != null ? String(socketMm) : String(row.oil_socket ?? "").trim(),
     socket_mm: socketMm,
     verified: row.verified === true,

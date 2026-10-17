@@ -2,7 +2,15 @@ import { db } from "@/lib/db/queries";
 import { oilYmmeKey } from "@/lib/oil-specs";
 
 /** tqNote: undefined = leave the saved note as-is (callers that don't know about it); null/"" clears. */
-export type OilSpecWrite = { vis: string; qt: number | null; tq: number | null; tqNote?: string | null; socketMm: number | null };
+/** visAlternates: undefined = keep the saved list; [] clears. Callers normalize first. */
+export type OilSpecWrite = {
+  vis: string;
+  qt: number | null;
+  tq: number | null;
+  tqNote?: string | null;
+  visAlternates?: string[];
+  socketMm: number | null;
+};
 export type OilSpecSaved = { id: string; inserted: boolean };
 
 /**
@@ -31,14 +39,22 @@ export async function upsertVerifiedOilSpec(
   const trim = String(veh.trim ?? "").trim();
   const noteGiven = v.tqNote !== undefined;
   const note = v.tqNote ? v.tqNote : null;
+  const altsGiven = v.visAlternates !== undefined;
+  // Sent as TEXT then cast: a bare `$n::jsonb` param makes postgres.js JSON-encode the string again
+  // ("[...]" → a jsonb string scalar → "cannot extract elements from a scalar").
+  const altsJson = JSON.stringify(v.visAlternates ?? []);
   const [row] = await sql<{ id: string; inserted: boolean }[]>`
     INSERT INTO oil_defaults (
       id, year, make_key, model_key, engine_key, shop_id, make_label, model_label, engine_label, trim,
-      oil_qt, oil_viscosity, oil_drain_tq, oil_drain_tq_note, oil_socket, socket_size_mm, verified, created_at, updated_at
+      oil_qt, oil_viscosity, oil_drain_tq, oil_drain_tq_note, oil_viscosity_alternates,
+      oil_socket, socket_size_mm, verified, created_at, updated_at
     ) VALUES (
       ${crypto.randomUUID()}, ${key.year}, ${key.make_key}, ${key.model_key}, ${key.engine_key}, ${shop},
       ${veh.make || ""}, ${veh.model || ""}, ${veh.engine || ""}, ${trim},
-      ${v.qt}, ${v.vis}, ${v.tq}, ${note}, ${socketText}, ${v.socketMm}, TRUE, NOW(), NOW()
+      ${v.qt}, ${v.vis}, ${v.tq}, ${note},
+      ARRAY(SELECT a FROM jsonb_array_elements_text(${altsJson}::text::jsonb) WITH ORDINALITY AS t(a, n)
+        WHERE upper(btrim(a)) <> upper(btrim(${v.vis}::text)) ORDER BY n),
+      ${socketText}, ${v.socketMm}, TRUE, NOW(), NOW()
     )
     ON CONFLICT (shop_id, year, make_key, model_key, engine_key)
     DO UPDATE SET
@@ -51,6 +67,14 @@ export async function upsertVerifiedOilSpec(
       oil_drain_tq_note = CASE WHEN NOT ${noteGiven}::boolean
           OR (${keep}::boolean AND oil_defaults.verified AND EXCLUDED.oil_drain_tq_note IS NULL)
         THEN oil_defaults.oil_drain_tq_note ELSE EXCLUDED.oil_drain_tq_note END,
+      -- Given list (or the kept one), minus the row's final preferred grade (same CASE as oil_viscosity).
+      oil_viscosity_alternates = ARRAY(
+        SELECT a FROM unnest(CASE WHEN ${altsGiven}::boolean
+            THEN EXCLUDED.oil_viscosity_alternates ELSE oil_defaults.oil_viscosity_alternates END)
+          WITH ORDINALITY AS t(a, n)
+        WHERE upper(btrim(a)) <> upper(btrim(CASE WHEN ${keep}::boolean AND oil_defaults.verified AND EXCLUDED.oil_viscosity = ''
+          THEN oil_defaults.oil_viscosity ELSE EXCLUDED.oil_viscosity END))
+        ORDER BY n),
       oil_socket = CASE WHEN ${keep}::boolean AND oil_defaults.verified AND EXCLUDED.oil_socket = ''
         THEN oil_defaults.oil_socket ELSE EXCLUDED.oil_socket END,
       socket_size_mm = CASE WHEN ${keep}::boolean AND oil_defaults.verified AND EXCLUDED.socket_size_mm IS NULL
