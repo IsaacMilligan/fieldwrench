@@ -5,7 +5,7 @@ import {
   partCustomerCents,
 } from "../profit";
 import { denverDateISO } from "../format";
-import { cleanDrainTqNote, viscosityAlternatesOf, oilBaseModel, oilYmmeKey, pickVerifiedOilRow, positiveNum, type OilSpecValues } from "../oil-specs";
+import { cleanDrainTqNote, cleanViscosityTemp, reconcileViscosityAlternates, type ViscosityAlt, oilBaseModel, oilYmmeKey, pickVerifiedOilRow, positiveNum, type OilSpecValues } from "../oil-specs";
 import { computeInvoice, type DiscountInput, type InvoiceMath } from "../invoice";
 import type { JobStatus, PayMethod } from "../status";
 import { bookingShopId, readSession } from "../auth";
@@ -975,8 +975,10 @@ export type ShopSpec = {
   oil_viscosity: string;
   oil_drain_tq: number | null;
   oil_drain_tq_note: string | null;
-  /** Other acceptable grades besides oil_viscosity ([] when none). */
-  oil_viscosity_alternates: string[];
+  /** Temperature range for oil_viscosity ("above 0°F"), null when none. */
+  oil_viscosity_temp: string | null;
+  /** Other acceptable grades besides oil_viscosity, with optional temps ([] when none). */
+  oil_viscosity_alternates: ViscosityAlt[];
   /** Legacy text column; mirrors socket_mm for older readers. */
   oil_socket: string;
   socket_mm: number | null;
@@ -999,6 +1001,8 @@ type ShopSpecRow = {
   oil_drain_tq: number | null;
   oil_drain_tq_note?: string | null;
   oil_viscosity_alternates?: string[] | null;
+  oil_viscosity_alternates_v2?: unknown;
+  oil_viscosity_temp?: string | null;
   oil_socket: string;
   socket_size_mm?: number | string | null;
   verified?: boolean | null;
@@ -1007,7 +1011,7 @@ type ShopSpecRow = {
 
 const SPEC_COLS = `id, year, make_label, model_label, engine_label, trim, body, drive, vin,
       oil_qt, oil_viscosity, oil_drain_tq, oil_drain_tq_note,
-      to_jsonb(oil_viscosity_alternates) AS oil_viscosity_alternates, oil_socket, socket_size_mm, verified, updated_at`;
+      to_jsonb(oil_viscosity_alternates) AS oil_viscosity_alternates, oil_viscosity_alternates_v2, oil_viscosity_temp, oil_socket, socket_size_mm, verified, updated_at`;
 // ^ text[] comes back as JSON: the driver runs with fetch_types: false, so a raw text[] would be the string "{...}".
 
 function asSpec(row: ShopSpecRow): ShopSpec {
@@ -1028,7 +1032,8 @@ function asSpec(row: ShopSpecRow): ShopSpec {
     oil_viscosity: String(row.oil_viscosity ?? "").trim(),
     oil_drain_tq: tq,
     oil_drain_tq_note: cleanDrainTqNote(row.oil_drain_tq_note),
-    oil_viscosity_alternates: viscosityAlternatesOf(row.oil_viscosity_alternates),
+    oil_viscosity_temp: cleanViscosityTemp(row.oil_viscosity_temp),
+    oil_viscosity_alternates: reconcileViscosityAlternates(row.oil_viscosity_alternates, row.oil_viscosity_alternates_v2),
     oil_socket: socketMm != null ? String(socketMm) : String(row.oil_socket ?? "").trim(),
     socket_mm: socketMm,
     verified: row.verified === true,
@@ -1044,6 +1049,8 @@ export function specValues(spec: ShopSpec | null | undefined): OilSpecValues | n
     drainTq: spec.oil_drain_tq,
     drainTqNote: spec.oil_drain_tq_note,
     socketMm: spec.socket_mm,
+    viscosityTemp: spec.oil_viscosity_temp,
+    viscosityAlternates: spec.oil_viscosity_alternates,
   };
 }
 

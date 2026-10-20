@@ -16,7 +16,7 @@ import { JOB_STATUSES, PAY_METHODS } from "./status";
 import { formatServiceList, isServiceId, servicesToJson, type ServiceId } from "./services";
 import { ELECTRIC_ENGINE, isElectricEngine } from "./vpic";
 import { oilSpecFormInput, oilYmmeKey, positiveNum } from "./oil-specs";
-import { upsertVerifiedOilSpec } from "./oil-spec-store";
+import { clearOilSpec, upsertVerifiedOilSpec } from "./oil-spec-store";
 import { oilChargeCents } from "./oil-cost";
 import { hasDuplicateVin, normalizeVin } from "./vehicle-vin";
 import { catalogTag, categoryForTag, catalogLaborMode } from "./catalog";
@@ -522,7 +522,7 @@ export async function saveOilSpecAction(form: FormData) {
   const specId = str(form, "spec_id");
   const id = str(form, "id");
   // Blank note submitted → null (clear); note field absent → undefined (keep).
-  const { qt, vis, tq, tqNote, socketMm, blank } = oilSpecFormInput(form);
+  const { qt, vis, tq, tqNote, visTemp, socketMm, blank } = oilSpecFormInput(form);
   const socketText = socketMm != null ? String(socketMm) : "";
   if (specId) {
     const [row] = await sql<{ id: string; engine_label: string }[]>`
@@ -536,9 +536,14 @@ export async function saveOilSpecAction(form: FormData) {
       oil_viscosity = ${vis},
       oil_drain_tq = ${tq},
       oil_drain_tq_note = ${tqNote === undefined ? sql`oil_drain_tq_note` : tqNote},
+      oil_viscosity_temp = ${visTemp === undefined ? sql`oil_viscosity_temp` : visTemp},
       oil_viscosity_alternates = ARRAY(
         SELECT a FROM unnest(oil_viscosity_alternates) WITH ORDINALITY AS t(a, n)
         WHERE upper(btrim(a)) <> upper(btrim(${vis}::text)) ORDER BY n),
+      oil_viscosity_alternates_v2 = CASE WHEN oil_viscosity_alternates_v2 IS NULL THEN NULL ELSE (
+        SELECT COALESCE(jsonb_agg(e ORDER BY n), '[]'::jsonb)
+        FROM jsonb_array_elements(oil_viscosity_alternates_v2) WITH ORDINALITY AS t(e, n)
+        WHERE upper(btrim(e->>'grade')) <> upper(btrim(${vis}::text))) END,
       oil_socket = ${socketText},
       socket_size_mm = ${socketMm},
       verified = TRUE,
@@ -560,10 +565,7 @@ export async function saveOilSpecAction(form: FormData) {
   if (blank) {
     const spec = await getShopSpec({ ...veh, shopId: s.shopId });
     if (spec) {
-      await sql`UPDATE oil_defaults SET
-        oil_qt = NULL, oil_viscosity = '', oil_drain_tq = NULL, oil_drain_tq_note = NULL, oil_viscosity_alternates = '{}',
-        oil_socket = '', socket_size_mm = NULL, verified = FALSE, updated_at = NOW()
-        WHERE id = ${spec.id} AND shop_id = ${s.shopId}`;
+      await clearOilSpec(s.shopId, spec.id);
       revalidatePath(`/vehicles/${id}`);
       revalidatePath("/tools");
       revalidatePath("/jobs");
@@ -578,7 +580,7 @@ export async function saveOilSpecAction(form: FormData) {
     oil_socket = ${socketText},
     oil_saved = 1
     WHERE id = ${id} AND shop_id = ${s.shopId}`;
-  await upsertVerifiedOilSpec(s.shopId, veh, { vis, qt, tq, tqNote, socketMm });
+  await upsertVerifiedOilSpec(s.shopId, veh, { vis, qt, tq, tqNote, visTemp, socketMm });
   revalidatePath(`/vehicles/${id}`);
   revalidatePath("/tools");
   revalidatePath("/jobs");
@@ -631,6 +633,10 @@ export async function saveShopSpecAction(form: FormData) {
         SELECT a FROM unnest(oil_defaults.oil_viscosity_alternates) WITH ORDINALITY AS t(a, n)
         WHERE upper(btrim(a)) <> upper(btrim(CASE WHEN EXCLUDED.oil_viscosity = '' THEN oil_defaults.oil_viscosity ELSE EXCLUDED.oil_viscosity END))
         ORDER BY n),
+      oil_viscosity_alternates_v2 = CASE WHEN oil_defaults.oil_viscosity_alternates_v2 IS NULL THEN NULL ELSE (
+        SELECT COALESCE(jsonb_agg(e ORDER BY n), '[]'::jsonb)
+        FROM jsonb_array_elements(oil_defaults.oil_viscosity_alternates_v2) WITH ORDINALITY AS t(e, n)
+        WHERE upper(btrim(e->>'grade')) <> upper(btrim(CASE WHEN EXCLUDED.oil_viscosity = '' THEN oil_defaults.oil_viscosity ELSE EXCLUDED.oil_viscosity END))) END,
       oil_drain_tq = COALESCE(EXCLUDED.oil_drain_tq, oil_defaults.oil_drain_tq),
       oil_socket = CASE WHEN EXCLUDED.oil_socket = '' THEN oil_defaults.oil_socket ELSE EXCLUDED.oil_socket END,
       socket_size_mm = COALESCE(EXCLUDED.socket_size_mm, oil_defaults.socket_size_mm),

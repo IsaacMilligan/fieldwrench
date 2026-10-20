@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { drainTqText, formatNum, formatQt, type OilSpecValues } from "@/lib/oil-specs";
+import { drainTqText, formatNum, formatQt, viscosityAlternatesText, viscosityWithTemp, type OilSpecValues } from "@/lib/oil-specs";
 import { OIL_SAVED_EVENT, OilScreenshotImport } from "@/components/OilScreenshotImport";
 
 type View = { key: string; status: "verified"; oil: OilSpecValues } | { key: string; status: "none" };
@@ -68,12 +68,15 @@ export function ShopOilHint({
           </div>
           <div className="num mt-1 text-2xl text-amber">
             {[
-              current.oil.viscosity || null,
+              viscosityWithTemp(current.oil.viscosity, current.oil.viscosityTemp) || null,
               current.oil.qtWithFilter ? `${formatQt(current.oil.qtWithFilter)} w/ filter` : null,
             ]
               .filter(Boolean)
               .join(" · ") || "—"}
           </div>
+          {viscosityAlternatesText(current.oil.viscosityAlternates) ? (
+            <p className="mt-1 text-sm text-muted">Also OK: {viscosityAlternatesText(current.oil.viscosityAlternates)}</p>
+          ) : null}
           {drainTqText(current.oil) || current.oil.socketMm ? (
             <p className="mt-1 text-sm text-muted">
               Drain plug
