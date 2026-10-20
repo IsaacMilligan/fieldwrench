@@ -414,6 +414,10 @@ export function ensureReady(): Promise<void> {
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS socket_size_mm NUMERIC`);
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS oil_drain_tq_note TEXT`);
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS oil_viscosity_alternates TEXT[] NOT NULL DEFAULT '{}'`);
+        // Additive only (live main still reads the TEXT[] above): temp range of the preferred grade, and
+        // alternates as [{grade, temp}]. Both nullable; no backfill (reads rebuild v2 from TEXT[]).
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS oil_viscosity_temp TEXT`);
+        await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS oil_viscosity_alternates_v2 JSONB`);
         await sql.unsafe(`ALTER TABLE oil_defaults ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
         await sql.unsafe(`UPDATE users SET is_demo = 1, shop_id = 'demo' WHERE email = 'wrench@fieldwrench.local'`);
         await sql.unsafe(`UPDATE users SET shop_id = 'live', is_demo = 0 WHERE email <> 'wrench@fieldwrench.local'`);

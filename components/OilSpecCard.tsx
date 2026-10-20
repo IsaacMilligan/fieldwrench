@@ -1,4 +1,15 @@
-import { DRAIN_TQ_NOTE_MAX, drainTqText, formatNum, formatQt, oilSpecComplete, oilSpecHasAny, type OilSpecValues } from "@/lib/oil-specs";
+import {
+  DRAIN_TQ_NOTE_MAX,
+  VISC_TEMP_MAX,
+  drainTqText,
+  formatNum,
+  formatQt,
+  oilSpecComplete,
+  oilSpecHasAny,
+  viscosityAlternatesText,
+  viscosityWithTemp,
+  type OilSpecValues,
+} from "@/lib/oil-specs";
 import { isElectricEngine } from "@/lib/vpic";
 import { OilScreenshotImport } from "@/components/OilScreenshotImport";
 
@@ -53,7 +64,10 @@ export function OilSpecCard({
     drainTq: spec?.drainTq ?? null,
     drainTqNote: spec?.drainTqNote ?? null,
     socketMm: spec?.socketMm ?? null,
+    viscosityTemp: spec?.viscosityTemp ?? null,
+    viscosityAlternates: spec?.viscosityAlternates ?? [],
   };
+  const alsoOk = viscosityAlternatesText(v.viscosityAlternates);
   const has = oilSpecHasAny(v);
   const complete = oilSpecComplete(v);
   const badge = has ? (verified ? "Verified" : "Not verified") : "";
@@ -66,13 +80,14 @@ export function OilSpecCard({
       {has ? (
         <div className="mt-3">
           <div className="flex items-baseline justify-between gap-3">
-            <div className="num text-4xl">{v.viscosity || "—"}</div>
+            <div className="num text-4xl">{viscosityWithTemp(v.viscosity, v.viscosityTemp) || "—"}</div>
             <span
               className={`text-xs font-bold uppercase tracking-widest ${verified ? "text-green" : "text-amber"}`}
             >
               {badge}
             </span>
           </div>
+          {alsoOk ? <p className="mt-1 text-sm text-muted">Also OK: {alsoOk}</p> : null}
           <div className="num mt-2 text-3xl text-amber">
             {v.qtWithFilter ? `${formatQt(v.qtWithFilter)} with filter` : "—"}
           </div>
@@ -120,6 +135,15 @@ export function OilSpecCard({
             defaultValue={v.viscosity}
             placeholder="0W-20"
             autoCapitalize="characters"
+            autoComplete="off"
+          />
+          <label className="lbl">Temp range (optional)</label>
+          <input
+            className="field"
+            name="oil_viscosity_temp"
+            defaultValue={v.viscosityTemp ?? ""}
+            maxLength={VISC_TEMP_MAX}
+            placeholder="e.g. above 0°F"
             autoComplete="off"
           />
           <label className="lbl">Capacity (qt w/ filter)</label>

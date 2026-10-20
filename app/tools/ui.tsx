@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { ScanVinButton, VIN_PAIR_BTN } from "@/components/ScanVinButton";
+import { viscosityAlternatesText, viscosityWithTemp, type ViscosityAlt } from "@/lib/oil-specs";
 
 type Decode = {
   error?: string;
@@ -16,6 +17,8 @@ type Decode = {
   oil?: {
     qtWithFilter?: number | null;
     viscosity?: string;
+    viscosityTemp?: string | null;
+    viscosityAlternates?: ViscosityAlt[];
     drainTq?: number | null;
     drainTqNote?: string | null;
     socketMm?: number | null;
@@ -135,9 +138,12 @@ export function VinTool({
             <p className="mt-3 text-sm text-muted">
               Verified shop spec
               {result.oil.qtWithFilter ? ` · ${result.oil.qtWithFilter} qt` : ""}
-              {result.oil.viscosity ? ` ${result.oil.viscosity}` : ""}
+              {result.oil.viscosity ? ` ${viscosityWithTemp(result.oil.viscosity, result.oil.viscosityTemp)}` : ""}
               {result.oil.drainTqNote ? ` · ${result.oil.drainTqNote}` : result.oil.drainTq ? ` · ${result.oil.drainTq} ft-lb` : ""}
               {result.oil.socketMm ? ` · ${result.oil.socketMm} mm socket` : ""}
+              {viscosityAlternatesText(result.oil.viscosityAlternates) ? (
+                <span className="block">Also OK: {viscosityAlternatesText(result.oil.viscosityAlternates)}</span>
+              ) : null}
             </p>
           ) : (
             <p className="mt-3 text-sm text-muted">No oil spec on file</p>
